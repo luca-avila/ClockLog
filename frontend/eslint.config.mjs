@@ -13,6 +13,50 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    files: ["components/timer/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: ["@/components/plan/*", "@components/plan/*"],
+        },
+      ],
+    },
+  },
+  {
+    files: ["lib/timer/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: ["@/lib/plan/*", "@/components/plan/*"],
+        },
+      ],
+    },
+  },
+  {
+    files: ["components/plan/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: ["@/components/timer/*", "@components/timer/*"],
+        },
+      ],
+    },
+  },
+  {
+    files: ["lib/plan/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: ["@/lib/timer/*", "@/components/timer/*"],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;
