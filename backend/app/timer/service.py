@@ -143,3 +143,50 @@ async def get_summary_by_tag(
         tag_totals[key]["block_count"] += 1
 
     return list(tag_totals.values())
+
+
+async def update_block(
+    db: AsyncSession, block_id: uuid.UUID, user_id: uuid.UUID, data: dict
+) -> Block:
+    result = await db.execute(
+        select(Block)
+        .where(Block.id == block_id, Block.user_id == user_id)
+        .options(selectinload(Block.intervals))
+    )
+    block = result.scalar_one_or_none()
+    if not block:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": "Block not found"},
+        )
+
+    updatable = {"label", "tag_id"}
+    for key, value in data.items():
+        if key in updatable and value is not None:
+            setattr(block, key, value)
+
+    # If passed, recompute intervals
+    if "started_at" in data or "ended_at" in data:
+        interval = block.intervals[0] if block.intervals else None
+        if interval:
+            if "started_at" in data:
+                interval.started_at = data["started_at"]
+            if "ended_at" in data:
+                interval.ended_at = data["ended_at"]
+
+    return block
+
+
+async def delete_block(
+    db: AsyncSession, block_id: uuid.UUID, user_id: uuid.UUID
+) -> None:
+    result = await db.execute(
+        select(Block).where(Block.id == block_id, Block.user_id == user_id)
+    )
+    block = result.scalar_one_or_none()
+    if not block:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": "Block not found"},
+        )
+    await db.delete(block)

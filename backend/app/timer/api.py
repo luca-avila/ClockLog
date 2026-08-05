@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
@@ -24,10 +25,12 @@ from app.shared.user.schemas import UserResponse
 from app.timer.schemas import BlockCreate, BlockResponse
 from app.timer.service import (
     create_block,
+    delete_block,
     get_block_by_id,
     get_blocks_in_range,
     get_recent_labels,
     get_summary_by_tag,
+    update_block,
 )
 
 router = APIRouter(prefix="/blocks", tags=["blocks"])
@@ -78,3 +81,26 @@ async def create(
     # so Pydantic serialization doesn't trigger lazy loading
     block = await get_block_by_id(db, block.id, current_user.id)
     return BlockResponse.model_validate(block)
+
+
+@router.patch("/{block_id}", response_model=BlockResponse)
+async def patch_block(
+    db: DBSession,
+    block_id: str,
+    data: dict,
+    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+):
+    block = await update_block(db, uuid.UUID(block_id), current_user.id, data)
+    await db.commit()
+    block = await get_block_by_id(db, block.id, current_user.id)
+    return BlockResponse.model_validate(block)
+
+
+@router.delete("/{block_id}", status_code=204)
+async def remove_block(
+    db: DBSession,
+    block_id: str,
+    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+):
+    await delete_block(db, uuid.UUID(block_id), current_user.id)
+    await db.commit()
