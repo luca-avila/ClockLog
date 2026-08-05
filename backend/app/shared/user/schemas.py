@@ -14,27 +14,30 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+import uuid
+from datetime import datetime
 
-from app.shared.user.api import router as user_router
-
-app = FastAPI(title="Tempo")
-
-app.include_router(user_router)
+from pydantic import BaseModel, EmailStr
 
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(_request: Request, exc: HTTPException):
-    detail = exc.detail
-    if isinstance(detail, dict) and "code" in detail:
-        return JSONResponse(status_code=exc.status_code, content=detail)
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"code": "ERROR", "message": str(detail)},
-    )
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
 
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"

@@ -21,7 +21,6 @@ from pydantic import ValidationError
 from sqlalchemy import text
 
 from app.core.config import Settings
-from app.core.db import async_session
 
 
 class TestConfig:
@@ -46,8 +45,7 @@ class TestConfig:
 
 
 @pytest.mark.asyncio
-async def test_session_roundtrips():
+async def test_session_roundtrips(db_session):
     """An async session opens, round-trips a trivial query, and closes."""
-    async with async_session() as session:
-        result = await session.execute(text("SELECT 1"))
-        assert result.scalar() == 1
+    result = await db_session.execute(text("SELECT 1"))
+    assert result.scalar() == 1

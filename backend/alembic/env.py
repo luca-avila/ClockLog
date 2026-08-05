@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from app.core.config import settings
+from app.shared.user.models import Base as UserBase
 
 config = context.config
 
@@ -13,10 +14,7 @@ if config.config_file_name is not None:
 
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
-# Import all models here for autogenerate support
-# from app.shared.user.models import Base as UserBase
-# from app.timer.models import Base as TimerBase
-target_metadata = None
+target_metadata = UserBase.metadata
 
 
 def run_migrations_offline() -> None:

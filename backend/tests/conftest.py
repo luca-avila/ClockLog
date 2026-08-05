@@ -14,27 +14,18 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+import pytest_asyncio
+from sqlalchemy import NullPool
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.shared.user.api import router as user_router
-
-app = FastAPI(title="Tempo")
-
-app.include_router(user_router)
+from app.core.config import settings
 
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(_request: Request, exc: HTTPException):
-    detail = exc.detail
-    if isinstance(detail, dict) and "code" in detail:
-        return JSONResponse(status_code=exc.status_code, content=detail)
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"code": "ERROR", "message": str(detail)},
-    )
-
-
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+@pytest_asyncio.fixture(loop_scope="function")
+async def db_session() -> AsyncSession:
+    test_engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    test_sessionmaker = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+    async with test_sessionmaker() as session:
+        yield session
+        await session.rollback()
+    await test_engine.dispose()

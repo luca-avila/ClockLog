@@ -14,27 +14,25 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+import uuid
+from datetime import UTC, datetime
 
-from app.shared.user.api import router as user_router
-
-app = FastAPI(title="Tempo")
-
-app.include_router(user_router)
+from sqlalchemy import DateTime, String
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(_request: Request, exc: HTTPException):
-    detail = exc.detail
-    if isinstance(detail, dict) and "code" in detail:
-        return JSONResponse(status_code=exc.status_code, content=detail)
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"code": "ERROR", "message": str(detail)},
+class Base(DeclarativeBase):
+    pass
+
+
+class User(Base):
+    __tablename__ = "user"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
     )
-
-
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
