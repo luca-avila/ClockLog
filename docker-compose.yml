@@ -1,0 +1,32 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://tempo:tempo@db:5432/tempo
+      - SECRET_KEY=dev-secret-change-in-production
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=tempo
+      - POSTGRES_PASSWORD=tempo
+      - POSTGRES_DB=tempo
+    # ports:  # uncomment to expose on host
+    #   - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tempo"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:
