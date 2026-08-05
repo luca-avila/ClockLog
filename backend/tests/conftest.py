@@ -1,8 +1,7 @@
 import asyncio
-
 import pytest
 import pytest_asyncio
-from sqlalchemy import NullPool
+from sqlalchemy import NullPool, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -30,6 +29,15 @@ async def engine():
 
 
 @pytest_asyncio.fixture(autouse=True)
+async def _clean_db(engine: AsyncEngine):
+    """Ensure clean state before tests run."""
+    async with engine.begin() as conn:
+        for table in ("block_interval", "block", "tag", '"user"'):
+            await conn.execute(text(f"DELETE FROM {table}"))
+    yield
+
+
+@pytest_asyncio.fixture(autouse=True)
 async def _override_db(engine: AsyncEngine):
     maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -48,3 +56,4 @@ async def db_session(engine: AsyncEngine):
     async with maker() as session:
         yield session
         await session.rollback()
+
