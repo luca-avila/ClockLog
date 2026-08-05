@@ -17,9 +17,9 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from app.shared.setting.api import router as setting_router
 from app.shared.tag.api import router as tag_router
 from app.shared.user.api import router as user_router
-from app.shared.setting.api import router as setting_router
 from app.timer.api import router as timer_router
 
 app = FastAPI(title="Tempo")

@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import desc, select
@@ -82,7 +82,7 @@ async def get_recent_labels(db: AsyncSession, user_id: uuid.UUID, limit: int = 5
         select(Block.label)
         .where(Block.user_id == user_id, Block.label.isnot(None), Block.label != "")
         .order_by(desc(Block.started_at))
-        .limit(limit * 3)  # fetch more to dedupe
+        .limit(limit * 3)
     )
     seen = set()
     labels = []
@@ -93,3 +93,53 @@ async def get_recent_labels(db: AsyncSession, user_id: uuid.UUID, limit: int = 5
             if len(labels) >= limit:
                 break
     return labels
+
+
+async def get_blocks_in_range(
+    db: AsyncSession, user_id: uuid.UUID, from_dt: datetime, to_dt: datetime
+) -> list[Block]:
+    result = await db.execute(
+        select(Block)
+        .where(
+            Block.user_id == user_id,
+            Block.started_at >= from_dt,
+            Block.started_at < to_dt,
+        )
+        .order_by(Block.started_at)
+        .options(selectinload(Block.intervals))
+    )
+    return list(result.scalars().all())
+
+
+async def get_summary_by_tag(
+    db: AsyncSession, user_id: uuid.UUID, from_dt: datetime, to_dt: datetime
+) -> list[dict]:
+    """Aggregate total duration per tag for blocks in the given range."""
+
+    blocks = await get_blocks_in_range(db, user_id, from_dt, to_dt)
+    tag_totals: dict[uuid.UUID | None, dict] = {}
+
+    for block in blocks:
+        tag_id = block.tag_id
+        tag_name = None
+        if tag_id:
+            from app.shared.tag.models import Tag
+
+            tag = await db.execute(select(Tag).where(Tag.id == tag_id))
+            t = tag.scalar_one_or_none()
+            tag_name = t.name if t else "Unknown"
+
+        dur = compute_duration(block)
+        key = tag_id if tag_id else "__untagged__"
+
+        if key not in tag_totals:
+            tag_totals[key] = {
+                "tag_id": str(tag_id) if tag_id else None,
+                "tag_name": tag_name or "Unlabeled",
+                "total_seconds": 0.0,
+                "block_count": 0,
+            }
+        tag_totals[key]["total_seconds"] += dur.total_seconds()
+        tag_totals[key]["block_count"] += 1
+
+    return list(tag_totals.values())

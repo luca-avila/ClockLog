@@ -14,13 +14,21 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from fastapi import APIRouter, Depends
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Query
 
 from app.core.db import DBSession
 from app.shared.user.api import get_current_user_dependency
 from app.shared.user.schemas import UserResponse
 from app.timer.schemas import BlockCreate, BlockResponse
-from app.timer.service import create_block, get_block_by_id, get_recent_labels
+from app.timer.service import (
+    create_block,
+    get_block_by_id,
+    get_blocks_in_range,
+    get_recent_labels,
+    get_summary_by_tag,
+)
 
 router = APIRouter(prefix="/blocks", tags=["blocks"])
 
@@ -31,6 +39,31 @@ async def recent_labels(
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
     return await get_recent_labels(db, current_user.id)
+
+
+@router.get("", response_model=list[BlockResponse])
+async def list_blocks(
+    db: DBSession,
+    from_: str = Query(alias="from"),
+    to: str = Query(alias="to"),
+    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+):
+    from_dt = datetime.fromisoformat(from_)
+    to_dt = datetime.fromisoformat(to)
+    blocks = await get_blocks_in_range(db, current_user.id, from_dt, to_dt)
+    return [BlockResponse.model_validate(b) for b in blocks]
+
+
+@router.get("/summary")
+async def summary(
+    db: DBSession,
+    from_: str = Query(alias="from"),
+    to: str = Query(alias="to"),
+    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+):
+    from_dt = datetime.fromisoformat(from_)
+    to_dt = datetime.fromisoformat(to)
+    return await get_summary_by_tag(db, current_user.id, from_dt, to_dt)
 
 
 @router.post("", response_model=BlockResponse, status_code=201)

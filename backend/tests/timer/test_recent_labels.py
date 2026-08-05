@@ -19,10 +19,10 @@ import uuid
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
+from app.core.security import create_access_token
 from app.main import app
 from app.shared.user.schemas import UserCreate
 from app.shared.user.service import create_user
-from app.core.security import create_access_token
 
 
 async def _register_and_post(db_session) -> tuple[dict, str]:

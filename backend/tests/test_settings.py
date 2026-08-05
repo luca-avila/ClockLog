@@ -17,15 +17,13 @@
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
+from app.core.security import create_access_token
 from app.main import app
 from app.shared.user.schemas import UserCreate
 from app.shared.user.service import create_user
-from app.core.security import create_access_token
 
 
 async def _auth(db_session):
-    from app.shared.user.schemas import UserCreate
-    from app.shared.user.service import create_user
 
     user = await create_user(db_session, UserCreate(email="settings@test.com", password="s"))
     await db_session.commit()
