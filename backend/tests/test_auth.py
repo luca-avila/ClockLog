@@ -64,7 +64,10 @@ class TestJWT:
 
     def test_tampered_token_is_rejected(self):
         token = create_access_token(data={"sub": "test@example.com"})
-        tampered = token[:-1] + ("B" if token[-1] != "B" else "A")
+        # Tamper the payload (middle part) — change a character to invalidate signature
+        parts = token.split(".")
+        parts[1] = parts[1][:-2] + "XX"
+        tampered = ".".join(parts)
         with pytest.raises(JWTError):
             decode_access_token(tampered)
 
