@@ -18,7 +18,7 @@ import uuid
 from datetime import timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -75,3 +75,21 @@ async def get_block_by_id(
         .options(selectinload(Block.intervals))
     )
     return result.scalar_one_or_none()
+
+
+async def get_recent_labels(db: AsyncSession, user_id: uuid.UUID, limit: int = 5) -> list[str]:
+    result = await db.execute(
+        select(Block.label)
+        .where(Block.user_id == user_id, Block.label.isnot(None), Block.label != "")
+        .order_by(desc(Block.started_at))
+        .limit(limit * 3)  # fetch more to dedupe
+    )
+    seen = set()
+    labels = []
+    for (label,) in result:
+        if label not in seen:
+            seen.add(label)
+            labels.append(label)
+            if len(labels) >= limit:
+                break
+    return labels

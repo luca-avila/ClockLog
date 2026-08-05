@@ -20,9 +20,17 @@ from app.core.db import DBSession
 from app.shared.user.api import get_current_user_dependency
 from app.shared.user.schemas import UserResponse
 from app.timer.schemas import BlockCreate, BlockResponse
-from app.timer.service import create_block, get_block_by_id
+from app.timer.service import create_block, get_block_by_id, get_recent_labels
 
 router = APIRouter(prefix="/blocks", tags=["blocks"])
+
+
+@router.get("/recent-labels")
+async def recent_labels(
+    db: DBSession,
+    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+):
+    return await get_recent_labels(db, current_user.id)
 
 
 @router.post("", response_model=BlockResponse, status_code=201)
