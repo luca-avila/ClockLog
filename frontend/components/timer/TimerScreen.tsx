@@ -20,6 +20,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   type TimerState,
   type TimerSettings,
+  type BlockType,
   elapsed,
   cyclePosition,
   nextDuration,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/timer/engine";
 import { saveBlock } from "@/lib/api/blocks";
 import CycleIndicator from "./CycleIndicator";
+import LabelSheet from "./LabelSheet";
 
 const STORAGE_KEY = "tempo_clock";
 
@@ -48,6 +50,8 @@ async function completeAndSaveBlock(s: TimerState) {
   const last = intervals[intervals.length - 1];
   if (last.endedAt === undefined) last.endedAt = t;
 
+  // When saving to the API, include the status
+  // But our TimerState doesn't track status — saveBlock uses "completed" always
   const finalState: TimerState = { ...s, intervals };
   await saveBlock(finalState);
   localStorage.removeItem(STORAGE_KEY);
@@ -59,6 +63,8 @@ export default function TimerScreen() {
   const [label, setLabel] = useState(() => loadStoredState()?.label ?? "");
   const [showControls, setShowControls] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [showLabelSheet, setShowLabelSheet] = useState(false);
+  const [nextCompleted, setNextCompleted] = useState<number | null>(null);
 
   const stateRef = useRef(state);
   const settingsRef = useRef(settings);
@@ -68,9 +74,8 @@ export default function TimerScreen() {
     settingsRef.current = settings;
   });
 
-  const running = state !== null && state.type !== "break";
+  const running = state !== null;
 
-  // Re-render every 200ms; check for completion inline
   useEffect(() => {
     if (!running) return;
 
@@ -79,7 +84,7 @@ export default function TimerScreen() {
       setNow(t);
 
       const s = stateRef.current;
-      if (!s || s.type === "break") return;
+      if (!s) return;
 
       const paused =
         s.intervals.length > 0 &&
@@ -91,28 +96,37 @@ export default function TimerScreen() {
 
       if (e >= target) {
         clearInterval(id);
-        completeAndSaveBlock(s).then(() => {
-          setState(null);
-          setLabel("");
-          setShowControls(false);
-        });
+        if (s.type === "focus") {
+          // Focus done → show label sheet
+          setShowLabelSheet(true);
+          // Complete the intervals for saving
+          const intervals = [...s.intervals];
+          const last = intervals[intervals.length - 1];
+          if (last.endedAt === undefined) last.endedAt = t;
+          setState({ ...s, intervals });
+        } else {
+          // Break done → just go to idle
+          completeAndSaveBlock(s).then(() => {
+            setState(null);
+            setNextCompleted(null);
+          });
+        }
       }
     }, 200);
 
     return () => clearInterval(id);
   }, [running]);
 
-  // Persist to localStorage
   useEffect(() => {
     if (state) localStorage.setItem(STORAGE_KEY, serializeState(state));
   }, [state]);
 
-  function startFocus(initialLabel: string | null) {
+  function startBlock(type: BlockType, initialLabel: string | null = null) {
     const t = Date.now();
     const newState: TimerState = {
-      type: "focus",
+      type,
       startedAt: t,
-      label: initialLabel || null,
+      label: initialLabel ?? null,
       tagId: null,
       focusBlocksCompleted: state?.focusBlocksCompleted ?? 0,
       intervals: [{ startedAt: t }],
@@ -142,14 +156,53 @@ export default function TimerScreen() {
   function stopBlock() {
     if (!state) return;
     completeAndSaveBlock(state).then(() => {
+      if (state.type === "focus") {
+        setNextCompleted(state.focusBlocksCompleted + 1);
+      }
       setState(null);
       setLabel("");
       setShowControls(false);
     });
   }
 
-  const currentElapsed = state ? elapsed(state.startedAt, now, state.intervals) : 0;
-  const targetDuration = state ? nextDuration(state.type, settings) * 1000 : 0;
+  function handleLabelSave(labelText: string) {
+    if (!state) return;
+    const finalState: TimerState = {
+      ...state,
+      label: labelText || "Unlabeled",
+    };
+    completeAndSaveBlock(finalState).then(() => {
+      setNextCompleted(state.focusBlocksCompleted + 1);
+      setShowLabelSheet(false);
+      setState(null);
+      setLabel("");
+      setShowControls(false);
+    });
+  }
+
+  function handleLabelSkip() {
+    if (!state) return;
+    const finalState: TimerState = { ...state, label: "Unlabeled" };
+    completeAndSaveBlock(finalState).then(() => {
+      setNextCompleted(state.focusBlocksCompleted + 1);
+      setShowLabelSheet(false);
+      setState(null);
+      setLabel("");
+      setShowControls(false);
+    });
+  }
+
+  function skipBreak() {
+    setState(null);
+    setNextCompleted(null);
+  }
+
+  const currentElapsed = state
+    ? elapsed(state.startedAt, now, state.intervals)
+    : 0;
+  const targetDuration = state
+    ? nextDuration(state.type, settings) * 1000
+    : 0;
 
   function formatTime(ms: number) {
     const s = Math.floor(ms / 1000);
@@ -157,97 +210,199 @@ export default function TimerScreen() {
     return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
   }
 
-  const pos = cyclePosition(
-    state?.focusBlocksCompleted ?? 0,
-    settings.blocksPerCycle
-  );
+  // When idle, compute what phase we're in
+  // If we just finished focus block N and N % blocksPerCycle === 0, it's long break
+  // Otherwise, short break
+  // We detect "just finished focus" by tracking focusBlocksCompleted
+  // For the first load (0 completed), it's always focus phase
+  const currentCompleted = nextCompleted ?? state?.focusBlocksCompleted ?? 0;
+  const pos = cyclePosition(currentCompleted, settings.blocksPerCycle);
 
+  // Determine next phase for idle display
+  // After completing N blocks, if N > 0 and N % blocksPerCycle === 0 → long break
+  // If N > 0 and N % blocksPerCycle !== 0 → short break
+  // If N === 0 → focus
+  const isBreakPhase = currentCompleted > 0;
+  const breakType: BlockType =
+    currentCompleted > 0 && currentCompleted % settings.blocksPerCycle === 0
+      ? "long_break"
+      : "short_break";
+
+  // IDLE
   if (!state) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 px-4">
-        <CycleIndicator completed={pos.completed} total={settings.blocksPerCycle} isBreak={false} />
-        <div className="text-7xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
-          {formatTime(targetDuration || 25 * 60 * 1000)}
+      <>
+        <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 px-4">
+          <CycleIndicator
+            completed={pos.completed}
+            total={settings.blocksPerCycle}
+            isBreak={isBreakPhase}
+          />
+
+          <div className="text-7xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
+            {isBreakPhase
+              ? formatTime(nextDuration(breakType, settings) * 1000)
+              : formatTime(settings.focusDuration * 60 * 1000)}
+          </div>
+
+          <div className="text-sm uppercase tracking-widest text-neutral-400">
+            {isBreakPhase
+              ? breakType === "long_break"
+                ? "Long break"
+                : "Short break"
+              : "Focus"}
+          </div>
+
+          {isBreakPhase ? (
+            <div className="flex flex-col items-center gap-4">
+              <p className="text-sm text-neutral-400">Step away from the screen</p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => startBlock(breakType)}
+                  className="px-10 py-3 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                  START
+                </button>
+                <button
+                  onClick={skipBreak}
+                  className="px-10 py-3 text-sm font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
+                >
+                  Skip break
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <input
+                type="text"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="What are you working on? (optional)"
+                className="w-64 text-center text-sm text-neutral-500 placeholder:text-neutral-300 border-b border-neutral-200 pb-1 outline-none focus:border-neutral-400 transition-colors"
+              />
+
+              <button
+                onClick={() => startBlock("focus", label || null)}
+                className="px-12 py-3 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors"
+              >
+                START
+              </button>
+
+              {label && (
+                <button
+                  onClick={() => startBlock("focus", label)}
+                  className="text-sm text-neutral-400 hover:text-neutral-600 transition-colors"
+                >
+                  ● Last: &quot;{label}&quot; ↺
+                </button>
+              )}
+            </>
+          )}
         </div>
-        <div className="text-sm uppercase tracking-widest text-neutral-400">Focus</div>
-        <input
-          type="text"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="What are you working on? (optional)"
-          className="w-64 text-center text-sm text-neutral-500 placeholder:text-neutral-300 border-b border-neutral-200 pb-1 outline-none focus:border-neutral-400 transition-colors"
-        />
-        <button
-          onClick={() => startFocus(label || null)}
-          className="px-12 py-3 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors"
-        >
-          START
-        </button>
-        {label && (
-          <button
-            onClick={() => startFocus(label)}
-            className="text-sm text-neutral-400 hover:text-neutral-600 transition-colors"
-          >
-            ● Last: &quot;{label}&quot; ↺
-          </button>
-        )}
-      </div>
+      </>
     );
   }
 
+  // RUNNING or PAUSED
   const fraction = targetDuration > 0 ? currentElapsed / targetDuration : 0;
   const circumference = 2 * Math.PI * 42;
+  const isBreak = state.type !== "focus";
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6 px-4">
-      <CycleIndicator
-        completed={pos.completed}
-        total={settings.blocksPerCycle}
-        isBreak={state.type !== "focus"}
-      />
-      <div className="relative">
-        <svg className="w-52 h-52 -rotate-90" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="42" fill="none" stroke={state.type === "focus" ? "#e5e5e5" : "#a7f3d0"} strokeWidth="6" />
-          <circle cx="50" cy="50" r="42" fill="none" stroke={state.type === "focus" ? "#171717" : "#059669"} strokeWidth="6" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - fraction)} className="transition-[stroke-dashoffset] duration-500 ease-linear" />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="text-3xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
-            {isPaused ? "PAUSED" : formatTime(currentElapsed)}
+    <>
+      {showLabelSheet && <LabelSheet onSave={handleLabelSave} onSkip={handleLabelSkip} />}
+
+      <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6 px-4">
+        <CycleIndicator
+          completed={pos.completed}
+          total={settings.blocksPerCycle}
+          isBreak={isBreak}
+        />
+
+        {/* Ring */}
+        <div className="relative">
+          <svg className="w-52 h-52 -rotate-90" viewBox="0 0 100 100">
+            <circle
+              cx="50" cy="50" r="42"
+              fill="none"
+              stroke={isBreak ? "#a7f3d0" : "#e5e5e5"}
+              strokeWidth="6"
+            />
+            <circle
+              cx="50" cy="50" r="42"
+              fill="none"
+              stroke={isBreak ? "#059669" : "#171717"}
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - Math.min(fraction, 1))}
+              className="transition-[stroke-dashoffset] duration-500 ease-linear"
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="text-3xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
+              {isPaused ? "PAUSED" : formatTime(currentElapsed)}
+            </div>
+            {!isPaused && (
+              <div className="text-[10px] text-neutral-400 mt-0.5">
+                of {formatTime(targetDuration)}
+              </div>
+            )}
           </div>
-          {!isPaused && (
-            <div className="text-[10px] text-neutral-400 mt-0.5">of {formatTime(targetDuration)}</div>
+        </div>
+
+        {/* Label or break message */}
+        {isBreak ? (
+          <p className="text-sm text-neutral-400">{state.type === "long_break" ? "Long break" : "Short break"}</p>
+        ) : state.label ? (
+          <div className="text-sm text-neutral-500 flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-full bg-neutral-700" />
+            {state.label}
+          </div>
+        ) : null}
+
+        <div className="mt-1">
+          <CycleIndicator
+            completed={pos.completed}
+            total={settings.blocksPerCycle}
+            isBreak={isBreak}
+          />
+        </div>
+
+        {/* Break: Skip link */}
+        {isBreak && !isPaused && (
+          <button
+            onClick={skipBreak}
+            className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors mt-2"
+          >
+            Skip break
+          </button>
+        )}
+
+        {/* Secondary controls — low contrast, revealed on tap */}
+        <div className="mt-2" onClick={() => setShowControls(!showControls)}>
+          {showControls ? (
+            <div className="flex gap-3 items-center" data-testid="secondary-controls">
+              <button
+                onClick={(e) => { e.stopPropagation(); togglePause(); }}
+                className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
+              >
+                {isPaused ? "RESUME" : "⏸ PAUSE"}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); stopBlock(); }}
+                className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
+              >
+                ⏹ STOP
+              </button>
+            </div>
+          ) : (
+            <div className="text-xs text-neutral-300 cursor-pointer select-none">
+              tap for controls
+            </div>
           )}
         </div>
       </div>
-      {state.label && (
-        <div className="text-sm text-neutral-500 flex items-center gap-1">
-          {state.type === "focus" && <span className="inline-block w-2 h-2 rounded-full bg-neutral-700" />}
-          {state.label}
-        </div>
-      )}
-      <div className="mt-1">
-        <CycleIndicator completed={pos.completed} total={settings.blocksPerCycle} isBreak={state.type !== "focus"} />
-      </div>
-      <div className="mt-4" onClick={() => setShowControls(!showControls)}>
-        {showControls ? (
-          <div className="flex gap-3 items-center" data-testid="secondary-controls">
-            <button
-              onClick={(e) => { e.stopPropagation(); togglePause(); }}
-              className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
-            >
-              {isPaused ? "RESUME" : "⏸ PAUSE"}
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); stopBlock(); }}
-              className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
-            >
-              ⏹ STOP
-            </button>
-          </div>
-        ) : (
-          <div className="text-xs text-neutral-300 cursor-pointer select-none">tap for controls</div>
-        )}
-      </div>
-    </div>
+    </>
   );
 }
