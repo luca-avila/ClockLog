@@ -15,22 +15,26 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
-from sqlalchemy import DateTime, String
-from sqlalchemy.orm import Mapped, mapped_column
-
-from app.shared.models import Base
+from pydantic import BaseModel
 
 
-class User(Base):
-    __tablename__ = "user"
+class TagCreate(BaseModel):
+    name: str
+    color: str
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
-        nullable=False,
-    )
+
+class TagUpdate(BaseModel):
+    name: str
+    color: str
+
+
+class TagResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    name: str
+    color: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

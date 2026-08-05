@@ -17,11 +17,13 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from app.shared.tag.api import router as tag_router
 from app.shared.user.api import router as user_router
 
 app = FastAPI(title="Tempo")
 
 app.include_router(user_router)
+app.include_router(tag_router)
 
 
 @app.exception_handler(HTTPException)

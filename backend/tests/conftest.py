@@ -1,31 +1,50 @@
-# Tempo — a Pomodoro timer and weekly planner
-# Copyright (C) 2024  Luca
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as published
-# by the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import asyncio
 
+import pytest
 import pytest_asyncio
 from sqlalchemy import NullPool
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app.core.config import settings
+from app.core.db import get_db
+from app.main import app
 
 
-@pytest_asyncio.fixture(loop_scope="function")
-async def db_session() -> AsyncSession:
-    test_engine = create_async_engine(settings.database_url, poolclass=NullPool)
-    test_sessionmaker = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
-    async with test_sessionmaker() as session:
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest_asyncio.fixture(scope="session")
+async def engine():
+    eng = create_async_engine(settings.database_url, poolclass=NullPool)
+    yield eng
+    await eng.dispose()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _override_db(engine: AsyncEngine):
+    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def override_get_db():
+        async with maker() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_get_db
+    yield
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def db_session(engine: AsyncEngine):
+    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with maker() as session:
         yield session
         await session.rollback()
-    await test_engine.dispose()

@@ -3,9 +3,11 @@ from logging.config import fileConfig
 
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+import app.shared.tag.models  # noqa: F401 — register Tag for autogenerate
+import app.shared.user.models  # noqa: F401 — register User for autogenerate
 from alembic import context
 from app.core.config import settings
-from app.shared.user.models import Base as UserBase
+from app.shared.models import Base
 
 config = context.config
 
@@ -14,7 +16,7 @@ if config.config_file_name is not None:
 
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
-target_metadata = UserBase.metadata
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
