@@ -17,6 +17,7 @@
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.shared.setting.models import UserSetting
@@ -33,7 +34,7 @@ async def get_or_create_settings(db: AsyncSession, user_id: uuid.UUID) -> UserSe
         db.add(setting)
         try:
             await db.flush()
-        except Exception:
+        except IntegrityError:
             await db.rollback()
             result = await db.execute(
                 select(UserSetting).where(UserSetting.user_id == user_id)

@@ -25,7 +25,7 @@ from app.shared.user.service import create_user
 
 async def _auth(db_session):
 
-    user = await create_user(db_session, UserCreate(email="settings@test.com", password="s"))
+    user = await create_user(db_session, UserCreate(email="settings@test.com", password="secret12"))
     await db_session.commit()
     token = create_access_token(data={"sub": user.email})
     return {"Authorization": f"Bearer {token}"}

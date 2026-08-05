@@ -17,7 +17,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.shared.models import Base
@@ -25,6 +25,7 @@ from app.shared.models import Base
 
 class Tag(Base):
     __tablename__ = "tag"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_tag_user_name"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(

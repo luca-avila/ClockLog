@@ -115,22 +115,23 @@ async def get_summary_by_tag(
     db: AsyncSession, user_id: uuid.UUID, from_dt: datetime, to_dt: datetime
 ) -> list[dict]:
     """Aggregate total duration per tag for blocks in the given range."""
+    from app.shared.tag.models import Tag
 
     blocks = await get_blocks_in_range(db, user_id, from_dt, to_dt)
-    tag_totals: dict[uuid.UUID | None, dict] = {}
+
+    tag_ids = {b.tag_id for b in blocks if b.tag_id is not None}
+    tag_map: dict[uuid.UUID, str] = {}
+    if tag_ids:
+        tags = await db.execute(select(Tag).where(Tag.id.in_(tag_ids)))
+        tag_map = {t.id: t.name for t in tags.scalars().all()}
+
+    tag_totals: dict[str, dict] = {}
 
     for block in blocks:
         tag_id = block.tag_id
-        tag_name = None
-        if tag_id:
-            from app.shared.tag.models import Tag
-
-            tag = await db.execute(select(Tag).where(Tag.id == tag_id))
-            t = tag.scalar_one_or_none()
-            tag_name = t.name if t else "Unknown"
-
+        tag_name = tag_map.get(tag_id) if tag_id else None
         dur = compute_duration(block)
-        key = tag_id if tag_id else "__untagged__"
+        key = str(tag_id) if tag_id else "__untagged__"
 
         if key not in tag_totals:
             tag_totals[key] = {

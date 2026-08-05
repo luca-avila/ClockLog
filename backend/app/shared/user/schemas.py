@@ -17,17 +17,17 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8)
 
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=1)  # validated against stored hash, no need for 8
 
 
 class UserResponse(BaseModel):

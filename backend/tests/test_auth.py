@@ -89,13 +89,13 @@ class TestProtectedRoutes:
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             register_resp = await client.post(
                 "/auth/register",
-                json={"email": email, "password": "secret123"},
+                json={"email": email, "password": "secret12"},
             )
             assert register_resp.status_code == 201
 
             login_resp = await client.post(
                 "/auth/login",
-                json={"email": email, "password": "secret123"},
+                json={"email": email, "password": "secret12"},
             )
             token = login_resp.json()["access_token"]
 
@@ -125,7 +125,7 @@ class TestUserService:
         email = f"alice-{uuid.uuid4()}@example.com"
         await create_user(
             db_session,
-            UserCreate(email=email, password="password123"),
+            UserCreate(email=email, password="secret12"),
         )
         await db_session.commit()
 
@@ -140,12 +140,12 @@ class TestUserService:
         email = f"bob-{uuid.uuid4()}@example.com"
         await create_user(
             db_session,
-            UserCreate(email=email, password="password123"),
+            UserCreate(email=email, password="secret12"),
         )
         await db_session.commit()
 
         with pytest.raises(HTTPException):
             await create_user(
                 db_session,
-                UserCreate(email=email, password="password456"),
+                UserCreate(email=email, password="secret12"),
             )

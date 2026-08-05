@@ -50,7 +50,7 @@ class TestHistory:
     @pytest.mark.asyncio
     async def test_blocks_in_range_ordered_by_time(self, db_session):
         user = await create_user(
-            db_session, UserCreate(email="hist@test.com", password="s")
+            db_session, UserCreate(email="hist@test.com", password="secret12")
         )
         await db_session.commit()
         token = create_access_token(data={"sub": user.email})
@@ -77,7 +77,7 @@ class TestHistory:
     @pytest.mark.asyncio
     async def test_aborted_blocks_included(self, db_session):
         user = await create_user(
-            db_session, UserCreate(email="abort@test.com", password="s")
+            db_session, UserCreate(email="abort@test.com", password="secret12")
         )
         await db_session.commit()
         token = create_access_token(data={"sub": user.email})
@@ -104,10 +104,10 @@ class TestHistory:
     @pytest.mark.asyncio
     async def test_scoped_to_user(self, db_session):
         u1 = await create_user(
-            db_session, UserCreate(email="u1-h@test.com", password="s")
+            db_session, UserCreate(email="u1-h@test.com", password="secret12")
         )
         u2 = await create_user(
-            db_session, UserCreate(email="u2-h@test.com", password="s")
+            db_session, UserCreate(email="u2-h@test.com", password="secret12")
         )
         await db_session.commit()
         h1 = {"Authorization": f"Bearer {create_access_token(data={'sub': u1.email})}"}
@@ -134,7 +134,7 @@ class TestSummary:
     @pytest.mark.asyncio
     async def test_aggregates_by_tag(self, db_session):
         user = await create_user(
-            db_session, UserCreate(email="summ@test.com", password="s")
+            db_session, UserCreate(email="summ@test.com", password="secret12")
         )
         await db_session.commit()
         token = create_access_token(data={"sub": user.email})
@@ -193,7 +193,7 @@ class TestSummary:
     @pytest.mark.asyncio
     async def test_includes_aborted_in_summary(self, db_session):
         user = await create_user(
-            db_session, UserCreate(email="abrt-s@test.com", password="s")
+            db_session, UserCreate(email="abrt-s@test.com", password="secret12")
         )
         await db_session.commit()
         token = create_access_token(data={"sub": user.email})

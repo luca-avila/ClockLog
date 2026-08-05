@@ -233,6 +233,6 @@ class TestService:
 
 async def _create_test_user(db_session: AsyncSession) -> User:
     email = f"test-{uuid.uuid4()}@example.com"
-    user = await create_user(db_session, UserCreate(email=email, password="secret"))
+    user = await create_user(db_session, UserCreate(email=email, password="secret12"))
     await db_session.commit()
     return user

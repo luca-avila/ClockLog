@@ -18,7 +18,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
 from app.main import app
-from app.shared.tag.schemas import TagCreate, TagUpdate
+from app.shared.tag.schemas import TagCreate
 from app.shared.tag.service import (
     create_tag,
     delete_tag,
@@ -37,7 +37,7 @@ async def _auth_header(db_session) -> dict:
     email = "tag-test@example.com"
     user = await get_user_by_email(db_session, email)
     if not user:
-        user = await create_user(db_session, UserCreate(email=email, password="secret"))
+        user = await create_user(db_session, UserCreate(email=email, password="secret12"))
         await db_session.commit()
 
     token = create_access_token(data={"sub": user.email})
@@ -48,7 +48,7 @@ class TestTagService:
     @pytest.mark.asyncio
     async def test_create_tag(self, db_session):
         user = await create_user(
-            db_session, UserCreate(email="svc@example.com", password="secret")
+            db_session, UserCreate(email="svc@example.com", password="secret12")
         )
         await db_session.commit()
 
@@ -64,7 +64,7 @@ class TestTagService:
     @pytest.mark.asyncio
     async def test_rename_tag(self, db_session):
         user = await create_user(
-            db_session, UserCreate(email="svc2@example.com", password="secret")
+            db_session, UserCreate(email="svc2@example.com", password="secret12")
         )
         await db_session.commit()
         tag = await create_tag(
@@ -80,7 +80,7 @@ class TestTagService:
     @pytest.mark.asyncio
     async def test_recolor_tag(self, db_session):
         user = await create_user(
-            db_session, UserCreate(email="svc3@example.com", password="secret")
+            db_session, UserCreate(email="svc3@example.com", password="secret12")
         )
         await db_session.commit()
         tag = await create_tag(
@@ -96,7 +96,7 @@ class TestTagService:
     @pytest.mark.asyncio
     async def test_delete_tag_returns_affected_count(self, db_session):
         user = await create_user(
-            db_session, UserCreate(email="svc4@example.com", password="secret")
+            db_session, UserCreate(email="svc4@example.com", password="secret12")
         )
         await db_session.commit()
         tag = await create_tag(
@@ -114,10 +114,10 @@ class TestTagService:
     @pytest.mark.asyncio
     async def test_tags_are_scoped_to_user(self, db_session):
         u1 = await create_user(
-            db_session, UserCreate(email="u1@example.com", password="secret")
+            db_session, UserCreate(email="u1@example.com", password="secret12")
         )
         u2 = await create_user(
-            db_session, UserCreate(email="u2@example.com", password="secret")
+            db_session, UserCreate(email="u2@example.com", password="secret12")
         )
         await db_session.commit()
 

@@ -14,6 +14,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import uuid
+
 from fastapi import APIRouter, Depends
 
 from app.core.db import DBSession
@@ -52,8 +54,6 @@ async def update(
     data: TagUpdate,
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
-    import uuid
-
     tag = await update_tag(
         db, uuid.UUID(tag_id),
         data.model_dump(exclude_unset=True, exclude_none=True),
@@ -69,8 +69,6 @@ async def delete(
     tag_id: str,
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
-    import uuid
-
     affected = await delete_tag(db, uuid.UUID(tag_id), current_user.id)
     await db.commit()
     return {"affected": affected}

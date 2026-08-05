@@ -26,7 +26,7 @@ from app.shared.user.service import create_user
 
 async def _register_and_auth(db_session) -> dict:
     email = f"block-{uuid.uuid4()}@example.com"
-    user = await create_user(db_session, UserCreate(email=email, password="secret"))
+    user = await create_user(db_session, UserCreate(email=email, password="secret12"))
     await db_session.commit()
     from app.core.security import create_access_token
 
