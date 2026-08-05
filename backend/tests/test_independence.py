@@ -75,9 +75,8 @@ def test_plan_contains_no_timer_vocabulary():
         text = f.read_text()
         matches = TIMER_POMODORO_WORDS.findall(text)
         if matches:
-            violations.append(
-                f"{f.relative_to(APP_ROOT)} contains: {', '.join(sorted(set(m.lower() for m in matches)))}"
-            )
+            matched = ", ".join(sorted(set(m.lower() for m in matches)))
+            violations.append(f"{f.relative_to(APP_ROOT)} contains: {matched}")
     assert not violations, (
         "plan/ must never contain timer vocabulary:\n" + "\n".join(violations)
     )
