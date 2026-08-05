@@ -17,6 +17,7 @@
 import uuid
 from datetime import timedelta
 
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -36,10 +37,15 @@ def compute_duration(block: Block) -> timedelta:
 
 async def create_block(db: AsyncSession, data: BlockCreate, user_id: uuid.UUID) -> Block:
     existing = await db.execute(
-        select(Block).where(Block.id == data.id, Block.user_id == user_id)
+        select(Block).where(Block.id == data.id)
     )
     block = existing.scalar_one_or_none()
     if block:
+        if block.user_id != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "BLOCK_OWNED_BY_OTHER", "message": "Block belongs to another user"},
+            )
         return block
 
     interval = BlockInterval(
@@ -60,7 +66,9 @@ async def create_block(db: AsyncSession, data: BlockCreate, user_id: uuid.UUID) 
     return block
 
 
-async def get_block_by_id(db: AsyncSession, block_id: uuid.UUID, user_id: uuid.UUID) -> Block | None:
+async def get_block_by_id(
+    db: AsyncSession, block_id: uuid.UUID, user_id: uuid.UUID
+) -> Block | None:
     result = await db.execute(
         select(Block)
         .where(Block.id == block_id, Block.user_id == user_id)

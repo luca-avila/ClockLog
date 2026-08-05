@@ -5,17 +5,17 @@ Revises: ea94268241a7
 Create Date: 2026-08-05 16:09:05.933225
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '5fb34efae4d6'
-down_revision: Union[str, Sequence[str], None] = 'ea94268241a7'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'ea94268241a7'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -44,7 +44,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['block_id'], ['block.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_block_interval_block_id'), 'block_interval', ['block_id'], unique=False)
+    op.create_index(op.f('ix_block_interval_block_id'), 'block_interval', ['block_id'], unique=False)  # noqa: E501
     # ### end Alembic commands ###
 
 

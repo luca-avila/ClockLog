@@ -3,13 +3,12 @@ from logging.config import fileConfig
 
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+import app.shared.tag.models  # noqa: F401
+import app.shared.user.models  # noqa: F401
+import app.timer.models  # noqa: F401
 from alembic import context
-
 from app.core.config import settings
 from app.shared.models import Base
-import app.shared.user.models  # noqa: F401
-import app.shared.tag.models  # noqa: F401
-import app.timer.models  # noqa: F401
 
 config = context.config
 

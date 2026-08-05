@@ -15,10 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import inspect, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.shared.user.models import User
@@ -30,14 +30,14 @@ from app.timer.service import compute_duration, create_block, get_block_by_id
 
 
 def make_utc(*, hour=12, minute=0) -> datetime:
-    return datetime(2026, 8, 5, hour, minute, tzinfo=timezone.utc)
+    return datetime(2026, 8, 5, hour, minute, tzinfo=UTC)
 
 
 class TestBlockModel:
     async def test_rejects_naive_datetime_in_schema(self):
         """BlockCreate.started_at / ended_at must be timezone-aware UTC."""
         naive = datetime(2026, 8, 5, 12, 0)
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             BlockCreate(
                 id=uuid.uuid4(),
                 started_at=naive,
@@ -175,7 +175,7 @@ class TestService:
             label="debug JWT refresh",
             tag_id=None,
         )
-        block = await create_block(db_session, data, user.id)
+        await create_block(db_session, data, user.id)
         await db_session.commit()
 
         retrieved = await get_block_by_id(db_session, block_id, user.id)
