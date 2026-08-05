@@ -43,7 +43,7 @@ function stateToPayload(state: TimerState): BlockPayload {
     id: state.id,
     started_at: new Date(state.startedAt).toISOString(),
     ended_at: endedAt,
-    status: "completed",
+    status: state.blockStatus,
     label: state.label ?? null,
     tag_id: state.tagId ?? null,
   };

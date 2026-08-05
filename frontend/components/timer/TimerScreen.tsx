@@ -46,12 +46,10 @@ function loadStoredState(): TimerState | null {
 
 async function completeAndSaveBlock(s: TimerState) {
   const t = Date.now();
-  const intervals = [...s.intervals];
+  const intervals = s.intervals.map((iv) => ({ ...iv }));
   const last = intervals[intervals.length - 1];
-  if (last.endedAt === undefined) last.endedAt = t;
+  if (last?.endedAt === undefined) last.endedAt = t;
 
-  // When saving to the API, include the status
-  // But our TimerState doesn't track status — saveBlock uses "completed" always
   const finalState: TimerState = { ...s, intervals };
   await saveBlock(finalState);
   localStorage.removeItem(STORAGE_KEY);
@@ -105,10 +103,9 @@ export default function TimerScreen() {
           if (last.endedAt === undefined) last.endedAt = t;
           setState({ ...s, intervals });
         } else {
-          // Break done → just go to idle
+          // Break done → go to idle, keep cycle position
           completeAndSaveBlock(s).then(() => {
             setState(null);
-            setNextCompleted(null);
           });
         }
       }
@@ -131,6 +128,7 @@ export default function TimerScreen() {
       tagId: null,
       focusBlocksCompleted: state?.focusBlocksCompleted ?? 0,
       intervals: [{ startedAt: t }],
+      blockStatus: "completed",
     };
     setState(newState);
     setShowControls(false);
@@ -156,7 +154,8 @@ export default function TimerScreen() {
 
   function stopBlock() {
     if (!state) return;
-    completeAndSaveBlock(state).then(() => {
+    const s: TimerState = { ...state, blockStatus: "aborted" };
+    completeAndSaveBlock(s).then(() => {
       if (state.type === "focus") {
         setNextCompleted(state.focusBlocksCompleted + 1);
       }
@@ -194,6 +193,9 @@ export default function TimerScreen() {
   }
 
   function skipBreak() {
+    if (state && state.type !== "focus") {
+      completeAndSaveBlock(state);
+    }
     setState(null);
     setNextCompleted(null);
     localStorage.removeItem(STORAGE_KEY);

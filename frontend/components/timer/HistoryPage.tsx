@@ -160,7 +160,7 @@ export default function HistoryPage() {
                         <span className="text-xs text-amber-500">⚠</span>
                       )}
                       <span className="text-sm text-neutral-700">
-                        {b.type === "break" ? "○" : "●"}{" "}
+                        {"● "}
                         {b.label || "Unlabeled"}
                       </span>
                     </div>

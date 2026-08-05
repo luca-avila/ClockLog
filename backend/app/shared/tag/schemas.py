@@ -17,17 +17,19 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+COLOR_PATTERN = r"^#[0-9A-Fa-f]{6}$"
 
 
 class TagCreate(BaseModel):
-    name: str
-    color: str
+    name: str = Field(min_length=1, max_length=100)
+    color: str = Field(pattern=COLOR_PATTERN)
 
 
 class TagUpdate(BaseModel):
-    name: str
-    color: str
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    color: str | None = Field(default=None, pattern=COLOR_PATTERN)
 
 
 class TagResponse(BaseModel):

@@ -41,10 +41,10 @@ class TestSettings:
             resp = await client.get("/settings", headers=Headers(headers))
         assert resp.status_code == 200
         data = resp.json()
-        assert data["focus_duration"] == 25
-        assert data["short_break_duration"] == 5
-        assert data["blocks_per_cycle"] == 4
-        assert data["auto_start_breaks"] is False
+        assert data["focusDuration"] == 25
+        assert data["shortBreakDuration"] == 5
+        assert data["blocksPerCycle"] == 4
+        assert data["autoStartBreaks"] is False
 
     @pytest.mark.asyncio
     async def test_update_and_read_back(self, db_session):
@@ -54,13 +54,12 @@ class TestSettings:
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             await client.put(
                 "/settings",
-                json={"focus_duration": 50, "auto_start_breaks": True},
+                json={"focusDuration": 50, "autoStartBreaks": True},
                 headers=Headers(headers),
             )
             resp = await client.get("/settings", headers=Headers(headers))
         assert resp.status_code == 200
         data = resp.json()
-        assert data["focus_duration"] == 50
-        assert data["auto_start_breaks"] is True
-        # unchanged defaults persist
-        assert data["short_break_duration"] == 5
+        assert data["focusDuration"] == 50
+        assert data["autoStartBreaks"] is True
+        assert data["shortBreakDuration"] == 5

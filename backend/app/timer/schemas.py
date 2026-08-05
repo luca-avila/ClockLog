@@ -16,6 +16,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 
@@ -32,9 +33,23 @@ class BlockCreate(BaseModel):
     id: uuid.UUID
     started_at: datetime
     ended_at: datetime | None
-    status: str
+    status: Literal["completed", "aborted"]
     label: str | None = None
     tag_id: uuid.UUID | None = None
+
+    @field_validator("started_at", "ended_at")
+    @classmethod
+    def must_be_timezone_aware(cls, v: datetime | None) -> datetime | None:
+        if v is not None and v.tzinfo is None:
+            raise ValueError("datetime must be timezone-aware")
+        return v
+
+
+class BlockUpdate(BaseModel):
+    label: str | None = None
+    tag_id: uuid.UUID | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
 
     @field_validator("started_at", "ended_at")
     @classmethod

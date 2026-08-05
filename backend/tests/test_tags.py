@@ -68,12 +68,12 @@ class TestTagService:
         )
         await db_session.commit()
         tag = await create_tag(
-            db_session, TagCreate(name="Old", color="#000"), user.id
+            db_session, TagCreate(name="Old", color="#000000"), user.id
         )
         await db_session.commit()
 
         updated = await update_tag(
-            db_session, tag.id, TagUpdate(name="New", color="#000"), user.id
+            db_session, tag.id, TagUpdate(name="New", color="#000000"), user.id
         )
         assert updated.name == "New"
 
@@ -100,7 +100,7 @@ class TestTagService:
         )
         await db_session.commit()
         tag = await create_tag(
-            db_session, TagCreate(name="DeleteMe", color="#000"), user.id
+            db_session, TagCreate(name="DeleteMe", color="#000000"), user.id
         )
         await db_session.commit()
 
@@ -121,8 +121,8 @@ class TestTagService:
         )
         await db_session.commit()
 
-        await create_tag(db_session, TagCreate(name="ForU1", color="#111"), u1.id)
-        await create_tag(db_session, TagCreate(name="ForU2", color="#222"), u2.id)
+        await create_tag(db_session, TagCreate(name="ForU1", color="#111111"), u1.id)
+        await create_tag(db_session, TagCreate(name="ForU2", color="#222222"), u2.id)
         await db_session.commit()
 
         u1_tags = await get_tags_for_user(db_session, u1.id)
@@ -161,7 +161,7 @@ class TestTagAPI:
             # Create a tag first
             await client.post(
                 "/tags",
-                json={"name": "ListTest", "color": "#FF0"},
+                json={"name": "ListTest", "color": "#FF0000"},
                 headers=Headers(headers),
             )
             resp = await client.get("/tags", headers=Headers(headers))

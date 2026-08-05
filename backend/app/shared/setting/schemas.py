@@ -14,28 +14,30 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SettingsUpdate(BaseModel):
-    focus_duration: int | None = None
-    short_break_duration: int | None = None
-    long_break_duration: int | None = None
-    blocks_per_cycle: int | None = None
-    auto_start_breaks: bool | None = None
-    auto_start_next: bool | None = None
+    model_config = ConfigDict(populate_by_name=True)
+
+    focus_duration: int | None = Field(default=None, ge=1, alias="focusDuration")
+    short_break_duration: int | None = Field(default=None, ge=1, alias="shortBreakDuration")
+    long_break_duration: int | None = Field(default=None, ge=1, alias="longBreakDuration")
+    blocks_per_cycle: int | None = Field(default=None, ge=1, alias="blocksPerCycle")
+    auto_start_breaks: bool | None = Field(default=None, alias="autoStartBreaks")
+    auto_start_next: bool | None = Field(default=None, alias="autoStartNext")
     sound: bool | None = None
     notifications: bool | None = None
 
 
 class SettingsResponse(BaseModel):
-    focus_duration: int
-    short_break_duration: int
-    long_break_duration: int
-    blocks_per_cycle: int
-    auto_start_breaks: bool
-    auto_start_next: bool
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    focus_duration: int = Field(alias="focusDuration")
+    short_break_duration: int = Field(alias="shortBreakDuration")
+    long_break_duration: int = Field(alias="longBreakDuration")
+    blocks_per_cycle: int = Field(alias="blocksPerCycle")
+    auto_start_breaks: bool = Field(alias="autoStartBreaks")
+    auto_start_next: bool = Field(alias="autoStartNext")
     sound: bool
     notifications: bool
-
-    model_config = {"from_attributes": True}

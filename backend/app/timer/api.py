@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, Query
 from app.core.db import DBSession
 from app.shared.user.api import get_current_user_dependency
 from app.shared.user.schemas import UserResponse
-from app.timer.schemas import BlockCreate, BlockResponse
+from app.timer.schemas import BlockCreate, BlockResponse, BlockUpdate
 from app.timer.service import (
     create_block,
     delete_block,
@@ -87,10 +87,13 @@ async def create(
 async def patch_block(
     db: DBSession,
     block_id: str,
-    data: dict,
+    data: BlockUpdate,
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
-    block = await update_block(db, uuid.UUID(block_id), current_user.id, data)
+    block = await update_block(
+        db, uuid.UUID(block_id), current_user.id,
+        data.model_dump(exclude_unset=True, exclude_none=True),
+    )
     await db.commit()
     block = await get_block_by_id(db, block.id, current_user.id)
     return BlockResponse.model_validate(block)

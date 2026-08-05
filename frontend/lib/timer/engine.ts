@@ -22,13 +22,14 @@ export interface Interval {
 }
 
 export interface TimerState {
-  id: string; // client-generated UUID, stable across replays
+  id: string;
   type: BlockType;
   startedAt: number;
   label: string | null;
   tagId: string | null;
   focusBlocksCompleted: number;
   intervals: Interval[];
+  blockStatus: "completed" | "aborted";
 }
 
 export interface TimerSettings {

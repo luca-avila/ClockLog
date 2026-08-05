@@ -162,6 +162,7 @@ describe("state serialization", () => {
       label: "debug JWT refresh",
       tagId: null,
       focusBlocksCompleted: 2,
+      blockStatus: "completed",
       intervals: [
         { startedAt: 1_700_000_000_000, endedAt: 1_700_000_000_000 + 300_000 },
         { startedAt: 1_700_000_000_000 + 360_000 },
@@ -184,6 +185,7 @@ describe("state serialization", () => {
       label: "testing localStorage",
       tagId: null,
       focusBlocksCompleted: 0,
+      blockStatus: "completed",
       intervals: [
         { startedAt: Date.now() },
       ],
