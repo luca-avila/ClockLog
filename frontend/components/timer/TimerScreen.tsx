@@ -35,6 +35,7 @@ import LabelSheet from "./LabelSheet";
 const STORAGE_KEY = "tempo_clock";
 
 function loadStoredState(): TimerState | null {
+  if (typeof window === "undefined") return null;
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) return deserializeState(stored);
@@ -59,10 +60,10 @@ export default function TimerScreen() {
   const [state, setState] = useState<TimerState | null>(loadStoredState);
   const [settings] = useState<TimerSettings>(defaultSettings);
   const [label, setLabel] = useState(() => loadStoredState()?.label ?? "");
-  const [showControls, setShowControls] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [showLabelSheet, setShowLabelSheet] = useState(false);
   const [nextCompleted, setNextCompleted] = useState<number | null>(null);
+  const [pendingBreak, setPendingBreak] = useState(false);
 
   const stateRef = useRef(state);
   const settingsRef = useRef(settings);
@@ -126,12 +127,12 @@ export default function TimerScreen() {
       startedAt: t,
       label: initialLabel ?? null,
       tagId: null,
-      focusBlocksCompleted: state?.focusBlocksCompleted ?? 0,
+      focusBlocksCompleted: nextCompleted ?? state?.focusBlocksCompleted ?? 0,
       intervals: [{ startedAt: t }],
       blockStatus: "completed",
     };
+    setPendingBreak(false);
     setState(newState);
-    setShowControls(false);
   }
 
   function togglePause() {
@@ -158,10 +159,10 @@ export default function TimerScreen() {
     completeAndSaveBlock(s).then(() => {
       if (state.type === "focus") {
         setNextCompleted(state.focusBlocksCompleted + 1);
+        setPendingBreak(true);
       }
       setState(null);
       setLabel("");
-      setShowControls(false);
     });
   }
 
@@ -173,10 +174,10 @@ export default function TimerScreen() {
     };
     completeAndSaveBlock(finalState).then(() => {
       setNextCompleted(state.focusBlocksCompleted + 1);
+      setPendingBreak(true);
       setShowLabelSheet(false);
       setState(null);
       setLabel("");
-      setShowControls(false);
     });
   }
 
@@ -185,10 +186,10 @@ export default function TimerScreen() {
     const finalState: TimerState = { ...state, label: "Unlabeled" };
     completeAndSaveBlock(finalState).then(() => {
       setNextCompleted(state.focusBlocksCompleted + 1);
+      setPendingBreak(true);
       setShowLabelSheet(false);
       setState(null);
       setLabel("");
-      setShowControls(false);
     });
   }
 
@@ -197,6 +198,7 @@ export default function TimerScreen() {
       completeAndSaveBlock(state);
     }
     setState(null);
+    setPendingBreak(false);
   }
 
   const currentElapsed = state
@@ -212,19 +214,9 @@ export default function TimerScreen() {
     return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
   }
 
-  // When idle, compute what phase we're in
-  // If we just finished focus block N and N % blocksPerCycle === 0, it's long break
-  // Otherwise, short break
-  // We detect "just finished focus" by tracking focusBlocksCompleted
-  // For the first load (0 completed), it's always focus phase
   const currentCompleted = nextCompleted ?? state?.focusBlocksCompleted ?? 0;
   const pos = cyclePosition(currentCompleted, settings.blocksPerCycle);
 
-  // Determine next phase for idle display
-  // After completing N blocks, if N > 0 and N % blocksPerCycle === 0 → long break
-  // If N > 0 and N % blocksPerCycle !== 0 → short break
-  // If N === 0 → focus
-  const isBreakPhase = currentCompleted > 0;
   const breakType: BlockType =
     currentCompleted > 0 && currentCompleted % settings.blocksPerCycle === 0
       ? "long_break"
@@ -238,24 +230,24 @@ export default function TimerScreen() {
           <CycleIndicator
             completed={pos.completed}
             total={settings.blocksPerCycle}
-            isBreak={isBreakPhase}
+            isBreak={pendingBreak}
           />
 
           <div className="text-7xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
-            {isBreakPhase
+            {pendingBreak
               ? formatTime(nextDuration(breakType, settings) * 1000)
               : formatTime(settings.focusDuration * 60 * 1000)}
           </div>
 
           <div className="text-sm uppercase tracking-widest text-neutral-400">
-            {isBreakPhase
+            {pendingBreak
               ? breakType === "long_break"
                 ? "Long break"
                 : "Short break"
               : "Focus"}
           </div>
 
-          {isBreakPhase ? (
+          {pendingBreak ? (
             <div className="flex flex-col items-center gap-4">
               <p className="text-sm text-neutral-400">Step away from the screen</p>
               <div className="flex gap-4">
@@ -373,28 +365,22 @@ export default function TimerScreen() {
           </button>
         )}
 
-        {/* Secondary controls — low contrast, revealed on tap */}
-        <div className="mt-2" onClick={() => setShowControls(!showControls)}>
-          {showControls ? (
-            <div className="flex gap-3 items-center" data-testid="secondary-controls">
-              <button
-                onClick={(e) => { e.stopPropagation(); togglePause(); }}
-                className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
-              >
-                {isPaused ? "RESUME" : "⏸ PAUSE"}
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); stopBlock(); }}
-                className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
-              >
-                ⏹ STOP
-              </button>
-            </div>
-          ) : (
-            <div className="text-xs text-neutral-300 cursor-pointer select-none">
-              tap for controls
-            </div>
-          )}
+        {/* Controls */}
+        <div className="mt-2">
+          <div className="flex gap-3 items-center" data-testid="secondary-controls">
+            <button
+              onClick={togglePause}
+              className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
+            >
+              {isPaused ? "RESUME" : "⏸ PAUSE"}
+            </button>
+            <button
+              onClick={stopBlock}
+              className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
+            >
+              ⏹ STOP
+            </button>
+          </div>
         </div>
       </div>
     </>
