@@ -138,11 +138,7 @@ class TestTagAPI:
     @pytest.mark.asyncio
     async def test_create_tag_via_api(self, db_session):
         headers = await _auth_header(db_session)
-        from app.shared.tag.api import router as tag_router
-        from app.shared.user.api import router as user_router
 
-        app.include_router(user_router)
-        app.include_router(tag_router)
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -158,11 +154,7 @@ class TestTagAPI:
     @pytest.mark.asyncio
     async def test_list_tags_via_api(self, db_session):
         headers = await _auth_header(db_session)
-        from app.shared.tag.api import router as tag_router
-        from app.shared.user.api import router as user_router
 
-        app.include_router(user_router)
-        app.include_router(tag_router)
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

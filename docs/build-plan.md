@@ -99,13 +99,13 @@ highest-value structural decision in the frontend.
 
 These block specific slices. `CLAUDE.md` § Open decisions says do not resolve them unilaterally.
 
-| Gate | Blocks | Why it blocks |
+| Gate | Blocks | Resolution |
 | --- | --- | --- |
-| **G-1 — pause vs. abort** | `S-05` (first `block` migration) | If pause is in, `block` needs a child `block_interval` table (`started_at`, `ended_at`); an accumulated `paused_ms` violates invariant 6. This changes the schema, so it must be settled *before* the first migration, not after. |
-| **G-2 — do breaks carry labels?** | `S-08` (label sheet) | Determines whether the label sheet is shown after a break, and whether `label` is nullable-by-design or break-blocks are labelless by type. |
-| **G-3 — settings storage** | `S-12` | Are durations/behavior server-side (sync across devices) or `localStorage` only? MVP is single-user; local is the boring answer, but it is a decision, not a default. |
-| **G-4 — planner tags** | `S-14` | Does the plan share the timer's tags, or get its own categories? Determines whether `tag` stays in `shared/` or is duplicated. Settle before the first `plan` migration. |
-| **G-5 — SCR-33 empty-state copy** | `S-17` | "Timers are optional." is timer vocabulary on a Plan screen and contradicts invariant 13. Either change the copy or narrow the invariant in writing. |
+| **G-1 — pause vs. abort** | `S-06` | ✅ **Pause is in.** `block` has a child `block_interval` table (`started_at`, `ended_at`). Duration is derived from interval sum, never stored. Settled 2026-08-05. |
+| **G-2 — do breaks carry labels?** | `S-10` | ✅ **No.** Breaks are dead time. Label sheet only appears after focus blocks. Break blocks are labelless by type. Settled 2026-08-05. |
+| **G-3 — settings storage** | `S-12` | ✅ **Server-side.** Settings stored in `user_setting` table (one row per user). Settled 2026-08-05. |
+| **G-4 — planner tags** | `S-19` | **Unresolved.** Does the plan share the timer's tags, or get its own categories? |
+| **G-5 — SCR-33 empty-state copy** | `S-22` | **Unresolved.** "Timers are optional." is timer vocabulary on a Plan screen and contradicts invariant 13. |
 
 ---
 
@@ -113,7 +113,7 @@ These block specific slices. `CLAUDE.md` § Open decisions says do not resolve t
 
 No product behavior. The goal is that every later slice starts from a working test command.
 
-### S-01 — Repo skeleton and running test commands
+### S-01 ✅ — Repo skeleton and running test commands
 **Read:** `CLAUDE.md` (Structure, Commands, Stack, License).
 **Touch:** `docker-compose.yml`, `backend/` skeleton, `frontend/` skeleton, `pyproject.toml`,
 `ruff` config, `pytest` config, frontend test runner config, AGPL headers.
@@ -122,7 +122,7 @@ asserting the test runner runs. Both must fail before the skeleton exists.
 **Done when:** `docker compose up -d`, `docker compose exec backend pytest`, and
 `cd frontend && npm run test` all succeed, and lint is clean.
 
-### S-02 — Module independence, enforced
+### S-02 ✅ — Module independence, enforced
 **Read:** `CLAUDE.md` (Invariants 11–13).
 **Touch:** `backend/tests/test_independence.py`, `frontend/` equivalent lint rule.
 **Tests first:**
@@ -136,14 +136,14 @@ were added. Verify by adding one temporarily and watching it go red.
 > This slice is early on purpose. The invariant is cheap to hold from commit one and expensive
 > to restore later.
 
-### S-03 — Core: config, DB session, Alembic baseline
+### S-03 ✅ — Core: config, DB session, Alembic baseline
 **Read:** `CLAUDE.md` (Stack, Backend conventions), `S-01` output.
 **Touch:** `backend/app/core/config.py`, `core/db.py`, `alembic/`.
 **Tests first:** config loads from env and fails loudly on a missing required var; an async
 session opens, round-trips a trivial query, and closes.
 **Done when:** `alembic upgrade head` runs against an empty DB. No tables yet.
 
-### S-04 — Auth (`shared/user`) — vertical slice
+### S-04 ✅ — Auth (`shared/user`) — vertical slice
 **Read:** `CLAUDE.md` (Auth line, Backend conventions), `ux-research.md` § Edge cases →
 "Session expired".
 **Touch:** `core/security.py`, `shared/user/{models,schemas,service,api}.py`, migration.
@@ -162,7 +162,7 @@ Slices are ordered so that every one of them is independently demoable. Backend-
 slice where the frontend needs a real endpoint; otherwise frontend and backend of the same slice
 land together.
 
-### S-05 — `shared/tag` — vertical slice
+### S-05 ✅ — `shared/tag` — vertical slice
 **Gate:** none. **Read:** `CLAUDE.md` (invariant 10), `wireframes.md` SCR-40 (Data → Tags).
 **Touch:** `shared/tag/*`, migration, `lib/api/tags.ts`, `components/shared/TagPicker.tsx`.
 **Tests first:**
@@ -173,7 +173,7 @@ land together.
 - Delete returns the count of affected rows so the UI can warn ("Borrar un tag con 14 blocks").
 **Done when:** tags are CRUD-able and the delete semantics are proven by test.
 
-### S-06 — `timer` domain core: the block model — vertical slice
+### S-06 ✅ — `timer` domain core: the block model — vertical slice
 **Gate:** **G-1 must be resolved first.** This is the first migration touching `block`.
 **Read:** `CLAUDE.md` (invariants 5–9, Backend conventions), `wireframes.md` SCR-11/SCR-12.
 **Touch:** `timer/{models,schemas,service}.py`, migration, `tests/timer/`.
@@ -187,14 +187,14 @@ land together.
 - Index `blocks(user_id, started_at)` exists.
 **Done when:** the service layer can create and read blocks. No HTTP yet.
 
-### S-07 — `POST /blocks` — vertical slice
+### S-07 ✅ — `POST /blocks` — vertical slice
 **Read:** `timer/schemas.py`, `timer/service.py` signatures, `CLAUDE.md` (invariants 2, 3).
 **Touch:** `timer/api.py`, `lib/api/blocks.ts`.
 **Tests first:** one POST per block; the endpoint rejects a payload lacking `started_at`; a
 second POST of the same client UUID is idempotent; another user's block is not writable.
 **Done when:** a block can be recorded over HTTP. Router stays thin.
 
-### S-08 — Frontend timer engine (`lib/timer/`) — pure logic, no UI
+### S-08 ✅ — Frontend timer engine (`lib/timer/`) — pure logic, no UI
 **Read:** `CLAUDE.md` (invariants 1, 4), `wireframes.md` SCR-10/11/12/13 and § Storyboard.
 **Touch:** `frontend/lib/timer/*`, its tests. **No components in this slice.**
 **Tests first** — this is the highest-value test file in the repo:
@@ -209,7 +209,7 @@ second POST of the same client UUID is idempotent; another user's block is not w
 - A DST boundary inside a block does not change its real duration.
 **Done when:** every timer rule is proven without rendering anything.
 
-### S-09 — Timer UI: idle → running → stop (SCR-10, SCR-11, SCR-12)
+### S-09 ✅ — Timer UI: idle → running → stop (SCR-10, SCR-11, SCR-12)
 **Gate:** SCR-12 exists only if G-1 resolved as "pause is in".
 **Read:** `wireframes.md` SCR-10/11/12 + § Desktop, `lib/timer/` interface, `lib/api/blocks.ts`.
 **Touch:** `components/timer/*`, `app/(timer)/*`.
@@ -219,7 +219,7 @@ exactly one place.
 **Done when:** a full block can be run and lands in the DB. Mobile layout first, `md:`/`lg:`
 after, per the § Desktop notes.
 
-### S-10 — Label sheet (SCR-14) + recent-label autocomplete
+### S-10 ✅ — Label sheet (SCR-14) + recent-label autocomplete
 **Gate:** **G-2** (do breaks carry labels?).
 **Read:** `wireframes.md` SCR-14 + § Storyboard branches, `timer/schemas.py`.
 **Touch:** `components/timer/LabelSheet.tsx`, `timer/service.py` (recent labels query),
@@ -231,7 +231,7 @@ after, per the § Desktop notes.
 - Recent labels are deduped, most-recent-first, scoped to the user.
 **Done when:** the sheet saves in one tap from a recent chip.
 
-### S-11 — Breaks (SCR-13)
+### S-11 ✅ — Breaks (SCR-13)
 **Read:** `wireframes.md` SCR-13 + its callout, `CLAUDE.md` (the auto-start callout under
 Invariants → Timer).
 **Touch:** `components/timer/Break.tsx`, `lib/timer/`.
@@ -243,7 +243,7 @@ Invariants → Timer).
 - `Skip break` records nothing and goes straight to the next focus.
 **Done when:** both branches of the storyboard step 4 are covered.
 
-### S-12 — Settings (SCR-40)
+### S-12 ✅ — Settings (SCR-40)
 **Gate:** **G-3** (server vs. local storage).
 **Read:** `wireframes.md` SCR-40.
 **Touch:** per G-3.
@@ -251,7 +251,7 @@ Invariants → Timer).
 defaults are OFF and persist as OFF across reloads.
 **Done when:** changing focus duration to 50 changes the next block.
 
-### S-13 — History: range query and aggregation — backend
+### S-13 ✅ — History: range query and aggregation — backend
 **Read:** `CLAUDE.md` (invariants 5, 7, Backend conventions), `wireframes.md` SCR-20.
 **Touch:** `timer/service.py`, `timer/api.py` (`GET /blocks?from=&to=`).
 **Tests first:**
@@ -265,7 +265,7 @@ defaults are OFF and persist as OFF across reloads.
 **Done when:** a day of blocks aggregates correctly for a client in a non-UTC timezone. Test
 with at least one offset that is not a whole hour.
 
-### S-14 — History UI: day view (SCR-20)
+### S-14 ✅ — History UI: day view (SCR-20)
 **Read:** `wireframes.md` SCR-20 + § Desktop, `lib/api/blocks.ts`.
 **Touch:** `components/timer/History*`, `lib/date/` (local day boundaries → UTC range).
 **Tests first:** local-day-boundary conversion is a pure, exhaustively tested function
@@ -273,7 +273,7 @@ with at least one offset that is not a whole hour.
 never fabricated encouragement.
 **Done when:** SCR-20 renders real data. `+ Add block manually` is **not** built (phase 3).
 
-### S-15 — Block edit and delete (SCR-21)
+### S-15 ✅ — Block edit and delete (SCR-21)
 **Read:** `wireframes.md` SCR-21, `CLAUDE.md` (invariant 8 — append-only *from the client's
 perspective*; edits are a separate, server-side path).
 **Touch:** `timer/service.py`, `timer/api.py` (`PATCH`/`DELETE /blocks/{id}`),
@@ -359,31 +359,33 @@ deletable without breaking the other (invariant 11).
 
 ## 8. Slice map
 
-| ID | Slice | Screens | Gate |
-| --- | --- | --- | --- |
-| S-01 | Repo skeleton | — | |
-| S-02 | Independence enforced | — | |
-| S-03 | Core: config, DB, Alembic | — | |
-| S-04 | Auth | — | |
-| S-05 | Tags | SCR-40 (Data) | |
-| S-06 | Block model | — | **G-1** |
-| S-07 | `POST /blocks` | — | |
-| S-08 | Timer engine (pure) | — | |
-| S-09 | Timer UI | SCR-10/11/12 | G-1 |
-| S-10 | Label sheet | SCR-14 | **G-2** |
-| S-11 | Breaks | SCR-13 | |
-| S-12 | Settings | SCR-40 | **G-3** |
-| S-13 | History backend | — | |
-| S-14 | History UI | SCR-20 | |
-| S-15 | Block edit | SCR-21 | |
-| S-16 | Alerts | — | |
-| S-17 | Offline sync | — | |
-| S-18 | Deploy | — | |
-| S-19 | Plan core | — | **G-4** |
-| S-20 | Plan week + day | SCR-30/31 | |
-| S-21 | Entry editor | SCR-32 | |
-| S-22 | Empty week | SCR-33 | **G-5** |
-| S-23 | Deletability proof | — | |
+✅ = completed
+
+| ID | Slice | Screens | Gate | Status |
+| --- | --- | --- | --- | --- |
+| S-01 | Repo skeleton | — | | ✅ |
+| S-02 | Independence enforced | — | | ✅ |
+| S-03 | Core: config, DB, Alembic | — | | ✅ |
+| S-04 | Auth | — | | ✅ |
+| S-05 | Tags | SCR-40 (Data) | | ✅ |
+| S-06 | Block model | — | G-1 | ✅ |
+| S-07 | `POST /blocks` | — | | ✅ |
+| S-08 | Timer engine (pure) | — | | ✅ |
+| S-09 | Timer UI | SCR-10/11/12 | G-1 | ✅ |
+| S-10 | Label sheet | SCR-14 | G-2 | ✅ |
+| S-11 | Breaks | SCR-13 | | ✅ |
+| S-12 | Settings | SCR-40 | G-3 | ✅ |
+| S-13 | History backend | — | | ✅ |
+| S-14 | History UI | SCR-20 | | ✅ |
+| S-15 | Block edit | SCR-21 | | ✅ |
+| S-16 | Alerts | — | | |
+| S-17 | Offline sync | — | | |
+| S-18 | Deploy | — | | |
+| S-19 | Plan core | — | **G-4** | |
+| S-20 | Plan week + day | SCR-30/31 | | |
+| S-21 | Entry editor | SCR-32 | | |
+| S-22 | Empty week | SCR-33 | **G-5** | |
+| S-23 | Deletability proof | — | | |
 
 ---
 

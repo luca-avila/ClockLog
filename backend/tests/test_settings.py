@@ -35,11 +35,7 @@ class TestSettings:
     @pytest.mark.asyncio
     async def test_get_defaults(self, db_session):
         headers = await _auth(db_session)
-        from app.shared.setting.api import router
-        from app.shared.user.api import router as user_router
 
-        app.include_router(user_router)
-        app.include_router(router)
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/settings", headers=Headers(headers))
@@ -53,11 +49,7 @@ class TestSettings:
     @pytest.mark.asyncio
     async def test_update_and_read_back(self, db_session):
         headers = await _auth(db_session)
-        from app.shared.setting.api import router
-        from app.shared.user.api import router as user_router
 
-        app.include_router(user_router)
-        app.include_router(router)
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             await client.put(

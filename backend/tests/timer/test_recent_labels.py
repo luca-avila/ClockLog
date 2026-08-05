@@ -38,9 +38,7 @@ class TestRecentLabels:
     @pytest.mark.asyncio
     async def test_deduped_most_recent_first(self, db_session):
         headers, _ = await _register_and_post(db_session)
-        from app.timer.api import router
 
-        app.include_router(router)
         transport = ASGITransport(app=app)
 
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -80,9 +78,7 @@ class TestRecentLabels:
     async def test_scoped_to_user(self, db_session):
         headers1, _ = await _register_and_post(db_session)
         headers2, _ = await _register_and_post(db_session)
-        from app.timer.api import router
 
-        app.include_router(router)
         transport = ASGITransport(app=app)
 
         async with AsyncClient(transport=transport, base_url="http://test") as client:

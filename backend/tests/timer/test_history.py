@@ -56,11 +56,7 @@ class TestHistory:
         token = create_access_token(data={"sub": user.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        from app.shared.user.api import router as user_router
-        from app.timer.api import router
 
-        app.include_router(user_router)
-        app.include_router(router)
         transport = ASGITransport(app=app)
 
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -87,11 +83,7 @@ class TestHistory:
         token = create_access_token(data={"sub": user.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        from app.shared.user.api import router as user_router
-        from app.timer.api import router
 
-        app.include_router(user_router)
-        app.include_router(router)
         transport = ASGITransport(app=app)
 
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -121,11 +113,7 @@ class TestHistory:
         h1 = {"Authorization": f"Bearer {create_access_token(data={'sub': u1.email})}"}
         h2 = {"Authorization": f"Bearer {create_access_token(data={'sub': u2.email})}"}
 
-        from app.shared.user.api import router as user_router
-        from app.timer.api import router
 
-        app.include_router(user_router)
-        app.include_router(router)
         transport = ASGITransport(app=app)
 
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -152,17 +140,11 @@ class TestSummary:
         token = create_access_token(data={"sub": user.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        from app.shared.user.api import router as user_router
-        from app.timer.api import router
 
-        app.include_router(user_router)
-        app.include_router(router)
         transport = ASGITransport(app=app)
 
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             # Create a tag first
-            from app.shared.tag.api import router as tag_router
-            app.include_router(tag_router)
             tag_resp = await client.post(
                 "/tags",
                 json={"name": "Study", "color": "#FF0000"},
@@ -217,11 +199,7 @@ class TestSummary:
         token = create_access_token(data={"sub": user.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        from app.shared.user.api import router as user_router
-        from app.timer.api import router
 
-        app.include_router(user_router)
-        app.include_router(router)
         transport = ASGITransport(app=app)
 
         async with AsyncClient(transport=transport, base_url="http://test") as client:

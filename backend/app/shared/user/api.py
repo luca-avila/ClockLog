@@ -16,6 +16,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError
 
 from app.core.db import DBSession
 from app.core.security import decode_access_token
@@ -30,7 +31,13 @@ async def get_current_user_dependency(
     db: DBSession,
     credentials: HTTPAuthorizationCredentials = Depends(security),  # noqa: B008
 ) -> UserResponse:
-    payload = decode_access_token(credentials.credentials)
+    try:
+        payload = decode_access_token(credentials.credentials)
+    except JWTError as e:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "INVALID_TOKEN", "message": "Invalid or expired token"},
+        ) from e
     email = payload.get("sub")
     if not email:
         raise HTTPException(

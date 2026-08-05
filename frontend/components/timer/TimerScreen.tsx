@@ -124,6 +124,7 @@ export default function TimerScreen() {
   function startBlock(type: BlockType, initialLabel: string | null = null) {
     const t = Date.now();
     const newState: TimerState = {
+      id: crypto.randomUUID(),
       type,
       startedAt: t,
       label: initialLabel ?? null,
@@ -195,6 +196,7 @@ export default function TimerScreen() {
   function skipBreak() {
     setState(null);
     setNextCompleted(null);
+    localStorage.removeItem(STORAGE_KEY);
   }
 
   const currentElapsed = state

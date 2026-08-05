@@ -35,10 +35,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     )
 
 
-def create_access_token(data: dict, expires_delta: int | None = None) -> str:
+def create_access_token(data: dict, expires_delta_seconds: int | None = None) -> str:
     to_encode = data.copy()
-    if expires_delta is not None:
-        expire = datetime.now(UTC) + timedelta(seconds=expires_delta)
+    if expires_delta_seconds is not None:
+        expire = datetime.now(UTC) + timedelta(seconds=expires_delta_seconds)
     else:
         expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})

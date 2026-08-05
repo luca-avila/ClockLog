@@ -68,7 +68,11 @@ async def update_tag(
 async def delete_tag(
     db: AsyncSession, tag_id: uuid.UUID, user_id: uuid.UUID
 ) -> int:
-    """Delete a tag and return the count of affected rows (blocks/activities untagged)."""
+    """Delete a tag and return the count of affected blocks (untagged)."""
+    from sqlalchemy import func
+
+    from app.timer.models import Block
+
     result = await db.execute(
         select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id)
     )
@@ -78,7 +82,9 @@ async def delete_tag(
             status_code=404,
             detail={"code": "TAG_NOT_FOUND", "message": "Tag not found"},
         )
-    # No block or plan tables yet, so no affected rows to count
-    affected = 0
+    affected = await db.execute(
+        select(func.count(Block.id)).where(Block.tag_id == tag_id)
+    )
+    count = affected.scalar() or 0
     await db.delete(tag)
-    return affected
+    return count

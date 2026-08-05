@@ -31,7 +31,14 @@ async def get_or_create_settings(db: AsyncSession, user_id: uuid.UUID) -> UserSe
     if not setting:
         setting = UserSetting(user_id=user_id)
         db.add(setting)
-        await db.flush()
+        try:
+            await db.flush()
+        except Exception:
+            await db.rollback()
+            result = await db.execute(
+                select(UserSetting).where(UserSetting.user_id == user_id)
+            )
+            setting = result.scalar_one()
     return setting
 
 
@@ -39,6 +46,6 @@ async def update_settings(
     db: AsyncSession, user_id: uuid.UUID, data: SettingsUpdate
 ) -> UserSetting:
     setting = await get_or_create_settings(db, user_id)
-    for field, value in data.model_dump(exclude_unset=True).items():
+    for field, value in data.model_dump(exclude_unset=True, exclude_none=True).items():
         setattr(setting, field, value)
     return setting

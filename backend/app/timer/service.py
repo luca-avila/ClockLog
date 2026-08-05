@@ -160,19 +160,45 @@ async def update_block(
             detail={"code": "NOT_FOUND", "message": "Block not found"},
         )
 
-    updatable = {"label", "tag_id"}
-    for key, value in data.items():
-        if key in updatable and value is not None:
-            setattr(block, key, value)
+    for key in {"label", "tag_id"}:
+        if key in data:
+            setattr(block, key, data[key])
 
-    # If passed, recompute intervals
     if "started_at" in data or "ended_at" in data:
-        interval = block.intervals[0] if block.intervals else None
-        if interval:
-            if "started_at" in data:
-                interval.started_at = data["started_at"]
-            if "ended_at" in data:
-                interval.ended_at = data["ended_at"]
+        if not block.intervals:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "NO_INTERVALS", "message": "Block has no intervals"},
+            )
+        interval = block.intervals[0]
+        if "started_at" in data:
+            new_start = data["started_at"]
+            if not isinstance(new_start, datetime) or new_start.tzinfo is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"code": "NAIVE_DATETIME", "message": "datetime must be timezone-aware"},
+                )
+            interval.started_at = new_start
+        if "ended_at" in data:
+            new_end = data["ended_at"]
+            if new_end is not None:
+                if not isinstance(new_end, datetime) or new_end.tzinfo is None:
+                    raise HTTPException(
+                        status_code=422,
+                        detail={
+                            "code": "NAIVE_DATETIME",
+                            "message": "datetime must be timezone-aware",
+                        },
+                    )
+                if new_end < interval.started_at:
+                    raise HTTPException(
+                        status_code=422,
+                        detail={
+                            "code": "INVALID_INTERVAL",
+                            "message": "ended_at must be after started_at",
+                        },
+                    )
+            interval.ended_at = new_end
 
     return block
 

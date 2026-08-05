@@ -57,7 +57,7 @@ class TestJWT:
     def test_expired_token_is_rejected(self):
         token = create_access_token(
             data={"sub": "test@example.com"},
-            expires_delta=-1,
+            expires_delta_seconds=-1,
         )
         with pytest.raises(JWTError):
             decode_access_token(token)
@@ -75,9 +75,7 @@ class TestJWT:
 class TestProtectedRoutes:
     @pytest.mark.asyncio
     async def test_no_token_returns_401(self):
-        from app.shared.user.api import router
 
-        app.include_router(router)
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/auth/me")
@@ -86,9 +84,7 @@ class TestProtectedRoutes:
     @pytest.mark.asyncio
     async def test_valid_token_returns_200(self):
         email = f"auth-test-{uuid.uuid4()}@example.com"
-        from app.shared.user.api import router
 
-        app.include_router(router)
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             register_resp = await client.post(
@@ -114,9 +110,7 @@ class TestProtectedRoutes:
 class TestErrorFormat:
     @pytest.mark.asyncio
     async def test_error_has_code_field(self):
-        from app.shared.user.api import router
 
-        app.include_router(router)
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/auth/me")

@@ -40,7 +40,7 @@ function stateToPayload(state: TimerState): BlockPayload {
       : new Date().toISOString();
 
   return {
-    id: state.startedAt.toString(36) + Math.random().toString(36).slice(2, 8),
+    id: state.id,
     started_at: new Date(state.startedAt).toISOString(),
     ended_at: endedAt,
     status: "completed",
@@ -55,7 +55,7 @@ export async function saveBlock(state: TimerState): Promise<void> {
 
   const payload = stateToPayload(state);
 
-  await fetch(`${BASE}/blocks`, {
+  const res = await fetch(`${BASE}/blocks`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -63,4 +63,8 @@ export async function saveBlock(state: TimerState): Promise<void> {
     },
     body: JSON.stringify(payload),
   });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to save block: ${res.status} ${body}`);
+  }
 }

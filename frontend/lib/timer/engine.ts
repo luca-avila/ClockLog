@@ -22,8 +22,9 @@ export interface Interval {
 }
 
 export interface TimerState {
+  id: string; // client-generated UUID, stable across replays
   type: BlockType;
-  startedAt: number; // epoch ms of block start
+  startedAt: number;
   label: string | null;
   tagId: string | null;
   focusBlocksCompleted: number;
@@ -37,6 +38,8 @@ export interface TimerSettings {
   blocksPerCycle: number;
   autoStartBreaks: boolean;
   autoStartNext: boolean;
+  sound: boolean;
+  notifications: boolean;
 }
 
 export interface CyclePosition {
@@ -52,6 +55,8 @@ export const defaultSettings: TimerSettings = {
   blocksPerCycle: 4,
   autoStartBreaks: false,
   autoStartNext: false,
+  sound: true,
+  notifications: true,
 };
 
 /** Pure function: elapsed ms between startedAt and now, adjusted for pause intervals. */

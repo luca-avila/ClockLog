@@ -156,6 +156,7 @@ describe("nextDuration", () => {
 describe("state serialization", () => {
   it("round-trips an in-progress focus block", () => {
     const state: TimerState = {
+      id: "test-uuid-123",
       type: "focus",
       startedAt: 1_700_000_000_000,
       label: "debug JWT refresh",
@@ -177,6 +178,7 @@ describe("state serialization", () => {
     clearStorage();
 
     const state: TimerState = {
+      id: crypto.randomUUID(),
       type: "focus",
       startedAt: Date.now(),
       label: "testing localStorage",

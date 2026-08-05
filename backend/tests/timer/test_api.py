@@ -38,9 +38,7 @@ class TestPostBlocks:
     @pytest.mark.asyncio
     async def test_post_block_succeeds(self, db_session):
         headers, _ = await _register_and_auth(db_session)
-        from app.timer.api import router
 
-        app.include_router(router)
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -61,9 +59,7 @@ class TestPostBlocks:
     @pytest.mark.asyncio
     async def test_rejects_missing_started_at(self, db_session):
         headers, _ = await _register_and_auth(db_session)
-        from app.timer.api import router
 
-        app.include_router(router)
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post(
@@ -76,9 +72,7 @@ class TestPostBlocks:
     @pytest.mark.asyncio
     async def test_same_uuid_is_idempotent(self, db_session):
         headers, _ = await _register_and_auth(db_session)
-        from app.timer.api import router
 
-        app.include_router(router)
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
         payload = {
@@ -100,9 +94,7 @@ class TestPostBlocks:
     async def test_cannot_write_another_users_block(self, db_session):
         headers1, u1 = await _register_and_auth(db_session)
         headers2, u2 = await _register_and_auth(db_session)
-        from app.timer.api import router
 
-        app.include_router(router)
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
         async with AsyncClient(transport=transport, base_url="http://test") as client:
