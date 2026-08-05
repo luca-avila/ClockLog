@@ -73,7 +73,7 @@ class TestTagService:
         await db_session.commit()
 
         updated = await update_tag(
-            db_session, tag.id, TagUpdate(name="New", color="#000000"), user.id
+            db_session, tag.id, {"name": "New"}, user.id
         )
         assert updated.name == "New"
 
@@ -89,7 +89,7 @@ class TestTagService:
         await db_session.commit()
 
         updated = await update_tag(
-            db_session, tag.id, TagUpdate(name="Blue", color="#00FF00"), user.id
+            db_session, tag.id, {"color": "#00FF00"}, user.id
         )
         assert updated.color == "#00FF00"
 

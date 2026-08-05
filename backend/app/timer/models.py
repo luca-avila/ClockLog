@@ -28,7 +28,7 @@ class Block(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("user.id", ondelete="CASCADE"), nullable=False
     )
     tag_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("tag.id", ondelete="SET NULL"), nullable=True, index=True

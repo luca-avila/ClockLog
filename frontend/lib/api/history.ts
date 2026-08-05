@@ -14,17 +14,12 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
-}
+import { apiFetch } from "./client";
 
 export interface BlockData {
   id: string;
   user_id: string;
-  status: string;
+  status: "completed" | "aborted";
   label: string | null;
   tag_id: string | null;
   started_at: string;
@@ -39,47 +34,24 @@ export interface TagSummary {
 }
 
 export async function fetchBlocks(from: string, to: string): Promise<BlockData[]> {
-  const token = getToken();
-  const params = new URLSearchParams({ from, to });
-  const res = await fetch(`${BASE}/blocks?${params}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!res.ok) throw new Error("Failed to fetch blocks");
-  return res.json();
+  return apiFetch(`/blocks?${new URLSearchParams({ from, to })}`);
 }
 
 export async function fetchSummary(from: string, to: string): Promise<TagSummary[]> {
-  const token = getToken();
-  const params = new URLSearchParams({ from, to });
-  const res = await fetch(`${BASE}/blocks/summary?${params}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!res.ok) throw new Error("Failed to fetch summary");
-  return res.json();
+  return apiFetch(`/blocks/summary?${new URLSearchParams({ from, to })}`);
 }
 
-export async function patchBlock(
+export async function updateBlock(
   id: string,
   data: Record<string, unknown>
 ): Promise<BlockData> {
-  const token = getToken();
-  const res = await fetch(`${BASE}/blocks/${id}`, {
+  return apiFetch(`/blocks/${id}`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Failed to update block");
-  return res.json();
 }
 
 export async function deleteBlock(id: string): Promise<void> {
-  const token = getToken();
-  const res = await fetch(`${BASE}/blocks/${id}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error("Failed to delete block");
+  return apiFetch(`/blocks/${id}`, { method: "DELETE" });
 }

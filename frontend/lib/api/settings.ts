@@ -15,35 +15,18 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import type { TimerSettings } from "@/lib/timer/engine";
-
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
-}
+import { apiFetch } from "./client";
 
 export async function fetchSettings(): Promise<TimerSettings> {
-  const token = getToken();
-  if (!token) throw new Error("Not authenticated");
-  const res = await fetch(`${BASE}/settings`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error("Failed to fetch settings");
-  return res.json();
+  return apiFetch("/settings");
 }
 
-export async function updateSettings(data: Partial<TimerSettings>): Promise<TimerSettings> {
-  const token = getToken();
-  if (!token) throw new Error("Not authenticated");
-  const res = await fetch(`${BASE}/settings`, {
+export async function updateSettings(
+  data: Partial<TimerSettings>
+): Promise<TimerSettings> {
+  return apiFetch("/settings", {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Failed to update settings");
-  return res.json();
 }

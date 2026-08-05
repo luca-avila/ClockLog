@@ -15,13 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import type { TimerState } from "@/lib/timer/engine";
-
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
-}
+import { apiFetch, getToken } from "./client";
 
 interface BlockPayload {
   id: string;
@@ -50,21 +44,10 @@ function stateToPayload(state: TimerState): BlockPayload {
 }
 
 export async function saveBlock(state: TimerState): Promise<void> {
-  const token = getToken();
-  if (!token) return;
-
-  const payload = stateToPayload(state);
-
-  const res = await fetch(`${BASE}/blocks`, {
+  if (!getToken()) return;
+  await apiFetch("/blocks", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(stateToPayload(state)),
   });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Failed to save block: ${res.status} ${body}`);
-  }
 }

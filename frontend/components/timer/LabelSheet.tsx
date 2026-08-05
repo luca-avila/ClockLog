@@ -17,17 +17,11 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api/client";
 
 interface LabelSheetProps {
   onSave: (label: string) => void;
   onSkip: () => void;
-}
-
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
 }
 
 export default function LabelSheet({ onSave, onSkip }: LabelSheetProps) {
@@ -35,13 +29,7 @@ export default function LabelSheet({ onSave, onSkip }: LabelSheetProps) {
   const [recent, setRecent] = useState<string[]>([]);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) return;
-
-    fetch(`${BASE}/blocks/recent-labels`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
+    apiFetch<string[]>("/blocks/recent-labels")
       .then(setRecent)
       .catch(() => {});
   }, []);
@@ -56,7 +44,7 @@ export default function LabelSheet({ onSave, onSkip }: LabelSheetProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/20">
-      <div className="w-full max-w-md bg-white rounded-t-2xl p-6 pb-10 shadow-xl animate-slide-up">
+      <div className="w-full max-w-md bg-white rounded-t-2xl p-6 pb-10 shadow-xl">
         <div className="flex flex-col items-center gap-5">
           <h2 className="text-lg font-medium text-neutral-800">Block complete</h2>
           <p className="text-sm text-neutral-500">What did you work on?</p>
@@ -65,7 +53,7 @@ export default function LabelSheet({ onSave, onSkip }: LabelSheetProps) {
             type="text"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="debug JWT refresh"
+            placeholder="Write a label..."
             autoFocus
             className="w-full text-center text-sm text-neutral-700 placeholder:text-neutral-300 border-b border-neutral-200 pb-1 outline-none focus:border-neutral-400 transition-colors"
           />

@@ -197,8 +197,6 @@ export default function TimerScreen() {
       completeAndSaveBlock(state);
     }
     setState(null);
-    setNextCompleted(null);
-    localStorage.removeItem(STORAGE_KEY);
   }
 
   const currentElapsed = state
@@ -364,14 +362,6 @@ export default function TimerScreen() {
             {state.label}
           </div>
         ) : null}
-
-        <div className="mt-1">
-          <CycleIndicator
-            completed={pos.completed}
-            total={settings.blocksPerCycle}
-            isBreak={isBreak}
-          />
-        </div>
 
         {/* Break: Skip link */}
         {isBreak && !isPaused && (

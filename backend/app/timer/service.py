@@ -157,7 +157,7 @@ async def update_block(
     if not block:
         raise HTTPException(
             status_code=404,
-            detail={"code": "NOT_FOUND", "message": "Block not found"},
+            detail={"code": "BLOCK_NOT_FOUND", "message": "Block not found"},
         )
 
     for key in {"label", "tag_id"}:
@@ -213,6 +213,6 @@ async def delete_block(
     if not block:
         raise HTTPException(
             status_code=404,
-            detail={"code": "NOT_FOUND", "message": "Block not found"},
+            detail={"code": "BLOCK_NOT_FOUND", "message": "Block not found"},
         )
     await db.delete(block)

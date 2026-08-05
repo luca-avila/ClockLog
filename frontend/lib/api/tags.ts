@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import { apiFetch } from "./client";
+
 export interface Tag {
   id: string;
   user_id: string;
@@ -28,50 +30,30 @@ export interface TagCreate {
 }
 
 export interface TagUpdate {
-  name: string;
-  color: string;
-}
-
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-function authHeaders(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  const token = localStorage.getItem("token");
-  if (!token) return {};
-  return { Authorization: `Bearer ${token}` };
+  name?: string;
+  color?: string;
 }
 
 export async function fetchTags(): Promise<Tag[]> {
-  const res = await fetch(`${BASE}/tags`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("Failed to fetch tags");
-  return res.json();
+  return apiFetch("/tags");
 }
 
 export async function createTag(data: TagCreate): Promise<Tag> {
-  const res = await fetch(`${BASE}/tags`, {
+  return apiFetch("/tags", {
     method: "POST",
-    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Failed to create tag");
-  return res.json();
 }
 
 export async function updateTag(id: string, data: TagUpdate): Promise<Tag> {
-  const res = await fetch(`${BASE}/tags/${id}`, {
+  return apiFetch(`/tags/${id}`, {
     method: "PATCH",
-    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Failed to update tag");
-  return res.json();
 }
 
 export async function deleteTag(id: string): Promise<{ affected: number }> {
-  const res = await fetch(`${BASE}/tags/${id}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error("Failed to delete tag");
-  return res.json();
+  return apiFetch(`/tags/${id}`, { method: "DELETE" });
 }

@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.shared.tag.models import Tag
-from app.shared.tag.schemas import TagCreate, TagUpdate
+from app.shared.tag.schemas import TagCreate
 
 
 async def create_tag(db: AsyncSession, data: TagCreate, user_id: uuid.UUID) -> Tag:
@@ -49,7 +49,7 @@ async def get_tag_by_name(db: AsyncSession, name: str, user_id: uuid.UUID) -> Ta
 
 
 async def update_tag(
-    db: AsyncSession, tag_id: uuid.UUID, data: TagUpdate, user_id: uuid.UUID
+    db: AsyncSession, tag_id: uuid.UUID, data: dict, user_id: uuid.UUID
 ) -> Tag:
     result = await db.execute(
         select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id)
@@ -60,8 +60,9 @@ async def update_tag(
             status_code=404,
             detail={"code": "TAG_NOT_FOUND", "message": "Tag not found"},
         )
-    tag.name = data.name
-    tag.color = data.color
+    for key in ("name", "color"):
+        if key in data:
+            setattr(tag, key, data[key])
     return tag
 
 

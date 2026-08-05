@@ -54,7 +54,11 @@ async def update(
 ):
     import uuid
 
-    tag = await update_tag(db, uuid.UUID(tag_id), data, current_user.id)
+    tag = await update_tag(
+        db, uuid.UUID(tag_id),
+        data.model_dump(exclude_unset=True, exclude_none=True),
+        current_user.id,
+    )
     await db.commit()
     return tag
 
