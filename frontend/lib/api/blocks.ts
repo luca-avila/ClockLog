@@ -15,16 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import type { TimerState } from "@/lib/timer/engine";
-import { apiFetch, getToken } from "./client";
-
-interface BlockPayload {
-  id: string;
-  started_at: string;
-  ended_at: string | null;
-  status: "completed" | "aborted";
-  label: string | null;
-  tag_id: string | null;
-}
+import { enqueueAndSync, type BlockPayload } from "./queue";
 
 function stateToPayload(state: TimerState): BlockPayload {
   const lastInterval = state.intervals[state.intervals.length - 1];
@@ -44,10 +35,7 @@ function stateToPayload(state: TimerState): BlockPayload {
 }
 
 export async function saveBlock(state: TimerState): Promise<void> {
-  if (!getToken()) return;
-  await apiFetch("/blocks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(stateToPayload(state)),
-  });
+  // Always queues first: an offline or expired-session save is deferred,
+  // never dropped, and never interrupts the running timer by rejecting.
+  await enqueueAndSync(stateToPayload(state));
 }

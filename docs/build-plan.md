@@ -291,7 +291,7 @@ never a blocking prompt; permission is requested only *after* the first complete
 visual state change always accompanies sound.
 **Done when:** all three channels degrade independently.
 
-### S-17 — Offline queue and sync
+### S-17 ✅ — Offline queue and sync
 **Read:** `ux-research.md` § Edge cases (sync conflict, session expired, two devices),
 `CLAUDE.md` (invariant 8).
 **Touch:** `lib/api/queue.ts`.
@@ -379,7 +379,7 @@ deletable without breaking the other (invariant 11).
 | S-14 | History UI | SCR-20 | | ✅ |
 | S-15 | Block edit | SCR-21 | | ✅ |
 | S-16 | Alerts | — | | ✅ |
-| S-17 | Offline sync | — | | |
+| S-17 | Offline sync | — | | ✅ |
 | S-18 | Deploy | — | | |
 | S-19 | Plan core | — | **G-4** | |
 | S-20 | Plan week + day | SCR-30/31 | | |
