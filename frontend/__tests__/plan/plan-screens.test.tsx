@@ -25,6 +25,8 @@ import type { EntryOccurrence } from "@/lib/api/plan";
 
 const WEEK = { from: "2026-07-27", to: "2026-08-02" };
 
+let occSeq = 0;
+
 function occ(
   name: string,
   date: string,
@@ -32,8 +34,9 @@ function occ(
   end: string | null,
   extra: Partial<EntryOccurrence> = {}
 ): EntryOccurrence {
+  // Opaque ids: hrefs embed entry_id, so names must stay out of it.
   return {
-    entry_id: `id-${name}-${date}`,
+    entry_id: `occ-${++occSeq}`,
     name,
     date,
     all_day: start === null,

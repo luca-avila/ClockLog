@@ -14,13 +14,41 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"use client";
+
 import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import PlanDayScreen from "@/components/plan/PlanDayScreen";
+import EntrySheet, { type EntrySheetMode } from "@/components/plan/EntrySheet";
+
+function Page() {
+  const params = useSearchParams();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get("date") ?? "")
+    ? params.get("date")!
+    : new Date().toISOString().slice(0, 10);
+  const editId = params.get("edit");
+  const isNew = params.get("new") === "1";
+  const hour = Number(params.get("hour"));
+
+  let sheet: EntrySheetMode | null = null;
+  if (editId) {
+    sheet = { kind: "edit", entryId: editId };
+  } else if (isNew) {
+    sheet = { kind: "create", date, hour: Number.isFinite(hour) ? hour : null };
+  }
+
+  return (
+    <>
+      <PlanDayScreen />
+      {sheet && <EntrySheet mode={sheet} returnTo={`/plan/day?date=${date}`} />}
+    </>
+  );
+}
 
 export default function PlanDayRoute() {
   return (
     <Suspense>
-      <PlanDayScreen />
+      <Page />
     </Suspense>
   );
 }

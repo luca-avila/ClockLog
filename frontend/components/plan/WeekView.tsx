@@ -128,7 +128,7 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
                     {o.all_day ? (
                       // All-day band: no time slot, ever.
                       <Link
-                        href={`/plan/day?date=${d}`}
+                        href={`/plan?edit=${o.entry_id}`}
                         className="flex items-center gap-2 text-neutral-600"
                       >
                         <span className="text-[10px] uppercase tracking-widest text-neutral-400">
@@ -142,7 +142,7 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
                       </Link>
                     ) : (
                       <Link
-                        href={`/plan/day?date=${d}`}
+                        href={`/plan?edit=${o.entry_id}`}
                         className="flex items-center gap-2 text-neutral-600 hover:text-neutral-900"
                       >
                         <span className="text-xs tabular-nums text-neutral-400">

@@ -85,15 +85,20 @@ export default function DayView({ date, occurrences }: DayViewProps) {
       {allDay.length > 0 && (
         <ul className="mb-4 rounded-lg bg-neutral-50 border border-neutral-100 px-3 py-2 space-y-1">
           {allDay.map((o) => (
-            <li key={o.entry_id} className="text-sm text-neutral-600 flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-widest text-neutral-400">
-                all day
-              </span>
-              <span
-                className={`inline-block w-1.5 h-1.5 rounded-full ${o.tag_id ? "bg-neutral-500" : "bg-neutral-300"}`}
-                aria-hidden
-              />
-              {o.name}
+            <li key={o.entry_id} className="text-sm">
+              <Link
+                href={`/plan/day?date=${date}&edit=${o.entry_id}`}
+                className="text-neutral-600 flex items-center gap-2"
+              >
+                <span className="text-[10px] uppercase tracking-widest text-neutral-400">
+                  all day
+                </span>
+                <span
+                  className={`inline-block w-1.5 h-1.5 rounded-full ${o.tag_id ? "bg-neutral-500" : "bg-neutral-300"}`}
+                  aria-hidden
+                />
+                {o.name}
+              </Link>
             </li>
           ))}
         </ul>
@@ -124,8 +129,9 @@ export default function DayView({ date, occurrences }: DayViewProps) {
             const top = ((Math.max(start, RAIL_START) - RAIL_START) / RAIL_MINUTES) * 100;
             const height = (Math.min(end - Math.max(start, RAIL_START), RAIL_MINUTES - (Math.max(start, RAIL_START) - RAIL_START)) / RAIL_MINUTES) * 100;
             return (
-              <div
+              <Link
                 key={`${occ.entry_id}-${occ.date}`}
+                href={`/plan/day?date=${date}&edit=${occ.entry_id}`}
                 className="absolute rounded-md border border-neutral-200 bg-white px-2 py-1 overflow-hidden"
                 style={{
                   top: `${top}%`,
@@ -138,7 +144,7 @@ export default function DayView({ date, occurrences }: DayViewProps) {
                 <p className="text-[10px] text-neutral-400 tabular-nums">
                   {hhmm(occ.start_time!)} – {hhmm(occ.end_time!)}
                 </p>
-              </div>
+              </Link>
             );
           })}
         </div>

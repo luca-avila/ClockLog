@@ -424,7 +424,7 @@ is an interaction with no wireframe, so `S-20` ships click-to-create on desktop 
 **Done when:** both screens render real data from `S-19B`, denser than the timer by design,
 mobile first with the `md:`/`lg:` grid after.
 
-### S-21 — Entry editor (SCR-32)
+### S-21 ✅ — Entry editor (SCR-32)
 **Gate:** none. **Read:** `wireframes.md` SCR-32 + its ⚠ callout, `plan/schemas.py`.
 **Touch:** `components/plan/EntrySheet.tsx`, `app/(plan)/*` (wiring the sheet in).
 **Tests first:**
@@ -487,7 +487,7 @@ Prefer the boring version — a small loop over a list of module names with a ca
 | S-19B | Plan HTTP API | — | | ✅ |
 | S-19C | App shell nav | all | | ✅ |
 | S-20 | Plan week + day | SCR-30/31 | | ✅ |
-| S-21 | Entry editor | SCR-32 | | |
+| S-21 | Entry editor | SCR-32 | | ✅ |
 | S-22 | Empty week | SCR-33 | **G-5** | |
 | S-23 | Deletability proof | — | | |
 

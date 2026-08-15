@@ -20,7 +20,6 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import DayView from "./DayView";
 import { fetchOccurrences, type EntryOccurrence } from "@/lib/api/plan";
-import { addDays } from "@/lib/date/week";
 
 export default function PlanDayScreen() {
   const params = useSearchParams();
@@ -28,6 +27,8 @@ export default function PlanDayScreen() {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(dateParam ?? "")
     ? dateParam!
     : new Date().toISOString().slice(0, 10);
+  // Editor saves redirect with a fresh tick so this screen refetches.
+  const tick = params.get("t") ?? "";
 
   const [occurrences, setOccurrences] = useState<EntryOccurrence[]>([]);
 
@@ -43,7 +44,7 @@ export default function PlanDayScreen() {
     return () => {
       cancelled = true;
     };
-  }, [date]);
+  }, [date, tick]);
 
-  return <DayView date={date} occurrences={occurrences} key={addDays(date, 0)} />;
+  return <DayView date={date} occurrences={occurrences} />;
 }

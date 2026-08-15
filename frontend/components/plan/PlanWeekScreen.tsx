@@ -20,7 +20,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import WeekView from "./WeekView";
 import { fetchOccurrences, type EntryOccurrence } from "@/lib/api/plan";
-import { addDays, weekBounds } from "@/lib/date/week";
+import { weekBounds } from "@/lib/date/week";
 
 function localTodayIso(): string {
   const d = new Date();
@@ -34,6 +34,8 @@ export default function PlanWeekScreen() {
   const weekParam = params.get("week");
   const anchor = /^\d{4}-\d{2}-\d{2}$/.test(weekParam ?? "") ? weekParam! : localTodayIso();
   const week = weekBounds(anchor);
+  // Editor saves redirect with a fresh tick so this screen refetches.
+  const tick = params.get("t") ?? "";
 
   const [occurrences, setOccurrences] = useState<EntryOccurrence[]>([]);
 
@@ -49,14 +51,7 @@ export default function PlanWeekScreen() {
     return () => {
       cancelled = true;
     };
-  }, [week.from, week.to]);
+  }, [week.from, week.to, tick]);
 
-  return (
-    <WeekView
-      week={week}
-      occurrences={occurrences}
-      today={localTodayIso()}
-      key={`${week.from}-${addDays(week.from, 0)}`}
-    />
-  );
+  return <WeekView week={week} occurrences={occurrences} today={localTodayIso()} />;
 }
