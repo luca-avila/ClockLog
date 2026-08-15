@@ -57,6 +57,19 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  {
+    // S-19C: the shell is shared — it may not import either feature module
+    // (invariant 11), so deleting timer/ or plan/ leaves it compiling.
+    files: ["components/shared/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: ["@/components/timer/*", "@/components/plan/*"],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

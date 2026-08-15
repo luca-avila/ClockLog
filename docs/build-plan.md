@@ -377,7 +377,7 @@ is still green over the new file — `plan/api.py` must not contain `block`, `fo
 > (screens) with no slice owning `plan/api.py` or the `main.py` wiring, so `S-20` could not have
 > been built inside its own Touch list. Added 2026-08-15.
 
-### S-19C — App shell: bottom tab bar and desktop sidebar
+### S-19C ✅ — App shell: bottom tab bar and desktop sidebar
 **Gate:** none. **Read:** `CLAUDE.md` § Frontend conventions (mobile-first, the two navigation
 shapes), `wireframes.md` § Desktop sections, and the tab bar drawn at the foot of every screen.
 **Touch:** `components/shared/TabBar.tsx`, `components/shared/Sidebar.tsx`,
@@ -485,7 +485,7 @@ Prefer the boring version — a small loop over a list of module names with a ca
 | S-18 | Deploy | — | | ✅ |
 | S-19 | Plan core | — | G-4 | ✅ |
 | S-19B | Plan HTTP API | — | | ✅ |
-| S-19C | App shell nav | all | | |
+| S-19C | App shell nav | all | | ✅ |
 | S-20 | Plan week + day | SCR-30/31 | | |
 | S-21 | Entry editor | SCR-32 | | |
 | S-22 | Empty week | SCR-33 | **G-5** | |
