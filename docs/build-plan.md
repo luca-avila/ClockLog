@@ -319,6 +319,13 @@ storage, basic error monitoring, rate limiting on auth.
 timer coupling. `⏱ Start a timer`, the `⏱` list markers, and `☑ Use focus timer for this` are
 **phase 3** and are not drawn, not stubbed, not flagged.
 
+> **Dates, not instants — and why that is not a violation of invariant 5.** The timer's API
+> speaks UTC instants because a block is a *recorded event*: it happened at a point in time.
+> A plan entry is *wall-clock calendar data* — a 09:00 class is 09:00 whatever the offset — so
+> `plan` stores a naive `date` + `time` and its endpoints take dates. Invariant 5 governs
+> `blocks`, not `entries`. `S-19` already shipped this model; do not "fix" it toward instants,
+> and do not copy the plan's date params back into any history endpoint.
+
 ### S-19 ✅ — `plan` module core — vertical slice
 **Gate:** **G-4** — settled 2026-08-15: **shared tags.**
 **Read:** `CLAUDE.md` (invariants 11–14), `wireframes.md` § Plan preamble (dated calendar,
@@ -334,33 +341,123 @@ timer coupling. `⏱ Start a timer`, the `⏱` list markers, and `☑ Use focus 
 - Overlapping entries are allowed — overlap is a fact about weeks, not a validation error.
 **Done when:** the independence test suite passes with both modules populated.
 
+### S-19B ✅ — `plan` HTTP API — vertical slice
+**Gate:** none (G-4 settled). **Read:** `plan/schemas.py`, the function signatures in
+`plan/service.py`, `CLAUDE.md` (invariants 11–14, 16, Backend conventions), `shared/tag/api.py`
+as the shape to copy.
+**Touch:** `plan/api.py`, `app/main.py` (router wiring only), `frontend/lib/api/plan.ts`,
+`backend/tests/plan/test_entry_api.py`.
+
+Endpoints — the whole surface, nothing more:
+
+| Method | Path | Body / params | Returns |
+| --- | --- | --- | --- |
+| `POST` | `/plan/entries` | `EntryCreate` | `EntryResponse`, 201 |
+| `GET` | `/plan/entries?from=&to=` | two **dates** (see the dates note above) | `list[EntryOccurrence]` — repeats expanded, via `list_occurrences` |
+| `GET` | `/plan/entries/{id}` | — | `EntryResponse` (the stored row, for the editor) |
+| `PATCH` | `/plan/entries/{id}` | `EntryUpdate` | `EntryResponse` |
+| `DELETE` | `/plan/entries/{id}` | — | 204 |
+
+**Tests first:**
+- Every endpoint is 401 without a token.
+- Another user's entry is invisible to `GET` and unwritable by `PATCH`/`DELETE` — 404, not 403.
+- `GET ?from=&to=` returns **occurrences**, not stored rows: an entry with `repeat_weekly=true`
+  anchored before the range appears once per week inside it. This is the one place the week
+  view's correctness is decided.
+- `from` after `to` is rejected with a structured `code`.
+- The range is bounded — a request spanning more than one year is rejected, so a repeating
+  entry cannot be expanded into an unbounded response.
+- Service errors surface as structured JSON with a stable `code`, never a bare string.
+- The router is thin (invariant 16): no branching beyond auth and 404.
+**Done when:** the plan is fully usable over HTTP with no frontend, and `S-02`'s vocabulary test
+is still green over the new file — `plan/api.py` must not contain `block`, `focus`, `cycle`, or
+`pomodoro` in any route, tag, or docstring.
+
+> **Why this is its own slice.** The original plan jumped from `S-19` (service layer) to `S-20`
+> (screens) with no slice owning `plan/api.py` or the `main.py` wiring, so `S-20` could not have
+> been built inside its own Touch list. Added 2026-08-15.
+
+### S-19C — App shell: bottom tab bar and desktop sidebar
+**Gate:** none. **Read:** `CLAUDE.md` § Frontend conventions (mobile-first, the two navigation
+shapes), `wireframes.md` § Desktop sections, and the tab bar drawn at the foot of every screen.
+**Touch:** `components/shared/TabBar.tsx`, `components/shared/Sidebar.tsx`,
+`components/shared/AppShell.tsx`, `frontend/app/layout.tsx`.
+**Tests first:**
+- The shell renders three destinations — `⏱ Timer · ▤ History · ▦ Plan` — and Settings is
+  reachable **only** from the header gear, never as a fourth tab.
+- The shell imports nothing from `components/timer/` or `components/plan/` (invariant 11). It
+  navigates by `href`, so deleting either module leaves the shell compiling — assert this with
+  the same ESLint rule `S-02` installed, extended to `components/shared/`.
+- Mobile renders the tab bar and no sidebar; at `md:` the sidebar renders and the tab bar does
+  not.
+**Done when:** Plan is reachable from the timer without typing a URL, and the timer screens
+gain the nav they were drawn with.
+
+> **Why this is its own slice.** `components/shared/` is currently empty and no slice owned the
+> navigation, yet every wireframe draws it and `S-20` cannot be demoed without it. It is shared,
+> not plan-owned — putting it inside `S-20` would have buried a timer-facing change in a plan
+> slice. Added 2026-08-15.
+
 ### S-20 — Plan week list (SCR-30) and day timeline (SCR-31)
-**Read:** `wireframes.md` SCR-30/31 + § Desktop — week, and their ⚠ callout.
-**Touch:** `components/plan/*`, `app/(plan)/*`.
-**Tests first:** the cycle indicator never renders under `plan/`; the `⏱` markers are absent.
-**Done when:** both screens render, denser than the timer by design.
+**Gate:** none. **Read:** `wireframes.md` SCR-30/31 + § Desktop — week, and their ⚠ callout;
+`frontend/lib/api/plan.ts` (from `S-19B`); `CLAUDE.md` (invariants 11, 13, 14).
+**Touch:** `components/plan/*`, `app/(plan)/*`, `frontend/lib/date/` (week boundaries — extend
+the existing helpers, do not fork them).
+
+**In scope:** week navigation `‹ ›`, the per-day grouped list, the day timeline with an hour
+rail, the `21 entries · 34h` summary line, `+ NEW ENTRY` and per-day `+ Add entry` as
+*navigation* into `S-21`'s sheet (the sheet itself is `S-21`), and tapping empty timeline space
+to create at that hour.
+
+**Out of scope, deliberately:** the `⏱` list markers and `⏱ Start a timer` (phase 3, per the ⚠
+callout); the `Week ▾` selector — it implies a month/other view that no screen defines, so it is
+not drawn until one is; desktop drag-to-create — the `§ Desktop — week` line mentions it, but it
+is an interaction with no wireframe, so `S-20` ships click-to-create on desktop too.
+
+**Tests first:**
+- The cycle indicator never renders under `plan/`, and no `⏱` marker appears in either screen.
+- Week boundary computation is a pure function, tested across a DST-forward and a DST-back week.
+- An entry with `repeat_weekly` renders on every week the range covers — the component reads
+  occurrences and does **not** expand repeats itself.
+- All-day entries render in a day's header band, not at a time slot.
+- Overlapping entries both render (they are legal — `S-19`).
+**Done when:** both screens render real data from `S-19B`, denser than the timer by design,
+mobile first with the `md:`/`lg:` grid after.
 
 ### S-21 — Entry editor (SCR-32)
-**Read:** `wireframes.md` SCR-32 + its ⚠ callout.
-**Touch:** `components/plan/EntrySheet.tsx`.
-**Tests first:** the sheet ends at name / day / from-to / tag / `☐ Repeat weekly` / SAVE. Assert
-by test that no focus-timer checkbox is rendered.
-**Done when:** an entry can be created, edited, and deleted.
+**Gate:** none. **Read:** `wireframes.md` SCR-32 + its ⚠ callout, `plan/schemas.py`.
+**Touch:** `components/plan/EntrySheet.tsx`, `app/(plan)/*` (wiring the sheet in).
+**Tests first:**
+- The sheet ends at name / day / from-to / tag / `☐ Repeat weekly` / SAVE. Assert by test that
+  **no focus-timer checkbox is rendered** — the ⚠ callout is phase 3.
+- All-day toggles the from/to fields out rather than sending empty strings.
+- An end before start is surfaced inline, not as a raw server error.
+- Editing an occurrence of a repeating entry edits the **stored entry** — there is no per-date
+  exception model, and none is added (invariant 14, no recurrence engine).
+- The tag picker reuses `components/shared/TagPicker.tsx` from `S-05`; no plan-local tag UI.
+**Done when:** an entry can be created, edited, and deleted from both SCR-30 and SCR-31.
 
 ### S-22 — Empty week (SCR-33)
-**Gate:** **G-5** (the "Timers are optional." copy).
+**Gate:** **G-5** (the "Timers are optional." copy) — unresolved; this slice is blocked.
 **Read:** `wireframes.md` SCR-33 + its pending note.
+**Touch:** `components/plan/EmptyWeek.tsx`.
+**Out of scope:** `Copy last week` — it is drawn dashed, defined nowhere else, and would be the
+planner's only bulk-write path. Not built until it has its own wireframe section.
+**Tests first:** the rendered copy contains none of `block`, `focus`, `cycle`, `pomodoro`; the
+empty state is literal, never fabricated encouragement.
 **Done when:** a planner-only user sees no Pomodoro vocabulary anywhere, per the phase-2
 definition of done.
 
 ### S-23 — Deletability proof
-**Touch:** `backend/tests/`, CI script.
+**Read:** `CLAUDE.md` (invariant 11), `app/main.py`.
+**Touch:** `backend/tests/test_deletability.py`, `app/main.py` (router discovery), CI script.
 **Tests first:** with `backend/app/timer/` and `frontend/components/timer/` removed, the app
-still boots and the plan suite passes — and the same with `plan/` removed. Either module must be
-deletable without breaking the other (invariant 11).
+still boots and the plan suite passes — and the same with `plan/` removed.
+**Note:** `main.py` currently hard-imports every module's router, so deleting a module breaks
+boot at import time. Making this test pass requires the wiring to tolerate an absent module.
+Prefer the boring version — a small loop over a list of module names with a caught
+`ModuleNotFoundError` — over a plugin system.
 **Done when:** this runs as a check, not as a manual experiment.
-
----
 
 ## 8. Slice map
 
@@ -387,6 +484,8 @@ deletable without breaking the other (invariant 11).
 | S-17 | Offline sync | — | | ✅ |
 | S-18 | Deploy | — | | ✅ |
 | S-19 | Plan core | — | G-4 | ✅ |
+| S-19B | Plan HTTP API | — | | ✅ |
+| S-19C | App shell nav | all | | |
 | S-20 | Plan week + day | SCR-30/31 | | |
 | S-21 | Entry editor | SCR-32 | | |
 | S-22 | Empty week | SCR-33 | **G-5** | |

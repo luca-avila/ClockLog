@@ -63,9 +63,7 @@ async def create_entry(db: AsyncSession, data: EntryCreate, user_id: uuid.UUID) 
 
 
 async def _get_owned(db: AsyncSession, entry_id: uuid.UUID, user_id: uuid.UUID) -> Entry:
-    result = await db.execute(
-        select(Entry).where(Entry.id == entry_id, Entry.user_id == user_id)
-    )
+    result = await db.execute(select(Entry).where(Entry.id == entry_id, Entry.user_id == user_id))
     entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(
@@ -73,6 +71,31 @@ async def _get_owned(db: AsyncSession, entry_id: uuid.UUID, user_id: uuid.UUID) 
             detail={"code": "ENTRY_NOT_FOUND", "message": "Entry not found"},
         )
     return entry
+
+
+async def get_entry(db: AsyncSession, entry_id: uuid.UUID, user_id: uuid.UUID) -> Entry:
+    """Fetch one owned entry (the editor's view of the stored row)."""
+    return await _get_owned(db, entry_id, user_id)
+
+
+MAX_RANGE_DAYS = 366
+
+
+def _validate_range(from_date: date, to_date: date) -> None:
+    if from_date > to_date:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "INVALID_RANGE", "message": "from must not be after to"},
+        )
+    if (to_date - from_date).days > MAX_RANGE_DAYS:
+        # Repeats expand at read time; an unbounded range would expand with them.
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "RANGE_TOO_LARGE",
+                "message": "Range must not span more than one year",
+            },
+        )
 
 
 async def update_entry(
@@ -116,6 +139,7 @@ async def list_occurrences(
     Repeats are computed at read time — the stored row is the single source
     of truth and there is no materialization to keep consistent.
     """
+    _validate_range(from_date, to_date)
     result = await db.execute(select(Entry).where(Entry.user_id == user_id))
     all_entries = list(result.scalars().all())
 

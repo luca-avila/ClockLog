@@ -66,9 +66,7 @@ class TestEntryBelongsToDate:
     async def test_create_and_read_back_on_its_date(self, db_session, user):
         entry = await create_entry(db_session, make_create(), user.id)
         await db_session.commit()
-        entries = await list_entries(
-            db_session, user.id, date(2026, 7, 27), date(2026, 8, 2)
-        )
+        entries = await list_entries(db_session, user.id, date(2026, 7, 27), date(2026, 8, 2))
         assert [e.id for e in entries] == [entry.id]
         assert entries[0].date == date(2026, 7, 28)
 
@@ -82,42 +80,31 @@ class TestRepeatWeekly:
         from pathlib import Path
 
         plan_dir = Path(__file__).resolve().parent.parent.parent / "app" / "plan"
-        offenders = [
-            p.name
-            for p in plan_dir.rglob("*.py")
-            if "rrule" in p.read_text().lower()
-        ]
+        offenders = [p.name for p in plan_dir.rglob("*.py") if "rrule" in p.read_text().lower()]
         assert not offenders, f"recurrence vocabulary found in plan/: {offenders}"
 
-    async def test_occurrences_expand_by_weekday_after_anchor_date(
-        self, db_session, user
-    ):
+    async def test_occurrences_expand_by_weekday_after_anchor_date(self, db_session, user):
         anchor = await create_entry(
             db_session, make_create(day=date(2026, 7, 28), repeat_weekly=True), user.id
         )  # Tuesday
         await db_session.commit()
 
-        week2 = await list_occurrences(
-            db_session, user.id, date(2026, 8, 3), date(2026, 8, 9)
-        )
+        week2 = await list_occurrences(db_session, user.id, date(2026, 8, 3), date(2026, 8, 9))
         assert [o.date for o in week2] == [date(2026, 8, 4)]  # next Tuesday
         assert week2[0].entry_id == anchor.id
 
         # The anchor week shows the entry exactly once — the stored row itself.
-        week1 = await list_occurrences(
-            db_session, user.id, date(2026, 7, 27), date(2026, 8, 2)
-        )
+        week1 = await list_occurrences(db_session, user.id, date(2026, 7, 27), date(2026, 8, 2))
         assert [o.date for o in week1] == [date(2026, 7, 28)]
 
     async def test_non_repeating_entries_do_not_expand(self, db_session, user):
         await create_entry(
-            db_session, make_create(day=date(2026, 7, 28), repeat_weekly=False),
+            db_session,
+            make_create(day=date(2026, 7, 28), repeat_weekly=False),
             user.id,
         )
         await db_session.commit()
-        week2 = await list_occurrences(
-            db_session, user.id, date(2026, 8, 3), date(2026, 8, 9)
-        )
+        week2 = await list_occurrences(db_session, user.id, date(2026, 8, 3), date(2026, 8, 9))
         assert week2 == []
 
 
@@ -161,39 +148,33 @@ class TestAllDayAndMultiDay:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc:
-            await create_entry(
-                db_session, make_create(start=time(9), end=None), user.id
-            )
+            await create_entry(db_session, make_create(start=time(9), end=None), user.id)
         assert exc.value.detail["code"] == "TIMES_REQUIRED"
 
-    async def test_entry_spanning_midnight_is_allowed_on_starting_date(
-        self, db_session, user
-    ):
+    async def test_entry_spanning_midnight_is_allowed_on_starting_date(self, db_session, user):
         # 22:00 – 00:30 belongs to the day it started (same rule as history).
         entry = await create_entry(
             db_session, make_create(start=time(22, 0), end=time(0, 30)), user.id
         )
         await db_session.commit()
-        entries = await list_entries(
-            db_session, user.id, date(2026, 7, 28), date(2026, 7, 28)
-        )
+        entries = await list_entries(db_session, user.id, date(2026, 7, 28), date(2026, 7, 28))
         assert [e.id for e in entries] == [entry.id]
 
 
 class TestOverlapAllowed:
     async def test_overlapping_entries_coexist(self, db_session, user):
         await create_entry(
-            db_session, make_create(name="Office", start=time(9), end=time(17)),
+            db_session,
+            make_create(name="Office", start=time(9), end=time(17)),
             user.id,
         )
         await create_entry(
-            db_session, make_create(name="Call", start=time(15), end=time(16)),
+            db_session,
+            make_create(name="Call", start=time(15), end=time(16)),
             user.id,
         )
         await db_session.commit()
-        entries = await list_entries(
-            db_session, user.id, date(2026, 7, 28), date(2026, 7, 28)
-        )
+        entries = await list_entries(db_session, user.id, date(2026, 7, 28), date(2026, 7, 28))
         assert len(entries) == 2  # overlap is a fact, not a validation error
 
 
@@ -214,9 +195,7 @@ class TestUpdateDelete:
     async def test_update_changes_fields(self, db_session, user):
         entry = await create_entry(db_session, make_create(), user.id)
         await db_session.commit()
-        updated = await update_entry(
-            db_session, entry.id, EntryUpdate(name="Gym — legs"), user.id
-        )
+        updated = await update_entry(db_session, entry.id, EntryUpdate(name="Gym — legs"), user.id)
         assert updated.name == "Gym — legs"
         assert updated.date == entry.date
 
@@ -226,9 +205,7 @@ class TestUpdateDelete:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc:
-            await update_entry(
-                db_session, uuid_mod.uuid4(), EntryUpdate(name="x"), user.id
-            )
+            await update_entry(db_session, uuid_mod.uuid4(), EntryUpdate(name="x"), user.id)
         assert exc.value.status_code == 404
         assert exc.value.detail["code"] == "ENTRY_NOT_FOUND"
 
@@ -237,13 +214,9 @@ class TestUpdateDelete:
         await db_session.commit()
         await delete_entry(db_session, entry.id, user.id)
         await db_session.commit()
-        assert await list_entries(
-            db_session, user.id, date(2026, 7, 27), date(2026, 8, 2)
-        ) == []
+        assert await list_entries(db_session, user.id, date(2026, 7, 27), date(2026, 8, 2)) == []
 
-    async def test_other_users_entries_are_invisible_and_unwritable(
-        self, db_session, user
-    ):
+    async def test_other_users_entries_are_invisible_and_unwritable(self, db_session, user):
 
         from fastapi import HTTPException
 
@@ -254,25 +227,19 @@ class TestUpdateDelete:
         entry = await create_entry(db_session, make_create(), other.id)
         await db_session.commit()
 
-        assert await list_entries(
-            db_session, user.id, date(2026, 7, 27), date(2026, 8, 2)
-        ) == []
+        assert await list_entries(db_session, user.id, date(2026, 7, 27), date(2026, 8, 2)) == []
         with pytest.raises(HTTPException) as exc:
             await delete_entry(db_session, entry.id, user.id)
         assert exc.value.status_code == 404
 
-    async def test_deleting_a_tag_leaves_entries_untagged(
-        self, db_session, user
-    ):
+    async def test_deleting_a_tag_leaves_entries_untagged(self, db_session, user):
         # Invariant 10, extended to entries now that they exist (G-4: shared tags).
         from app.shared.tag.schemas import TagCreate
         from app.shared.tag.service import create_tag
         from app.shared.tag.service import delete_tag as delete_tag_svc
 
         tag = await create_tag(db_session, TagCreate(name="Study", color="#22c55e"), user.id)
-        entry = await create_entry(
-            db_session, make_create(tag_id=tag.id), user.id
-        )
+        entry = await create_entry(db_session, make_create(tag_id=tag.id), user.id)
         await db_session.commit()
 
         await delete_tag_svc(db_session, tag.id, user.id)

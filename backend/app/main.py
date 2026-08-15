@@ -22,6 +22,7 @@ import uuid
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from app.plan.api import router as plan_router
 from app.shared.setting.api import router as setting_router
 from app.shared.tag.api import router as tag_router
 from app.shared.user.api import router as user_router
@@ -33,6 +34,7 @@ app.include_router(user_router)
 app.include_router(tag_router)
 app.include_router(timer_router)
 app.include_router(setting_router)
+app.include_router(plan_router)
 
 error_log = logging.getLogger("tempo.errors")
 error_log.setLevel(logging.ERROR)
@@ -42,9 +44,7 @@ error_log.setLevel(logging.ERROR)
 async def http_exception_handler(_request: Request, exc: HTTPException):
     detail = exc.detail
     if isinstance(detail, dict) and "code" in detail:
-        return JSONResponse(
-            status_code=exc.status_code, content=detail, headers=exc.headers
-        )
+        return JSONResponse(status_code=exc.status_code, content=detail, headers=exc.headers)
     return JSONResponse(
         status_code=exc.status_code,
         content={"code": "ERROR", "message": str(detail)},
