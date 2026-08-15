@@ -398,7 +398,7 @@ gain the nav they were drawn with.
 > not plan-owned — putting it inside `S-20` would have buried a timer-facing change in a plan
 > slice. Added 2026-08-15.
 
-### S-20 — Plan week list (SCR-30) and day timeline (SCR-31)
+### S-20 ✅ — Plan week list (SCR-30) and day timeline (SCR-31)
 **Gate:** none. **Read:** `wireframes.md` SCR-30/31 + § Desktop — week, and their ⚠ callout;
 `frontend/lib/api/plan.ts` (from `S-19B`); `CLAUDE.md` (invariants 11, 13, 14).
 **Touch:** `components/plan/*`, `app/(plan)/*`, `frontend/lib/date/` (week boundaries — extend
@@ -486,7 +486,7 @@ Prefer the boring version — a small loop over a list of module names with a ca
 | S-19 | Plan core | — | G-4 | ✅ |
 | S-19B | Plan HTTP API | — | | ✅ |
 | S-19C | App shell nav | all | | ✅ |
-| S-20 | Plan week + day | SCR-30/31 | | |
+| S-20 | Plan week + day | SCR-30/31 | | ✅ |
 | S-21 | Entry editor | SCR-32 | | |
 | S-22 | Empty week | SCR-33 | **G-5** | |
 | S-23 | Deletability proof | — | | |

@@ -14,13 +14,13 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Placeholder route so Plan is reachable from the tab bar (S-19C).
-// S-20 replaces this with the week view; S-22 owns the empty state's copy.
+import { Suspense } from "react";
+import PlanDayScreen from "@/components/plan/PlanDayScreen";
 
-export default function PlanRoute() {
+export default function PlanDayRoute() {
   return (
-    <div className="flex items-center justify-center min-h-[70vh] px-4">
-      <h1 className="text-sm uppercase tracking-widest text-neutral-400">Plan</h1>
-    </div>
+    <Suspense>
+      <PlanDayScreen />
+    </Suspense>
   );
 }
