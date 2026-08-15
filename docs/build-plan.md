@@ -104,7 +104,7 @@ These block specific slices. `CLAUDE.md` § Open decisions says do not resolve t
 | **G-1 — pause vs. abort** | `S-06` | ✅ **Pause is in.** `block` has a child `block_interval` table (`started_at`, `ended_at`). Duration is derived from interval sum, never stored. Settled 2026-08-05. |
 | **G-2 — do breaks carry labels?** | `S-10` | ✅ **No.** Breaks are dead time. Label sheet only appears after focus blocks. Break blocks are labelless by type. Settled 2026-08-05. |
 | **G-3 — settings storage** | `S-12` | ✅ **Server-side.** Settings stored in `user_setting` table (one row per user). Settled 2026-08-05. |
-| **G-4 — planner tags** | `S-19` | **Unresolved.** Does the plan share the timer's tags, or get its own categories? |
+| **G-4 — planner tags** | `S-19` | ✅ **Shared.** The plan uses the timer's `tag` table; `tag/` stays in `shared/`. Tags are the one visual element shared across both modules (CLAUDE.md § Frontend conventions; invariant 10 already covers both blocks and activities). Settled 2026-08-15. |
 | **G-5 — SCR-33 empty-state copy** | `S-22` | **Unresolved.** "Timers are optional." is timer vocabulary on a Plan screen and contradicts invariant 13. |
 
 ---
@@ -319,8 +319,8 @@ storage, basic error monitoring, rate limiting on auth.
 timer coupling. `⏱ Start a timer`, the `⏱` list markers, and `☑ Use focus timer for this` are
 **phase 3** and are not drawn, not stubbed, not flagged.
 
-### S-19 — `plan` module core — vertical slice
-**Gate:** **G-4** (shared tags vs. own categories) — settle before this migration.
+### S-19 ✅ — `plan` module core — vertical slice
+**Gate:** **G-4** — settled 2026-08-15: **shared tags.**
 **Read:** `CLAUDE.md` (invariants 11–14), `wireframes.md` § Plan preamble (dated calendar,
 `repeat_weekly`, no RRULE).
 **Touch:** `plan/{models,schemas,service}.py`, migration.
@@ -386,7 +386,7 @@ deletable without breaking the other (invariant 11).
 | S-16 | Alerts | — | | ✅ |
 | S-17 | Offline sync | — | | ✅ |
 | S-18 | Deploy | — | | ✅ |
-| S-19 | Plan core | — | **G-4** | |
+| S-19 | Plan core | — | G-4 | ✅ |
 | S-20 | Plan week + day | SCR-30/31 | | |
 | S-21 | Entry editor | SCR-32 | | |
 | S-22 | Empty week | SCR-33 | **G-5** | |

@@ -33,7 +33,14 @@ async def engine():
 async def _clean_db(engine: AsyncEngine):
     """Ensure clean state before tests run."""
     async with engine.begin() as conn:
-        for table in ("block_interval", "block", "tag", "user_setting", '"user"'):
+        for table in (
+            "block_interval",
+            "block",
+            "entry",
+            "tag",
+            "user_setting",
+            '"user"',
+        ):
             await conn.execute(text(f"DELETE FROM {table}"))
     yield
 
