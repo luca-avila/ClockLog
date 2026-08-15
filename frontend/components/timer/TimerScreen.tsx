@@ -29,6 +29,12 @@ import {
   deserializeState,
 } from "@/lib/timer/engine";
 import { saveBlock } from "@/lib/api/blocks";
+import {
+  fireAlert,
+  createBrowserDeps,
+  readHasCompletedBlock,
+  markBlockCompleted,
+} from "@/lib/alerts";
 import CycleIndicator from "./CycleIndicator";
 import LabelSheet from "./LabelSheet";
 
@@ -54,6 +60,26 @@ async function completeAndSaveBlock(s: TimerState) {
   const finalState: TimerState = { ...s, intervals };
   await saveBlock(finalState);
   localStorage.removeItem(STORAGE_KEY);
+}
+
+// Sound + notification + title change on every block end; channels degrade independently.
+function alertBlockEnd(type: BlockType, settings: TimerSettings) {
+  const long = type === "long_break";
+  fireAlert(
+    {
+      settings: { sound: settings.sound, notifications: settings.notifications },
+      hasCompletedBlock: readHasCompletedBlock(),
+      title: type === "focus" ? "Focus block done" : "Break over",
+      body:
+        type === "focus"
+          ? long
+            ? "Time for a long break"
+            : "Time for a break"
+          : "Ready for the next focus block",
+    },
+    createBrowserDeps()
+  );
+  markBlockCompleted();
 }
 
 export default function TimerScreen() {
@@ -98,6 +124,7 @@ export default function TimerScreen() {
         if (s.type === "focus") {
           // Focus done → show label sheet
           setShowLabelSheet(true);
+          alertBlockEnd("focus", settingsRef.current);
           // Complete the intervals for saving
           const intervals = [...s.intervals];
           const last = intervals[intervals.length - 1];
@@ -105,6 +132,7 @@ export default function TimerScreen() {
           setState({ ...s, intervals });
         } else {
           // Break done → go to idle, keep cycle position
+          alertBlockEnd(s.type, settingsRef.current);
           completeAndSaveBlock(s).then(() => {
             setState(null);
           });
@@ -156,6 +184,7 @@ export default function TimerScreen() {
   function stopBlock() {
     if (!state) return;
     const s: TimerState = { ...state, blockStatus: "aborted" };
+    alertBlockEnd(state.type, settingsRef.current);
     completeAndSaveBlock(s).then(() => {
       if (state.type === "focus") {
         setNextCompleted(state.focusBlocksCompleted + 1);

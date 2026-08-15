@@ -282,7 +282,7 @@ perspective*; edits are a separate, server-side path).
 structured `code`; delete is permanent; last-write-wins on concurrent edits.
 **Done when:** desktop shows the two-pane list + inspector so editing never navigates away.
 
-### S-16 — Alerts: sound and notifications
+### S-16 ✅ — Alerts: sound and notifications
 **Read:** `wireframes.md` § Edge cases, `ux-research.md` § Edge cases (notifications denied,
 device muted).
 **Touch:** `lib/alerts/`, timer components.
@@ -378,7 +378,7 @@ deletable without breaking the other (invariant 11).
 | S-13 | History backend | — | | ✅ |
 | S-14 | History UI | SCR-20 | | ✅ |
 | S-15 | Block edit | SCR-21 | | ✅ |
-| S-16 | Alerts | — | | |
+| S-16 | Alerts | — | | ✅ |
 | S-17 | Offline sync | — | | |
 | S-18 | Deploy | — | | |
 | S-19 | Plan core | — | **G-4** | |
