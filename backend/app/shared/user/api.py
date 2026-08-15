@@ -14,10 +14,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 
+from app.core import ratelimit
 from app.core.db import DBSession
 from app.core.security import decode_access_token
 from app.shared.user.schemas import TokenResponse, UserCreate, UserLogin, UserResponse
@@ -25,6 +26,18 @@ from app.shared.user.service import authenticate_user, create_user, get_current_
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer()
+
+
+async def _rate_limited(request: Request, _: None = None) -> None:
+    # Keyed per endpoint + IP: register attempts must not lock out login.
+    key = f"{request.url.path}:{ratelimit.client_ip(request)}"
+    if ratelimit.check(key):
+        return
+    raise HTTPException(
+        status_code=429,
+        detail={"code": "RATE_LIMITED", "message": "Too many attempts, slow down"},
+        headers={"Retry-After": str(ratelimit.retry_after(key))},
+    )
 
 
 async def get_current_user_dependency(
@@ -47,7 +60,9 @@ async def get_current_user_dependency(
     return await get_current_user(db, email)
 
 
-@router.post("/register", response_model=UserResponse, status_code=201)
+@router.post(
+    "/register", response_model=UserResponse, status_code=201, dependencies=[Depends(_rate_limited)]
+)
 async def register(db: DBSession, data: UserCreate):
     user = await create_user(db, data)
     await db.commit()
@@ -55,7 +70,9 @@ async def register(db: DBSession, data: UserCreate):
     return user
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login", response_model=TokenResponse, dependencies=[Depends(_rate_limited)]
+)
 async def login(db: DBSession, data: UserLogin):
     return await authenticate_user(db, data)
 

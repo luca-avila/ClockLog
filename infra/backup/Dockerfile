@@ -9,21 +9,17 @@
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Affero General Public License for more details.
+# GNU General Public License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+FROM postgres:16-alpine
 
+RUN apk add --no-cache rclone
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
+COPY backup.sh /backup.sh
+RUN chmod +x /backup.sh
 
-    database_url: str
-    secret_key: str
-    login_rate_limit: int = 10
-    login_rate_window_seconds: float = 60
-
-
-settings = Settings()
+# PGHOST/PGUSER/PGPASSWORD come from the compose environment.
+CMD ["/backup.sh"]

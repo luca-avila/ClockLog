@@ -14,6 +14,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import json
+import logging
+import traceback
+import uuid
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
@@ -29,16 +34,52 @@ app.include_router(tag_router)
 app.include_router(timer_router)
 app.include_router(setting_router)
 
+error_log = logging.getLogger("tempo.errors")
+error_log.setLevel(logging.ERROR)
+
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(_request: Request, exc: HTTPException):
     detail = exc.detail
     if isinstance(detail, dict) and "code" in detail:
-        return JSONResponse(status_code=exc.status_code, content=detail)
+        return JSONResponse(
+            status_code=exc.status_code, content=detail, headers=exc.headers
+        )
     return JSONResponse(
         status_code=exc.status_code,
         content={"code": "ERROR", "message": str(detail)},
+        headers=exc.headers,
     )
+
+
+@app.middleware("http")
+async def error_monitoring(request: Request, call_next):
+    # Basic error monitoring: request-id correlation + one JSON log line per
+    # unhandled exception, greppable in `docker compose logs`.
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        entry = {
+            "event": "unhandled_exception",
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+            "error": repr(exc),
+            "traceback": traceback.format_exc(),
+        }
+        error_log.error(json.dumps(entry))
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error",
+                "request_id": request_id,
+            },
+            headers={"X-Request-ID": request_id},
+        )
+    response.headers.setdefault("X-Request-ID", request_id)
+    return response
 
 
 @app.get("/health")

@@ -300,11 +300,16 @@ does **not** interrupt a running block — re-auth is prompted at sync time only
 last write wins.
 **Done when:** killing the network mid-block still records the block on reconnect.
 
-### S-18 — Deploy
+### S-18 ✅ — Deploy
 **Read:** `CLAUDE.md` (Project → self-hosted), `ux-research.md` § Secondary systems.
 **Touch:** `docker-compose.prod.yml`, nginx config, certbot, nightly `pg_dump` to object
 storage, basic error monitoring, rate limiting on auth.
 **Done when:** the MVP definition of done can begin — two weeks of real use with no lost block.
+
+> **Scope note (2026-08-15):** nginx and certbot are run by the maintainer directly on the
+> VPS, outside this repo. Services in `docker-compose.prod.yml` bind to `127.0.0.1` only,
+> expecting a reverse proxy in front. Off-site backup upload is via rclone
+> (`BACKUP_RCLONE_REMOTE`, local rotation only when unset).
 
 ---
 
@@ -380,7 +385,7 @@ deletable without breaking the other (invariant 11).
 | S-15 | Block edit | SCR-21 | | ✅ |
 | S-16 | Alerts | — | | ✅ |
 | S-17 | Offline sync | — | | ✅ |
-| S-18 | Deploy | — | | |
+| S-18 | Deploy | — | | ✅ |
 | S-19 | Plan core | — | **G-4** | |
 | S-20 | Plan week + day | SCR-30/31 | | |
 | S-21 | Entry editor | SCR-32 | | |
