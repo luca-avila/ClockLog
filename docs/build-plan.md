@@ -449,7 +449,7 @@ empty state is literal, never fabricated encouragement.
 **Done when:** a planner-only user sees no Pomodoro vocabulary anywhere, per the phase-2
 definition of done.
 
-### S-23 — Deletability proof
+### S-23 ✅ — Deletability proof
 **Read:** `CLAUDE.md` (invariant 11), `app/main.py`.
 **Touch:** `backend/tests/test_deletability.py`, `app/main.py` (router discovery), CI script.
 **Tests first:** with `backend/app/timer/` and `frontend/components/timer/` removed, the app
@@ -490,7 +490,7 @@ Prefer the boring version — a small loop over a list of module names with a ca
 | S-20 | Plan week + day | SCR-30/31 | | ✅ |
 | S-21 | Entry editor | SCR-32 | | ✅ |
 | S-22 | Empty week | SCR-33 | G-5 | ✅ |
-| S-23 | Deletability proof | — | | |
+| S-23 | Deletability proof | — | | ✅ |
 
 ---
 

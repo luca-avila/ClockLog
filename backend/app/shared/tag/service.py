@@ -42,18 +42,12 @@ async def get_tags_for_user(db: AsyncSession, user_id: uuid.UUID) -> list[Tag]:
 
 
 async def get_tag_by_name(db: AsyncSession, name: str, user_id: uuid.UUID) -> Tag | None:
-    result = await db.execute(
-        select(Tag).where(Tag.name == name, Tag.user_id == user_id)
-    )
+    result = await db.execute(select(Tag).where(Tag.name == name, Tag.user_id == user_id))
     return result.scalar_one_or_none()
 
 
-async def update_tag(
-    db: AsyncSession, tag_id: uuid.UUID, data: dict, user_id: uuid.UUID
-) -> Tag:
-    result = await db.execute(
-        select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id)
-    )
+async def update_tag(db: AsyncSession, tag_id: uuid.UUID, data: dict, user_id: uuid.UUID) -> Tag:
+    result = await db.execute(select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id))
     tag = result.scalar_one_or_none()
     if not tag:
         raise HTTPException(
@@ -66,26 +60,27 @@ async def update_tag(
     return tag
 
 
-async def delete_tag(
-    db: AsyncSession, tag_id: uuid.UUID, user_id: uuid.UUID
-) -> int:
-    """Delete a tag and return the count of affected blocks (untagged)."""
+async def delete_tag(db: AsyncSession, tag_id: uuid.UUID, user_id: uuid.UUID) -> int:
+    """Delete a tag; return affected rows across whatever tables carry a
+    tag_id. Counted via metadata, not feature-model imports — shared/ must
+    stay loadable with either feature module deleted (invariant 11)."""
     from sqlalchemy import func
 
-    from app.timer.models import Block
+    from app.shared.models import Base
 
-    result = await db.execute(
-        select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id)
-    )
+    result = await db.execute(select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id))
     tag = result.scalar_one_or_none()
     if not tag:
         raise HTTPException(
             status_code=404,
             detail={"code": "TAG_NOT_FOUND", "message": "Tag not found"},
         )
-    affected = await db.execute(
-        select(func.count(Block.id)).where(Block.tag_id == tag_id)
-    )
-    count = affected.scalar() or 0
+    total = 0
+    for table in Base.metadata.tables.values():
+        col = table.columns.get("tag_id")
+        if col is None:
+            continue
+        affected = await db.execute(select(func.count()).select_from(table).where(col == tag_id))
+        total += affected.scalar() or 0
     await db.delete(tag)
-    return count
+    return total

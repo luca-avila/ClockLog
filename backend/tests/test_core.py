@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import os
 
 import pytest
 from pydantic import ValidationError
@@ -24,9 +23,9 @@ from app.core.config import Settings
 
 
 class TestConfig:
-    def test_settings_loads_from_env(self):
-        os.environ["DATABASE_URL"] = "postgresql://test:test@localhost/test"
-        os.environ["SECRET_KEY"] = "test-secret"
+    def test_settings_loads_from_env(self, monkeypatch):
+        monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
+        monkeypatch.setenv("SECRET_KEY", "test-secret")
         s = Settings()
         assert s.database_url == "postgresql://test:test@localhost/test"
         assert s.secret_key == "test-secret"
@@ -37,9 +36,9 @@ class TestConfig:
         with pytest.raises(ValidationError):
             Settings(_env_file=None)
 
-    def test_settings_case_insensitive(self):
-        os.environ["database_url"] = "postgresql://test:test@localhost/test"
-        os.environ["SECRET_KEY"] = "test-secret"
+    def test_settings_case_insensitive(self, monkeypatch):
+        monkeypatch.setenv("database_url", "postgresql://test:test@localhost/test")
+        monkeypatch.setenv("SECRET_KEY", "test-secret")
         s = Settings()
         assert s.database_url == "postgresql://test:test@localhost/test"
 

@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import importlib
 import json
 import logging
 import traceback
@@ -22,19 +23,25 @@ import uuid
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app.plan.api import router as plan_router
 from app.shared.setting.api import router as setting_router
 from app.shared.tag.api import router as tag_router
 from app.shared.user.api import router as user_router
-from app.timer.api import router as timer_router
 
 app = FastAPI(title="Tempo")
 
 app.include_router(user_router)
 app.include_router(tag_router)
-app.include_router(timer_router)
 app.include_router(setting_router)
-app.include_router(plan_router)
+
+# Feature modules are deletable (invariant 11): tolerate either one's
+# absence instead of hard-importing its router. Shared routers above stay
+# mandatory — only timer/ and plan/ are optional parts of the app.
+for _module_name in ("app.timer.api", "app.plan.api"):
+    try:
+        _module = importlib.import_module(_module_name)
+    except ModuleNotFoundError:
+        continue
+    app.include_router(_module.router)
 
 error_log = logging.getLogger("tempo.errors")
 error_log.setLevel(logging.ERROR)
