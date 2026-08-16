@@ -20,6 +20,7 @@ export interface BlockData {
   id: string;
   user_id: string;
   status: "completed" | "aborted";
+  kind: "focus" | "short_break" | "long_break";
   label: string | null;
   tag_id: string | null;
   started_at: string;

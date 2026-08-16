@@ -145,6 +145,7 @@ export default function TimerScreen() {
 
   useEffect(() => {
     if (state) localStorage.setItem(STORAGE_KEY, serializeState(state));
+    else localStorage.removeItem(STORAGE_KEY);
   }, [state]);
 
   function startBlock(type: BlockType, initialLabel: string | null = null) {
@@ -226,9 +227,8 @@ export default function TimerScreen() {
   }
 
   function skipBreak() {
-    if (state && state.type !== "focus") {
-      completeAndSaveBlock(state);
-    }
+    // A skipped break is not recorded (wireframes § Storyboard) — discard
+    // the state instead of saving it.
     setState(null);
     setPendingBreak(false);
   }

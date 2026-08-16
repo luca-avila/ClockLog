@@ -31,6 +31,7 @@ function payload(id: string, label = "Work"): BlockPayload {
     started_at: "2026-08-15T10:00:00.000Z",
     ended_at: "2026-08-15T10:25:00.000Z",
     status: "completed",
+    kind: "focus",
     label,
     tag_id: null,
   };

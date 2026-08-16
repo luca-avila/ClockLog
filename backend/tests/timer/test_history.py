@@ -31,17 +31,21 @@ async def _auth_and_post_block(
     label: str = "test",
     started_at: str = "2026-08-05T09:00:00+00:00",
     status: str = "completed",
+    kind: str | None = None,
 ):
+    payload = {
+        "id": str(uuid.uuid4()),
+        "started_at": started_at,
+        "ended_at": None,
+        "status": status,
+        "label": label,
+        "tag_id": None,
+    }
+    if kind is not None:
+        payload["kind"] = kind
     await client.post(
         "/blocks",
-        json={
-            "id": str(uuid.uuid4()),
-            "started_at": started_at,
-            "ended_at": None,
-            "status": status,
-            "label": label,
-            "tag_id": None,
-        },
+        json=payload,
         headers=Headers(headers),
     )
 
@@ -123,6 +127,33 @@ class TestHistory:
         blocks = resp.json()
         assert len(blocks) == 1
         assert blocks[0]["label"] == "u1-block"
+
+    @pytest.mark.asyncio
+    async def test_kind_roundtrip_and_default(self, db_session):
+        user = await create_user(db_session, UserCreate(email="kind@test.com", password="secret12"))
+        await db_session.commit()
+        headers = {"Authorization": f"Bearer {create_access_token(data={'sub': user.email})}"}
+
+        transport = ASGITransport(app=app)
+
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            await _auth_and_post_block(
+                client, headers, "focus work", "2026-08-05T09:00:00+00:00", "completed", "focus"
+            )
+            await _auth_and_post_block(
+                client, headers, None, "2026-08-05T09:30:00+00:00", "completed", "short_break"
+            )
+            # No kind sent: pre-migration clients default to focus.
+            await _auth_and_post_block(client, headers, "legacy", "2026-08-05T10:00:00+00:00")
+
+            resp = await client.get(
+                "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+                headers=Headers(headers),
+            )
+        assert resp.status_code == 200
+        blocks = resp.json()
+        kinds = [b["kind"] for b in blocks]
+        assert kinds == ["focus", "short_break", "focus"]
 
 
 class TestSummary:
@@ -210,3 +241,83 @@ class TestSummary:
         assert len(summary) == 1  # "Unlabeled" for both
         # Both blocks have one interval of 0 duration (ended_at is null),
         # so duration will be 0. But the test just verifies they're included.
+
+    @pytest.mark.asyncio
+    async def test_summary_excludes_breaks(self, db_session):
+        user = await create_user(db_session, UserCreate(email="brk@test.com", password="secret12"))
+        await db_session.commit()
+        headers = {"Authorization": f"Bearer {create_access_token(data={'sub': user.email})}"}
+
+        transport = ASGITransport(app=app)
+
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            # 25 min focus + 5 min break: the summary must report focus only.
+            await client.post(
+                "/blocks",
+                json={
+                    "id": str(uuid.uuid4()),
+                    "started_at": "2026-08-05T09:00:00+00:00",
+                    "ended_at": "2026-08-05T09:25:00+00:00",
+                    "status": "completed",
+                    "kind": "focus",
+                    "label": "work",
+                    "tag_id": None,
+                },
+                headers=Headers(headers),
+            )
+            await client.post(
+                "/blocks",
+                json={
+                    "id": str(uuid.uuid4()),
+                    "started_at": "2026-08-05T09:25:00+00:00",
+                    "ended_at": "2026-08-05T09:30:00+00:00",
+                    "status": "completed",
+                    "kind": "short_break",
+                    "label": None,
+                    "tag_id": None,
+                },
+                headers=Headers(headers),
+            )
+
+            resp = await client.get(
+                "/blocks/summary?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+                headers=Headers(headers),
+            )
+            list_resp = await client.get(
+                "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+                headers=Headers(headers),
+            )
+        assert resp.status_code == 200
+        summary = resp.json()
+        assert len(summary) == 1
+        assert summary[0]["total_seconds"] == pytest.approx(1500)  # 25 min, not 30
+        # ...but the day list still shows the break (SCR-20).
+        assert [b["kind"] for b in list_resp.json()] == ["focus", "short_break"]
+
+    @pytest.mark.asyncio
+    async def test_recent_labels_excludes_breaks(self, db_session):
+        user = await create_user(
+            db_session, UserCreate(email="lbl-brk@test.com", password="secret12")
+        )
+        await db_session.commit()
+        headers = {"Authorization": f"Bearer {create_access_token(data={'sub': user.email})}"}
+
+        transport = ASGITransport(app=app)
+
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            # A mislabeled break must not surface in focus autocomplete.
+            await _auth_and_post_block(
+                client, headers, "focus label", "2026-08-05T09:00:00+00:00", "completed", "focus"
+            )
+            await _auth_and_post_block(
+                client,
+                headers,
+                "break label",
+                "2026-08-05T09:30:00+00:00",
+                "completed",
+                "long_break",
+            )
+
+            resp = await client.get("/blocks/recent-labels", headers=Headers(headers))
+        assert resp.status_code == 200
+        assert resp.json() == ["focus label"]

@@ -21,6 +21,7 @@ export interface BlockPayload {
   started_at: string;
   ended_at: string | null;
   status: "completed" | "aborted";
+  kind: "focus" | "short_break" | "long_break";
   label: string | null;
   tag_id: string | null;
 }

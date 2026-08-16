@@ -36,6 +36,13 @@ class Block(Base):
     status: Mapped[str] = mapped_column(
         Enum("completed", "aborted", name="block_status"), nullable=False
     )
+    # Focus vs break — SCR-20 draws breaks hollow (○) and totals count
+    # focus only, so the recorded kind must be a column, not a guess.
+    kind: Mapped[str] = mapped_column(
+        Enum("focus", "short_break", "long_break", name="block_kind"),
+        nullable=False,
+        server_default="focus",
+    )
     label: Mapped[str | None] = mapped_column(String(500), nullable=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True

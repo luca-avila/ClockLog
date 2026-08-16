@@ -34,6 +34,7 @@ class BlockCreate(BaseModel):
     started_at: datetime
     ended_at: datetime | None
     status: Literal["completed", "aborted"]
+    kind: Literal["focus", "short_break", "long_break"] = "focus"
     label: str | None = None
     tag_id: uuid.UUID | None = None
 
@@ -63,6 +64,7 @@ class BlockResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
     status: str
+    kind: str
     label: str | None
     tag_id: uuid.UUID | None
     started_at: datetime

@@ -63,6 +63,21 @@ function formatDuration(seconds: number) {
   return `${m}m`;
 }
 
+function blockDuration(b: BlockData) {
+  return b.intervals.reduce((sum, iv) => {
+    if (iv.ended_at) {
+      return sum + (new Date(iv.ended_at).getTime() - new Date(iv.started_at).getTime()) / 1000;
+    }
+    return sum;
+  }, 0);
+}
+
+const KIND_LABEL: Record<BlockData["kind"], string> = {
+  focus: "",
+  short_break: "short break",
+  long_break: "long break",
+};
+
 export default function HistoryPage() {
   const [date, setDate] = useState(() => new Date());
   const [blocks, setBlocks] = useState<BlockData[]>([]);
@@ -92,7 +107,11 @@ export default function HistoryPage() {
     setDate(d);
   }
 
-  const totalMinutes = summary.reduce((a, s) => a + s.total_seconds, 0) / 60;
+  // Focus totals only — breaks appear in the list (SCR-20) but never in
+  // the "Xh Ym focus" line.
+  const focusBlocks = blocks.filter((b) => b.kind === "focus");
+  const focusSeconds = focusBlocks.reduce((sum, b) => sum + blockDuration(b), 0);
+  const totalMinutes = focusSeconds / 60;
 
   return (
     <div className="max-w-md mx-auto py-8 px-4">
@@ -123,7 +142,7 @@ export default function HistoryPage() {
           <div className="mb-4">
             <p className="text-xs text-neutral-400 mb-3">
               {Math.floor(totalMinutes / 60)}h {Math.floor(totalMinutes % 60)}m focus ·{" "}
-              {blocks.length} block{blocks.length !== 1 ? "s" : ""}
+              {focusBlocks.length} block{focusBlocks.length !== 1 ? "s" : ""}
             </p>
             {summary.map((s) => (
               <div key={s.tag_name} className="flex items-center gap-2 text-sm text-neutral-600">
@@ -142,12 +161,8 @@ export default function HistoryPage() {
           <div className="space-y-3">
             {blocks.map((b) => {
               const start = b.intervals[0]?.started_at || b.started_at;
-              const duration = b.intervals.reduce((sum, iv) => {
-                if (iv.ended_at) {
-                  return sum + (new Date(iv.ended_at).getTime() - new Date(iv.started_at).getTime()) / 1000;
-                }
-                return sum;
-              }, 0);
+              const duration = blockDuration(b);
+              const isFocus = b.kind === "focus";
 
               return (
                 <div key={b.id} className="flex items-start gap-3">
@@ -160,8 +175,9 @@ export default function HistoryPage() {
                         <span className="text-xs text-amber-500">⚠</span>
                       )}
                       <span className="text-sm text-neutral-700">
-                        {"● "}
-                        {b.label || "Unlabeled"}
+                        {/* SCR-20: breaks render hollow */}
+                        {isFocus ? "● " : "○ "}
+                        {isFocus ? b.label || "Unlabeled" : KIND_LABEL[b.kind]}
                       </span>
                     </div>
                     {b.status === "aborted" && (

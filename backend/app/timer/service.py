@@ -55,6 +55,7 @@ async def create_block(db: AsyncSession, data: BlockCreate, user_id: uuid.UUID) 
         id=data.id,
         user_id=user_id,
         status=data.status,
+        kind=data.kind,
         label=data.label,
         tag_id=data.tag_id,
         started_at=data.started_at,
@@ -78,7 +79,12 @@ async def get_block_by_id(
 async def get_recent_labels(db: AsyncSession, user_id: uuid.UUID, limit: int = 5) -> list[str]:
     result = await db.execute(
         select(Block.label)
-        .where(Block.user_id == user_id, Block.label.isnot(None), Block.label != "")
+        .where(
+            Block.user_id == user_id,
+            Block.kind == "focus",
+            Block.label.isnot(None),
+            Block.label != "",
+        )
         .order_by(desc(Block.started_at))
         .limit(limit * 3)
     )
@@ -112,10 +118,15 @@ async def get_blocks_in_range(
 async def get_summary_by_tag(
     db: AsyncSession, user_id: uuid.UUID, from_dt: datetime, to_dt: datetime
 ) -> list[dict]:
-    """Aggregate total duration per tag for blocks in the given range."""
+    """Aggregate total duration per tag for focus blocks in the given range.
+
+    Breaks are excluded — "4h 10m focus" must not include break time.
+    """
     from app.shared.tag.models import Tag
 
-    blocks = await get_blocks_in_range(db, user_id, from_dt, to_dt)
+    blocks = [
+        b for b in await get_blocks_in_range(db, user_id, from_dt, to_dt) if b.kind == "focus"
+    ]
 
     tag_ids = {b.tag_id for b in blocks if b.tag_id is not None}
     tag_map: dict[uuid.UUID, str] = {}
