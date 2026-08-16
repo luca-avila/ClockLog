@@ -94,7 +94,9 @@ async def patch_block(
         db,
         uuid.UUID(block_id),
         current_user.id,
-        data.model_dump(exclude_unset=True, exclude_none=True),
+        # exclude_unset alone: an explicit null must survive as "clear this
+        # field" (invariant 10's untag path).
+        data.model_dump(exclude_unset=True),
     )
     await db.commit()
     block = await get_block_by_id(db, block.id, current_user.id)

@@ -125,3 +125,71 @@ class TestPostBlocks:
                 headers=Headers(headers2),
             )
         assert resp.status_code == 403
+
+
+class TestPatchBlocks:
+    @pytest.mark.asyncio
+    async def test_patch_can_clear_tag_and_label(self, db_session):
+        """An explicit null clears the field — exclude_unset semantics."""
+        headers, _ = await _register_and_auth(db_session)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            tag_resp = await client.post(
+                "/tags",
+                json={"name": "Work", "color": "#0000FF"},
+                headers=Headers(headers),
+            )
+            tag_id = tag_resp.json()["id"]
+
+            block_id = str(uuid.uuid4())
+            await client.post(
+                "/blocks",
+                json={
+                    "id": block_id,
+                    "started_at": "2026-08-05T12:00:00+00:00",
+                    "ended_at": "2026-08-05T12:25:00+00:00",
+                    "status": "completed",
+                    "label": "debug JWT refresh",
+                    "tag_id": tag_id,
+                },
+                headers=Headers(headers),
+            )
+
+            resp = await client.patch(
+                f"/blocks/{block_id}",
+                json={"tag_id": None, "label": None},
+                headers=Headers(headers),
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["tag_id"] is None
+        assert body["label"] is None
+
+    @pytest.mark.asyncio
+    async def test_patch_absent_fields_untouched(self, db_session):
+        headers, _ = await _register_and_auth(db_session)
+
+        transport = ASGITransport(app=app)
+        block_id = str(uuid.uuid4())
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            await client.post(
+                "/blocks",
+                json={
+                    "id": block_id,
+                    "started_at": "2026-08-05T12:00:00+00:00",
+                    "ended_at": "2026-08-05T12:25:00+00:00",
+                    "status": "completed",
+                    "label": "keep me",
+                    "tag_id": None,
+                },
+                headers=Headers(headers),
+            )
+            resp = await client.patch(
+                f"/blocks/{block_id}",
+                json={"label": "renamed"},
+                headers=Headers(headers),
+            )
+        assert resp.status_code == 200
+        assert resp.json()["label"] == "renamed"
+        assert resp.json()["status"] == "completed"

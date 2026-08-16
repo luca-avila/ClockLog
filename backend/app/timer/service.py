@@ -170,9 +170,10 @@ async def update_block(
             detail={"code": "BLOCK_NOT_FOUND", "message": "Block not found"},
         )
 
-    for key in {"label", "tag_id"}:
-        if key in data:
-            setattr(block, key, data[key])
+    for key, value in data.items():
+        if key in ("started_at", "ended_at"):
+            continue  # handled against the interval below
+        setattr(block, key, value)
 
     if "started_at" in data or "ended_at" in data:
         if not block.intervals:

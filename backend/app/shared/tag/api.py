@@ -57,7 +57,8 @@ async def update(
     tag = await update_tag(
         db,
         uuid.UUID(tag_id),
-        data.model_dump(exclude_unset=True, exclude_none=True),
+        # exclude_unset alone, matching the other modules' PATCH semantics.
+        data.model_dump(exclude_unset=True),
         current_user.id,
     )
     await db.commit()

@@ -54,9 +54,8 @@ async def update_tag(db: AsyncSession, tag_id: uuid.UUID, data: dict, user_id: u
             status_code=404,
             detail={"code": "TAG_NOT_FOUND", "message": "Tag not found"},
         )
-    for key in ("name", "color"):
-        if key in data:
-            setattr(tag, key, data[key])
+    for key, value in data.items():
+        setattr(tag, key, value)
     return tag
 
 
