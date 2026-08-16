@@ -42,6 +42,16 @@ export function weekBounds(iso: string): { from: string; to: string } {
   return { from, to: addDays(from, 6) };
 }
 
+/** Local calendar date as "YYYY-MM-DD". The plan is wall-clock data, so
+ * local is unambiguously right here — toISOString()'s UTC date is wrong
+ * for part of every day outside UTC+0. */
+export function localTodayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
 export function weekDays(from: string): string[] {
   return Array.from({ length: 7 }, (_, i) => addDays(from, i));
 }

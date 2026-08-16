@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   weekBounds,
   addDays,
   weekDays,
   minutesBetween,
   formatDuration,
+  localTodayIso,
 } from "@/lib/date/week";
 
 describe("weekBounds (Monday-start, pure date math)", () => {
@@ -59,10 +60,31 @@ describe("weekBounds (Monday-start, pure date math)", () => {
 
   it("is correct across a year boundary", () => {
     // 2026-01-01 is a Thursday → week spans 2025-12-29..2026-01-04.
-    expect(weekBounds("2026-01-01")).toEqual({
-      from: "2025-12-29",
-      to: "2026-01-04",
-    });
+    expect(weekBounds("2026-01-01")).toEqual({ from: "2025-12-29", to: "2026-01-04" });
+  });
+});
+
+describe("localTodayIso (wall-clock today, not UTC today)", () => {
+  const realTz = process.env.TZ;
+
+  afterEach(() => {
+    process.env.TZ = realTz;
+    vi.useRealTimers();
+  });
+
+  it("uses the local calendar date west of UTC after midnight UTC", () => {
+    // 2026-08-16T02:30Z is still Aug 15 in New York (UTC-4); the UTC
+    // string would wrongly say "2026-08-16".
+    process.env.TZ = "America/New_York";
+    vi.useFakeTimers({ now: new Date("2026-08-16T02:30:00Z").getTime() });
+    expect(localTodayIso()).toBe("2026-08-15");
+  });
+
+  it("uses the local calendar date east of UTC before noon UTC", () => {
+    // 2026-08-16T02:30Z is already Aug 16 in Tokyo (UTC+9).
+    process.env.TZ = "Asia/Tokyo";
+    vi.useFakeTimers({ now: new Date("2026-08-16T02:30:00Z").getTime() });
+    expect(localTodayIso()).toBe("2026-08-16");
   });
 });
 

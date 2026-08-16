@@ -20,12 +20,13 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import PlanDayScreen from "@/components/plan/PlanDayScreen";
 import EntrySheet, { type EntrySheetMode } from "@/components/plan/EntrySheet";
+import { localTodayIso } from "@/lib/date/week";
 
 function Page() {
   const params = useSearchParams();
   const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get("date") ?? "")
     ? params.get("date")!
-    : new Date().toISOString().slice(0, 10);
+    : localTodayIso();
   const editId = params.get("edit");
   const isNew = params.get("new") === "1";
   const hour = Number(params.get("hour"));

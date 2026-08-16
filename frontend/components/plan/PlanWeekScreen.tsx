@@ -20,14 +20,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import WeekView from "./WeekView";
 import { fetchOccurrences, type EntryOccurrence } from "@/lib/api/plan";
-import { weekBounds } from "@/lib/date/week";
-
-function localTodayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
-}
+import { localTodayIso, weekBounds } from "@/lib/date/week";
 
 export default function PlanWeekScreen() {
   const params = useSearchParams();

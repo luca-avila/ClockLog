@@ -20,6 +20,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import PlanWeekScreen from "@/components/plan/PlanWeekScreen";
 import EntrySheet, { type EntrySheetMode } from "@/components/plan/EntrySheet";
+import { localTodayIso } from "@/lib/date/week";
 
 function Page() {
   const params = useSearchParams();
@@ -34,9 +35,7 @@ function Page() {
   } else if (isNew) {
     sheet = {
       kind: "create",
-      date: /^\d{4}-\d{2}-\d{2}$/.test(date)
-        ? date
-        : new Date().toISOString().slice(0, 10),
+      date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : localTodayIso(),
       hour: Number.isFinite(hour) ? hour : null,
     };
   }
