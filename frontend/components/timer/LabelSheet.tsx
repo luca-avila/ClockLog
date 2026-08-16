@@ -18,28 +18,35 @@
 
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api/client";
+import TagPicker from "@/components/shared/TagPicker";
+import { fetchTags, type Tag } from "@/lib/api/tags";
 
 interface LabelSheetProps {
-  onSave: (label: string) => void;
+  onSave: (label: string, tagId: string | null) => void;
   onSkip: () => void;
 }
 
 export default function LabelSheet({ onSave, onSkip }: LabelSheetProps) {
   const [label, setLabel] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [tagId, setTagId] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<string[]>("/blocks/recent-labels")
       .then(setRecent)
       .catch(() => {});
+    fetchTags()
+      .then(setTags)
+      .catch(() => {});
   }, []);
 
   function handleSave() {
-    onSave(label || "Unlabeled");
+    onSave(label || "Unlabeled", tagId);
   }
 
   function handleRecentClick(item: string) {
-    onSave(item);
+    onSave(item, tagId);
   }
 
   return (
@@ -76,6 +83,13 @@ export default function LabelSheet({ onSave, onSkip }: LabelSheetProps) {
               </div>
             </div>
           )}
+
+          <div className="w-full">
+            <p className="text-[10px] uppercase tracking-widest text-neutral-400 mb-2">
+              Tag
+            </p>
+            <TagPicker tags={tags} value={tagId} onChange={setTagId} />
+          </div>
 
           <div className="flex gap-4 mt-2">
             <button

@@ -210,11 +210,12 @@ export default function TimerScreen() {
       });
   }
 
-  function handleLabelSave(labelText: string) {
+  function handleLabelSave(labelText: string, tagId: string | null) {
     if (!state) return;
     const finalState: TimerState = {
       ...state,
       label: labelText || "Unlabeled",
+      tagId,
     };
     completeAndSaveBlock(finalState)
       .catch(() => {
