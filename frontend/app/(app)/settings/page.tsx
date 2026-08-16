@@ -17,6 +17,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { type TimerSettings } from "@/lib/timer/engine";
 import { updateSettings } from "@/lib/api/settings";
 import { useSettings } from "@/lib/useSettings";
@@ -24,6 +25,7 @@ import { useSettings } from "@/lib/useSettings";
 const DURATION_OPTIONS = [5, 10, 15, 20, 25, 30, 45, 50, 60];
 
 export default function SettingsPage() {
+  const router = useRouter();
   const { settings, setSettings, loading } = useSettings();
   const [saved, setSaved] = useState(false);
 
@@ -124,7 +126,7 @@ export default function SettingsPage() {
         <button
           onClick={() => {
             localStorage.removeItem("token");
-            window.location.reload();
+            router.push("/login");
           }}
           className="text-sm text-red-500 hover:text-red-600 transition-colors"
         >

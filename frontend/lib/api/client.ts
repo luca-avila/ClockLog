@@ -36,6 +36,23 @@ export async function apiFetch<T>(
     headers: { ...authHeaders(), ...options.headers },
   });
   if (!res.ok) {
+    // Expired/invalid session: drop the stale token and go sign in again.
+    // The login page posts with plain fetch, so its own 401s never loop.
+    if (
+      res.status === 401 &&
+      typeof window !== "undefined" &&
+      window.location.pathname !== "/login"
+    ) {
+      try {
+        localStorage.removeItem("token");
+      } catch {
+        /* ignore */
+      }
+      // Hard navigation on purpose: this runs outside React, mid-promise,
+      // and must tear down whatever screen made the request.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = "/login";
+    }
     const body = await res.text().catch(() => "");
     throw new Error(`${res.status} ${body}`);
   }
