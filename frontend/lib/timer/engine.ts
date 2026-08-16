@@ -30,6 +30,11 @@ export interface TimerState {
   focusBlocksCompleted: number;
   intervals: Interval[];
   blockStatus: "completed" | "aborted";
+  // Target duration in ms, captured when the block starts so a settings
+  // change mid-block never moves the finish line. Optional because blocks
+  // persisted before this field existed have no value and fall back to
+  // the current settings.
+  targetMs?: number;
 }
 
 export interface TimerSettings {

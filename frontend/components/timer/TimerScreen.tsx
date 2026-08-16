@@ -24,10 +24,10 @@ import {
   elapsed,
   cyclePosition,
   nextDuration,
-  defaultSettings,
   serializeState,
   deserializeState,
 } from "@/lib/timer/engine";
+import { useSettings } from "@/lib/useSettings";
 import { saveBlock } from "@/lib/api/blocks";
 import {
   fireAlert,
@@ -84,7 +84,7 @@ function alertBlockEnd(type: BlockType, settings: TimerSettings) {
 
 export default function TimerScreen() {
   const [state, setState] = useState<TimerState | null>(loadStoredState);
-  const [settings] = useState<TimerSettings>(defaultSettings);
+  const { settings } = useSettings();
   const [label, setLabel] = useState(() => loadStoredState()?.label ?? "");
   const [now, setNow] = useState(() => Date.now());
   const [showLabelSheet, setShowLabelSheet] = useState(false);
@@ -116,7 +116,7 @@ export default function TimerScreen() {
         s.intervals[s.intervals.length - 1].endedAt !== undefined;
       if (paused) return;
 
-      const target = nextDuration(s.type, settingsRef.current) * 1000;
+      const target = s.targetMs ?? nextDuration(s.type, settingsRef.current) * 1000;
       const e = elapsed(s.startedAt, t, s.intervals);
 
       if (e >= target) {
@@ -158,6 +158,9 @@ export default function TimerScreen() {
       focusBlocksCompleted: nextCompleted ?? state?.focusBlocksCompleted ?? 0,
       intervals: [{ startedAt: t }],
       blockStatus: "completed",
+      // Capture the finish line now: a settings change mid-block must not
+      // move it, and the captured value survives a refresh (invariant 4).
+      targetMs: nextDuration(type, settingsRef.current) * 1000,
     };
     setPendingBreak(false);
     setState(newState);
@@ -234,7 +237,7 @@ export default function TimerScreen() {
     ? elapsed(state.startedAt, now, state.intervals)
     : 0;
   const targetDuration = state
-    ? nextDuration(state.type, settings) * 1000
+    ? state.targetMs ?? nextDuration(state.type, settings) * 1000
     : 0;
 
   function formatTime(ms: number) {

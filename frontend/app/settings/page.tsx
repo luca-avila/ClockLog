@@ -16,23 +16,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useEffect, useState } from "react";
-import { type TimerSettings, defaultSettings } from "@/lib/timer/engine";
-import { fetchSettings, updateSettings } from "@/lib/api/settings";
+import { useState } from "react";
+import { type TimerSettings } from "@/lib/timer/engine";
+import { updateSettings } from "@/lib/api/settings";
+import { useSettings } from "@/lib/useSettings";
 
 const DURATION_OPTIONS = [5, 10, 15, 20, 25, 30, 45, 50, 60];
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<TimerSettings>(defaultSettings);
-  const [loading, setLoading] = useState(true);
+  const { settings, setSettings, loading } = useSettings();
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    fetchSettings()
-      .then(setSettings)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
 
   async function save(partial: Partial<TimerSettings>) {
     const updated = { ...settings, ...partial };
