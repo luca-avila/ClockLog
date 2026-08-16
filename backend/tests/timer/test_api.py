@@ -193,3 +193,61 @@ class TestPatchBlocks:
         assert resp.status_code == 200
         assert resp.json()["label"] == "renamed"
         assert resp.json()["status"] == "completed"
+
+
+class TestHistoryQueryValidation:
+    @pytest.mark.asyncio
+    async def test_garbage_from_is_422_not_500(self, db_session):
+        headers, _ = await _register_and_auth(db_session)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(
+                "/blocks?from=nonsense&to=2026-08-06T00:00:00Z",
+                headers=Headers(headers),
+            )
+            summary = await client.get(
+                "/blocks/summary?from=nonsense&to=2026-08-06T00:00:00Z",
+                headers=Headers(headers),
+            )
+        assert resp.status_code == 422
+        assert summary.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_naive_datetime_is_422(self, db_session):
+        headers, _ = await _register_and_auth(db_session)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(
+                "/blocks?from=2026-08-05T00:00:00&to=2026-08-06T00:00:00Z",
+                headers=Headers(headers),
+            )
+        assert resp.status_code == 422
+        # The app-level handler flattens detail into the body: {"code", ...}
+        assert resp.json()["code"] == "NAIVE_DATETIME"
+
+    @pytest.mark.asyncio
+    async def test_from_after_to_is_422(self, db_session):
+        headers, _ = await _register_and_auth(db_session)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(
+                "/blocks?from=2026-08-06T00:00:00Z&to=2026-08-05T00:00:00Z",
+                headers=Headers(headers),
+            )
+        assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_RANGE"
+
+    @pytest.mark.asyncio
+    async def test_valid_range_still_works(self, db_session):
+        headers, _ = await _register_and_auth(db_session)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(
+                "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+                headers=Headers(headers),
+            )
+        assert resp.status_code == 200

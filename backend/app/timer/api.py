@@ -31,6 +31,7 @@ from app.timer.service import (
     get_recent_labels,
     get_summary_by_tag,
     update_block,
+    validate_history_range,
 )
 
 router = APIRouter(prefix="/blocks", tags=["blocks"])
@@ -47,26 +48,25 @@ async def recent_labels(
 @router.get("", response_model=list[BlockResponse])
 async def list_blocks(
     db: DBSession,
-    from_: str = Query(alias="from"),
-    to: str = Query(alias="to"),
+    # Typed datetime: Pydantic rejects garbage with a 422, never a 500.
+    from_: datetime = Query(alias="from"),  # noqa: B008
+    to: datetime = Query(alias="to"),  # noqa: B008
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
-    from_dt = datetime.fromisoformat(from_)
-    to_dt = datetime.fromisoformat(to)
-    blocks = await get_blocks_in_range(db, current_user.id, from_dt, to_dt)
+    validate_history_range(from_, to)
+    blocks = await get_blocks_in_range(db, current_user.id, from_, to)
     return [BlockResponse.model_validate(b) for b in blocks]
 
 
 @router.get("/summary")
 async def summary(
     db: DBSession,
-    from_: str = Query(alias="from"),
-    to: str = Query(alias="to"),
+    from_: datetime = Query(alias="from"),  # noqa: B008
+    to: datetime = Query(alias="to"),  # noqa: B008
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
-    from_dt = datetime.fromisoformat(from_)
-    to_dt = datetime.fromisoformat(to)
-    return await get_summary_by_tag(db, current_user.id, from_dt, to_dt)
+    validate_history_range(from_, to)
+    return await get_summary_by_tag(db, current_user.id, from_, to)
 
 
 @router.post("", response_model=BlockResponse, status_code=201)

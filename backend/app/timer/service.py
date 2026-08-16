@@ -35,6 +35,23 @@ def compute_duration(block: Block) -> timedelta:
     return total
 
 
+def validate_history_range(from_dt: datetime, to_dt: datetime) -> None:
+    """History speaks instants: tz-aware or rejected (invariant 5)."""
+    if from_dt.tzinfo is None or to_dt.tzinfo is None:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "NAIVE_DATETIME",
+                "message": "from and to must be timezone-aware datetimes",
+            },
+        )
+    if from_dt > to_dt:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "INVALID_RANGE", "message": "from must not be after to"},
+        )
+
+
 async def create_block(db: AsyncSession, data: BlockCreate, user_id: uuid.UUID) -> Block:
     existing = await db.execute(select(Block).where(Block.id == data.id))
     block = existing.scalar_one_or_none()
