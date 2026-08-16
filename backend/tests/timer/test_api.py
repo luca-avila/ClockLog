@@ -194,6 +194,34 @@ class TestPatchBlocks:
         assert resp.json()["label"] == "renamed"
         assert resp.json()["status"] == "completed"
 
+    @pytest.mark.asyncio
+    async def test_patch_status(self, db_session):
+        """SCR-21 edits status in the block inspector."""
+        headers, _ = await _register_and_auth(db_session)
+
+        transport = ASGITransport(app=app)
+        block_id = str(uuid.uuid4())
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            await client.post(
+                "/blocks",
+                json={
+                    "id": block_id,
+                    "started_at": "2026-08-05T12:00:00+00:00",
+                    "ended_at": "2026-08-05T12:25:00+00:00",
+                    "status": "completed",
+                    "label": "late stop",
+                    "tag_id": None,
+                },
+                headers=Headers(headers),
+            )
+            resp = await client.patch(
+                f"/blocks/{block_id}",
+                json={"status": "aborted"},
+                headers=Headers(headers),
+            )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "aborted"
+
 
 class TestHistoryQueryValidation:
     @pytest.mark.asyncio

@@ -49,6 +49,7 @@ class BlockCreate(BaseModel):
 class BlockUpdate(BaseModel):
     label: str | None = None
     tag_id: uuid.UUID | None = None
+    status: Literal["completed", "aborted"] | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
 

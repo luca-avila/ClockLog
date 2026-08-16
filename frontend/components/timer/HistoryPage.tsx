@@ -23,6 +23,8 @@ import {
   type BlockData,
   type TagSummary,
 } from "@/lib/api/history";
+import { fetchTags, type Tag } from "@/lib/api/tags";
+import BlockEditor from "./BlockEditor";
 
 function dayRange(date: Date) {
   const from = new Date(date);
@@ -82,26 +84,44 @@ export default function HistoryPage() {
   const [date, setDate] = useState(() => new Date());
   const [blocks, setBlocks] = useState<BlockData[]>([]);
   const [summary, setSummary] = useState<TagSummary[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    fetchTags()
+      .then(setTags)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const { from, to } = dayRange(date);
+    let cancelled = false;
     Promise.all([fetchBlocks(from, to), fetchSummary(from, to)])
       .then(([b, s]) => {
+        if (cancelled) return;
         setBlocks(b);
         setSummary(s);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
-  }, [date]);
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [date, reload]);
 
   function prevDay() {
+    setLoading(true);
     const d = new Date(date);
     d.setDate(d.getDate() - 1);
     setDate(d);
   }
 
   function nextDay() {
+    setLoading(true);
     const d = new Date(date);
     d.setDate(d.getDate() + 1);
     setDate(d);
@@ -113,8 +133,16 @@ export default function HistoryPage() {
   const focusSeconds = focusBlocks.reduce((sum, b) => sum + blockDuration(b), 0);
   const totalMinutes = focusSeconds / 60;
 
+  const selected = blocks.find((b) => b.id === selectedId) ?? null;
+
+  function afterEditorDone() {
+    setSelectedId(null);
+    setLoading(true);
+    setReload((n) => n + 1);
+  }
+
   return (
-    <div className="max-w-md mx-auto py-8 px-4">
+    <div className="max-w-md mx-auto py-8 px-4 md:max-w-3xl">
       {/* Day navigation */}
       <div className="flex items-center justify-between mb-6">
         <button onClick={prevDay} className="text-neutral-400 hover:text-neutral-600 text-lg">
@@ -137,61 +165,101 @@ export default function HistoryPage() {
           </p>
         </div>
       ) : (
-        <>
-          {/* Summary header */}
-          <div className="mb-4">
-            <p className="text-xs text-neutral-400 mb-3">
-              {Math.floor(totalMinutes / 60)}h {Math.floor(totalMinutes % 60)}m focus ·{" "}
-              {focusBlocks.length} block{focusBlocks.length !== 1 ? "s" : ""}
-            </p>
-            {summary.map((s) => (
-              <div key={s.tag_name} className="flex items-center gap-2 text-sm text-neutral-600">
-                <span className="inline-block w-2 h-2 rounded-full bg-neutral-700" />
-                <span className="flex-1">{s.tag_name}</span>
-                <span className="text-neutral-400 tabular-nums">
-                  {formatDuration(s.total_seconds)}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <hr className="border-neutral-200 mb-4" />
-
-          {/* Block list */}
-          <div className="space-y-3">
-            {blocks.map((b) => {
-              const start = b.intervals[0]?.started_at || b.started_at;
-              const duration = blockDuration(b);
-              const isFocus = b.kind === "focus";
-
-              return (
-                <div key={b.id} className="flex items-start gap-3">
-                  <span className="text-xs text-neutral-400 w-10 pt-0.5 tabular-nums">
-                    {formatTime(start)}
-                  </span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-1">
-                      {b.status === "aborted" && (
-                        <span className="text-xs text-amber-500">⚠</span>
-                      )}
-                      <span className="text-sm text-neutral-700">
-                        {/* SCR-20: breaks render hollow */}
-                        {isFocus ? "● " : "○ "}
-                        {isFocus ? b.label || "Unlabeled" : KIND_LABEL[b.kind]}
-                      </span>
-                    </div>
-                    {b.status === "aborted" && (
-                      <span className="text-xs text-neutral-400">aborted · early</span>
-                    )}
-                  </div>
-                  <span className="text-xs text-neutral-400 tabular-nums">
-                    {formatDuration(duration)}
+        <div className="md:flex md:gap-8 md:items-start">
+          <div className="flex-1">
+            {/* Summary header */}
+            <div className="mb-4">
+              <p className="text-xs text-neutral-400 mb-3">
+                {Math.floor(totalMinutes / 60)}h {Math.floor(totalMinutes % 60)}m focus ·{" "}
+                {focusBlocks.length} block{focusBlocks.length !== 1 ? "s" : ""}
+              </p>
+              {summary.map((s) => (
+                <div key={s.tag_name} className="flex items-center gap-2 text-sm text-neutral-600">
+                  <span className="inline-block w-2 h-2 rounded-full bg-neutral-700" />
+                  <span className="flex-1">{s.tag_name}</span>
+                  <span className="text-neutral-400 tabular-nums">
+                    {formatDuration(s.total_seconds)}
                   </span>
                 </div>
-              );
-            })}
+              ))}
+            </div>
+
+            <hr className="border-neutral-200 mb-4" />
+
+            {/* Block list */}
+            <div className="space-y-3">
+              {blocks.map((b) => {
+                const start = b.intervals[0]?.started_at || b.started_at;
+                const duration = blockDuration(b);
+                const isFocus = b.kind === "focus";
+
+                return (
+                  <button
+                    key={b.id}
+                    onClick={() => setSelectedId(b.id)}
+                    aria-label={`Edit block: ${isFocus ? b.label || "Unlabeled" : KIND_LABEL[b.kind]}`}
+                    className={`flex items-start gap-3 w-full text-left rounded-lg px-2 -mx-2 py-1 transition-colors ${
+                      selectedId === b.id ? "bg-neutral-100" : "hover:bg-neutral-50"
+                    }`}
+                  >
+                    <span className="text-xs text-neutral-400 w-10 pt-0.5 tabular-nums">
+                      {formatTime(start)}
+                    </span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1">
+                        {b.status === "aborted" && (
+                          <span className="text-xs text-amber-500">⚠</span>
+                        )}
+                        <span className="text-sm text-neutral-700">
+                          {/* SCR-20: breaks render hollow */}
+                          {isFocus ? "● " : "○ "}
+                          {isFocus ? b.label || "Unlabeled" : KIND_LABEL[b.kind]}
+                        </span>
+                      </div>
+                      {b.status === "aborted" && (
+                        <span className="text-xs text-neutral-400">aborted · early</span>
+                      )}
+                    </div>
+                    <span className="text-xs text-neutral-400 tabular-nums">
+                      {formatDuration(duration)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </>
+
+          {/* Desktop inspector (SCR-21 ## Desktop): edit without navigating away */}
+          {selected && (
+            <aside className="hidden md:block md:w-80 shrink-0 sticky top-4 border border-neutral-100 rounded-2xl">
+              <BlockEditor
+                key={selected.id}
+                block={selected}
+                tags={tags}
+                onDone={afterEditorDone}
+              />
+            </aside>
+          )}
+        </div>
+      )}
+
+      {/* Mobile: the editor is a bottom sheet, same pattern as the plan's EntrySheet */}
+      {selected && (
+        <div className="md:hidden fixed inset-0 z-20">
+          <div
+            className="absolute inset-0 bg-black/30"
+            aria-hidden
+            onClick={afterEditorDone}
+          />
+          <div className="absolute inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-xl">
+            <BlockEditor
+              key={selected.id}
+              block={selected}
+              tags={tags}
+              onDone={afterEditorDone}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
