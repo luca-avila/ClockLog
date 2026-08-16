@@ -103,7 +103,13 @@ describe("WeekView (SCR-30)", () => {
   });
 
   it("renders every day of the week, empty ones included", () => {
-    const markup = renderToStaticMarkup(<WeekView week={WEEK} occurrences={[]} />);
+    // One entry anywhere: the day list renders, not the empty state.
+    const markup = renderToStaticMarkup(
+      <WeekView
+        week={WEEK}
+        occurrences={[occ("Gym", "2026-07-28", "18:30", "19:30")]}
+      />
+    );
     for (const d of [
       "2026-07-27",
       "2026-07-31",

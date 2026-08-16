@@ -226,10 +226,9 @@ NEW ENTRY (sheet)                  EMPTY WEEK
 > ⚠ **`☑ Use focus timer for this` es FASE 3.** Misma razón que arriba. En fase 2 el sheet
 > termina en el separador: nombre, día, from/to, tag, `☐ Repeat weekly`, SAVE.
 >
-> **Pendiente (SCR-33):** la copy dice "Timers are optional", que es vocabulario del timer en
-> una pantalla del Plan y contradice el invariante 13. O se cambia la copy, o se acota el
-> invariante a "ningún concepto del método —block, focus, cycle, pomodoro—, pero la palabra
-> *timer* se permite una vez en el empty state". Decidir antes de escribir SCR-33.
+> **Resuelto (G-5):** la copy decía "Timers are optional", vocabulario del timer en una
+> pantalla del Plan. La línea se elimina — el empty state termina en "anything." y el
+> invariante 13 queda sin acotar. `Copy last week` sigue fuera de alcance.
 
 ### Desktop — week
 

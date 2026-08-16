@@ -105,7 +105,7 @@ These block specific slices. `CLAUDE.md` § Open decisions says do not resolve t
 | **G-2 — do breaks carry labels?** | `S-10` | ✅ **No.** Breaks are dead time. Label sheet only appears after focus blocks. Break blocks are labelless by type. Settled 2026-08-05. |
 | **G-3 — settings storage** | `S-12` | ✅ **Server-side.** Settings stored in `user_setting` table (one row per user). Settled 2026-08-05. |
 | **G-4 — planner tags** | `S-19` | ✅ **Shared.** The plan uses the timer's `tag` table; `tag/` stays in `shared/`. Tags are the one visual element shared across both modules (CLAUDE.md § Frontend conventions; invariant 10 already covers both blocks and activities). Settled 2026-08-15. |
-| **G-5 — SCR-33 empty-state copy** | `S-22` | **Unresolved.** "Timers are optional." is timer vocabulary on a Plan screen and contradicts invariant 13. |
+| **G-5 — SCR-33 empty-state copy** | `S-22` | ✅ **Line dropped.** "Timers are optional." is gone; invariant 13 stands unscoped — Plan copy contains no timer vocabulary at all, including the word *timer*. Settled 2026-08-15. |
 
 ---
 
@@ -437,8 +437,9 @@ mobile first with the `md:`/`lg:` grid after.
 - The tag picker reuses `components/shared/TagPicker.tsx` from `S-05`; no plan-local tag UI.
 **Done when:** an entry can be created, edited, and deleted from both SCR-30 and SCR-31.
 
-### S-22 — Empty week (SCR-33)
-**Gate:** **G-5** (the "Timers are optional." copy) — unresolved; this slice is blocked.
+### S-22 ✅ — Empty week (SCR-33)
+**Gate:** **G-5** — settled 2026-08-15: the "Timers are optional." line is dropped;
+invariant 13 stands unscoped.
 **Read:** `wireframes.md` SCR-33 + its pending note.
 **Touch:** `components/plan/EmptyWeek.tsx`.
 **Out of scope:** `Copy last week` — it is drawn dashed, defined nowhere else, and would be the
@@ -488,7 +489,7 @@ Prefer the boring version — a small loop over a list of module names with a ca
 | S-19C | App shell nav | all | | ✅ |
 | S-20 | Plan week + day | SCR-30/31 | | ✅ |
 | S-21 | Entry editor | SCR-32 | | ✅ |
-| S-22 | Empty week | SCR-33 | **G-5** | |
+| S-22 | Empty week | SCR-33 | G-5 | ✅ |
 | S-23 | Deletability proof | — | | |
 
 ---

@@ -18,3 +18,4 @@ G-1 — resolved: pause is in
 G-2 — resolved: breaks do not carry labels (label sheet only for focus)
 G-3 — resolved: settings stored server-side
 G-4 — resolved: plan shares the timer's tags (tag stays in shared/)
+G-5 — resolved: "Timers are optional." dropped from SCR-33; invariant 13 unscoped

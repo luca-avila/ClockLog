@@ -18,6 +18,7 @@
 
 import Link from "next/link";
 import type { EntryOccurrence } from "@/lib/api/plan";
+import EmptyWeek from "./EmptyWeek";
 import { addDays, formatDuration, minutesBetween, weekDays } from "@/lib/date/week";
 
 const DAY_NAMES = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
@@ -102,7 +103,10 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
         {formatDuration(totalMinutes)}
       </p>
 
-      <div className="md:grid md:grid-cols-7 md:gap-3 md:divide-x md:divide-neutral-100">
+      {occurrences.length === 0 ? (
+        <EmptyWeek from={week.from} />
+      ) : (
+        <div className="md:grid md:grid-cols-7 md:gap-3 md:divide-x md:divide-neutral-100">
         {days.map((d, i) => {
           const list = byDay.get(d)!;
           const isToday = today === d;
@@ -169,14 +173,17 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
             </section>
           );
         })}
-      </div>
+        </div>
+      )}
 
-      <Link
-        href={`/plan?new=1&date=${days[0]}`}
-        className="mt-2 block text-center py-2.5 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-lg hover:border-neutral-400"
-      >
-        + NEW ENTRY
-      </Link>
+      {occurrences.length > 0 && (
+        <Link
+          href={`/plan?new=1&date=${days[0]}`}
+          className="mt-2 block text-center py-2.5 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-lg hover:border-neutral-400"
+        >
+          + NEW ENTRY
+        </Link>
+      )}
     </div>
   );
 }
