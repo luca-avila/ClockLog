@@ -49,13 +49,10 @@ async def _auth_and_post_block(
 class TestHistory:
     @pytest.mark.asyncio
     async def test_blocks_in_range_ordered_by_time(self, db_session):
-        user = await create_user(
-            db_session, UserCreate(email="hist@test.com", password="secret12")
-        )
+        user = await create_user(db_session, UserCreate(email="hist@test.com", password="secret12"))
         await db_session.commit()
         token = create_access_token(data={"sub": user.email})
         headers = {"Authorization": f"Bearer {token}"}
-
 
         transport = ASGITransport(app=app)
 
@@ -83,12 +80,15 @@ class TestHistory:
         token = create_access_token(data={"sub": user.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-
         transport = ASGITransport(app=app)
 
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            await _auth_and_post_block(client, headers, "done", "2026-08-05T09:00:00+00:00", "completed")  # noqa: E501
-            await _auth_and_post_block(client, headers, "aborted", "2026-08-05T09:30:00+00:00", "aborted")  # noqa: E501
+            await _auth_and_post_block(
+                client, headers, "done", "2026-08-05T09:00:00+00:00", "completed"
+            )  # noqa: E501
+            await _auth_and_post_block(
+                client, headers, "aborted", "2026-08-05T09:30:00+00:00", "aborted"
+            )  # noqa: E501
 
             resp = await client.get(
                 "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
@@ -103,16 +103,11 @@ class TestHistory:
 
     @pytest.mark.asyncio
     async def test_scoped_to_user(self, db_session):
-        u1 = await create_user(
-            db_session, UserCreate(email="u1-h@test.com", password="secret12")
-        )
-        u2 = await create_user(
-            db_session, UserCreate(email="u2-h@test.com", password="secret12")
-        )
+        u1 = await create_user(db_session, UserCreate(email="u1-h@test.com", password="secret12"))
+        u2 = await create_user(db_session, UserCreate(email="u2-h@test.com", password="secret12"))
         await db_session.commit()
         h1 = {"Authorization": f"Bearer {create_access_token(data={'sub': u1.email})}"}
         h2 = {"Authorization": f"Bearer {create_access_token(data={'sub': u2.email})}"}
-
 
         transport = ASGITransport(app=app)
 
@@ -133,13 +128,10 @@ class TestHistory:
 class TestSummary:
     @pytest.mark.asyncio
     async def test_aggregates_by_tag(self, db_session):
-        user = await create_user(
-            db_session, UserCreate(email="summ@test.com", password="secret12")
-        )
+        user = await create_user(db_session, UserCreate(email="summ@test.com", password="secret12"))
         await db_session.commit()
         token = create_access_token(data={"sub": user.email})
         headers = {"Authorization": f"Bearer {token}"}
-
 
         transport = ASGITransport(app=app)
 
@@ -199,12 +191,15 @@ class TestSummary:
         token = create_access_token(data={"sub": user.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-
         transport = ASGITransport(app=app)
 
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            await _auth_and_post_block(client, headers, "aborted", "2026-08-05T09:00:00+00:00", "aborted")  # noqa: E501
-            await _auth_and_post_block(client, headers, "completed", "2026-08-05T09:30:00+00:00", "completed")  # noqa: E501
+            await _auth_and_post_block(
+                client, headers, "aborted", "2026-08-05T09:00:00+00:00", "aborted"
+            )  # noqa: E501
+            await _auth_and_post_block(
+                client, headers, "completed", "2026-08-05T09:30:00+00:00", "completed"
+            )  # noqa: E501
 
             resp = await client.get(
                 "/blocks/summary?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",

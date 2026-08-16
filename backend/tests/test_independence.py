@@ -23,9 +23,7 @@ TIMER_DIR = APP_ROOT / "timer"
 PLAN_DIR = APP_ROOT / "plan"
 SHARED_DIR = APP_ROOT / "shared"
 
-TIMER_POMODORO_WORDS = re.compile(
-    r"\b(block|focus|cycle|pomodoro)\b", re.IGNORECASE
-)
+TIMER_POMODORO_WORDS = re.compile(r"\b(block|focus|cycle|pomodoro)\b", re.IGNORECASE)
 
 
 def _get_python_files(directory: Path) -> list[Path]:
@@ -77,6 +75,4 @@ def test_plan_contains_no_timer_vocabulary():
         if matches:
             matched = ", ".join(sorted(set(m.lower() for m in matches)))
             violations.append(f"{f.relative_to(APP_ROOT)} contains: {matched}")
-    assert not violations, (
-        "plan/ must never contain timer vocabulary:\n" + "\n".join(violations)
-    )
+    assert not violations, "plan/ must never contain timer vocabulary:\n" + "\n".join(violations)

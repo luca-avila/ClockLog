@@ -91,7 +91,9 @@ async def patch_block(
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
     block = await update_block(
-        db, uuid.UUID(block_id), current_user.id,
+        db,
+        uuid.UUID(block_id),
+        current_user.id,
         data.model_dump(exclude_unset=True, exclude_none=True),
     )
     await db.commit()

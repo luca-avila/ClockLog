@@ -36,9 +36,7 @@ def compute_duration(block: Block) -> timedelta:
 
 
 async def create_block(db: AsyncSession, data: BlockCreate, user_id: uuid.UUID) -> Block:
-    existing = await db.execute(
-        select(Block).where(Block.id == data.id)
-    )
+    existing = await db.execute(select(Block).where(Block.id == data.id))
     block = existing.scalar_one_or_none()
     if block:
         if block.user_id != user_id:
@@ -204,12 +202,8 @@ async def update_block(
     return block
 
 
-async def delete_block(
-    db: AsyncSession, block_id: uuid.UUID, user_id: uuid.UUID
-) -> None:
-    result = await db.execute(
-        select(Block).where(Block.id == block_id, Block.user_id == user_id)
-    )
+async def delete_block(db: AsyncSession, block_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    result = await db.execute(select(Block).where(Block.id == block_id, Block.user_id == user_id))
     block = result.scalar_one_or_none()
     if not block:
         raise HTTPException(

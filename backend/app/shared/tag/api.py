@@ -55,7 +55,8 @@ async def update(
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
     tag = await update_tag(
-        db, uuid.UUID(tag_id),
+        db,
+        uuid.UUID(tag_id),
         data.model_dump(exclude_unset=True, exclude_none=True),
         current_user.id,
     )

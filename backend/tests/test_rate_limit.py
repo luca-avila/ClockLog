@@ -27,9 +27,7 @@ async def client():
     from app.core import ratelimit
 
     ratelimit.reset()
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
     ratelimit.reset()
 
@@ -57,9 +55,7 @@ async def test_login_rate_limited_after_threshold(client, login_payload):
 
 async def test_rate_limit_scopes_by_ip(client, login_payload):
     for _ in range(10):
-        await client.post(
-            "/auth/login", json=login_payload, headers={"X-Forwarded-For": "1.1.1.1"}
-        )
+        await client.post("/auth/login", json=login_payload, headers={"X-Forwarded-For": "1.1.1.1"})
     blocked = await client.post(
         "/auth/login", json=login_payload, headers={"X-Forwarded-For": "1.1.1.1"}
     )

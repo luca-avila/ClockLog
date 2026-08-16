@@ -70,9 +70,7 @@ async def register(db: DBSession, data: UserCreate):
     return user
 
 
-@router.post(
-    "/login", response_model=TokenResponse, dependencies=[Depends(_rate_limited)]
-)
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(_rate_limited)])
 async def login(db: DBSession, data: UserLogin):
     return await authenticate_user(db, data)
 

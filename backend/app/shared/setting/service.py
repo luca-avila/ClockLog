@@ -25,9 +25,7 @@ from app.shared.setting.schemas import SettingsUpdate
 
 
 async def get_or_create_settings(db: AsyncSession, user_id: uuid.UUID) -> UserSetting:
-    result = await db.execute(
-        select(UserSetting).where(UserSetting.user_id == user_id)
-    )
+    result = await db.execute(select(UserSetting).where(UserSetting.user_id == user_id))
     setting = result.scalar_one_or_none()
     if not setting:
         setting = UserSetting(user_id=user_id)
@@ -36,9 +34,7 @@ async def get_or_create_settings(db: AsyncSession, user_id: uuid.UUID) -> UserSe
             await db.flush()
         except IntegrityError:
             await db.rollback()
-            result = await db.execute(
-                select(UserSetting).where(UserSetting.user_id == user_id)
-            )
+            result = await db.execute(select(UserSetting).where(UserSetting.user_id == user_id))
             setting = result.scalar_one()
     return setting
 

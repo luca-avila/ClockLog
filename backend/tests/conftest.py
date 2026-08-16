@@ -64,4 +64,3 @@ async def db_session(engine: AsyncEngine):
     async with maker() as session:
         yield session
         await session.rollback()
-

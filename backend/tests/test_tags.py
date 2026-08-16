@@ -52,9 +52,7 @@ class TestTagService:
         )
         await db_session.commit()
 
-        tag = await create_tag(
-            db_session, TagCreate(name="Study", color="#FF0000"), user.id
-        )
+        tag = await create_tag(db_session, TagCreate(name="Study", color="#FF0000"), user.id)
         await db_session.commit()
 
         assert tag.id is not None
@@ -67,14 +65,10 @@ class TestTagService:
             db_session, UserCreate(email="svc2@example.com", password="secret12")
         )
         await db_session.commit()
-        tag = await create_tag(
-            db_session, TagCreate(name="Old", color="#000000"), user.id
-        )
+        tag = await create_tag(db_session, TagCreate(name="Old", color="#000000"), user.id)
         await db_session.commit()
 
-        updated = await update_tag(
-            db_session, tag.id, {"name": "New"}, user.id
-        )
+        updated = await update_tag(db_session, tag.id, {"name": "New"}, user.id)
         assert updated.name == "New"
 
     @pytest.mark.asyncio
@@ -83,14 +77,10 @@ class TestTagService:
             db_session, UserCreate(email="svc3@example.com", password="secret12")
         )
         await db_session.commit()
-        tag = await create_tag(
-            db_session, TagCreate(name="Blue", color="#0000FF"), user.id
-        )
+        tag = await create_tag(db_session, TagCreate(name="Blue", color="#0000FF"), user.id)
         await db_session.commit()
 
-        updated = await update_tag(
-            db_session, tag.id, {"color": "#00FF00"}, user.id
-        )
+        updated = await update_tag(db_session, tag.id, {"color": "#00FF00"}, user.id)
         assert updated.color == "#00FF00"
 
     @pytest.mark.asyncio
@@ -99,9 +89,7 @@ class TestTagService:
             db_session, UserCreate(email="svc4@example.com", password="secret12")
         )
         await db_session.commit()
-        tag = await create_tag(
-            db_session, TagCreate(name="DeleteMe", color="#000000"), user.id
-        )
+        tag = await create_tag(db_session, TagCreate(name="DeleteMe", color="#000000"), user.id)
         await db_session.commit()
 
         affected = await delete_tag(db_session, tag.id, user.id)
@@ -113,12 +101,8 @@ class TestTagService:
 
     @pytest.mark.asyncio
     async def test_tags_are_scoped_to_user(self, db_session):
-        u1 = await create_user(
-            db_session, UserCreate(email="u1@example.com", password="secret12")
-        )
-        u2 = await create_user(
-            db_session, UserCreate(email="u2@example.com", password="secret12")
-        )
+        u1 = await create_user(db_session, UserCreate(email="u1@example.com", password="secret12"))
+        u2 = await create_user(db_session, UserCreate(email="u2@example.com", password="secret12"))
         await db_session.commit()
 
         await create_tag(db_session, TagCreate(name="ForU1", color="#111111"), u1.id)
@@ -139,7 +123,6 @@ class TestTagAPI:
     async def test_create_tag_via_api(self, db_session):
         headers = await _auth_header(db_session)
 
-
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post(
@@ -154,7 +137,6 @@ class TestTagAPI:
     @pytest.mark.asyncio
     async def test_list_tags_via_api(self, db_session):
         headers = await _auth_header(db_session)
-
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

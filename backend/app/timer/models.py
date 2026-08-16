@@ -55,11 +55,7 @@ class BlockInterval(Base):
     block_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("block.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    ended_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     block: Mapped["Block"] = relationship("Block", back_populates="intervals")

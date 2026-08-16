@@ -29,9 +29,7 @@ pytestmark = pytest.mark.asyncio
 
 @pytest.fixture
 async def client():
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
 
@@ -46,9 +44,7 @@ def boom_route():
 
     app.include_router(router)
     yield "/_boom"
-    app.router.routes = [
-        r for r in app.router.routes if getattr(r, "path", None) != "/_boom"
-    ]
+    app.router.routes = [r for r in app.router.routes if getattr(r, "path", None) != "/_boom"]
 
 
 async def test_unhandled_error_returns_structured_json(client, boom_route):
@@ -61,9 +57,7 @@ async def test_unhandled_error_returns_structured_json(client, boom_route):
     uuid.UUID(body["request_id"])
 
 
-async def test_unhandled_error_is_logged_with_request_id(
-    client, boom_route, caplog
-):
+async def test_unhandled_error_is_logged_with_request_id(client, boom_route, caplog):
     with caplog.at_level(logging.ERROR, logger="tempo.errors"):
         res = await client.get(boom_route)
     request_id = res.json()["request_id"]
