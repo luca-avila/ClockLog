@@ -58,8 +58,13 @@ async function completeAndSaveBlock(s: TimerState) {
   if (last?.endedAt === undefined) last.endedAt = t;
 
   const finalState: TimerState = { ...s, intervals };
-  await saveBlock(finalState);
-  localStorage.removeItem(STORAGE_KEY);
+  try {
+    await saveBlock(finalState);
+  } finally {
+    // Unconditional: a rejected save must not leave a stale block that
+    // resurrects on refresh.
+    localStorage.removeItem(STORAGE_KEY);
+  }
 }
 
 // Sound + notification + title change on every block end; channels degrade independently.
@@ -133,9 +138,11 @@ export default function TimerScreen() {
         } else {
           // Break done → go to idle, keep cycle position
           alertBlockEnd(s.type, settingsRef.current);
-          completeAndSaveBlock(s).then(() => {
-            setState(null);
-          });
+          completeAndSaveBlock(s)
+            .catch(() => {
+              /* queued for retry; the UI moves on regardless */
+            })
+            .finally(() => setState(null));
         }
       }
     }, 200);
@@ -189,14 +196,18 @@ export default function TimerScreen() {
     if (!state) return;
     const s: TimerState = { ...state, blockStatus: "aborted" };
     alertBlockEnd(state.type, settingsRef.current);
-    completeAndSaveBlock(s).then(() => {
-      if (state.type === "focus") {
-        setNextCompleted(state.focusBlocksCompleted + 1);
-        setPendingBreak(true);
-      }
-      setState(null);
-      setLabel("");
-    });
+    completeAndSaveBlock(s)
+      .catch(() => {
+        /* queued for retry; the UI moves on regardless */
+      })
+      .finally(() => {
+        if (state.type === "focus") {
+          setNextCompleted(state.focusBlocksCompleted + 1);
+          setPendingBreak(true);
+        }
+        setState(null);
+        setLabel("");
+      });
   }
 
   function handleLabelSave(labelText: string) {
@@ -205,25 +216,33 @@ export default function TimerScreen() {
       ...state,
       label: labelText || "Unlabeled",
     };
-    completeAndSaveBlock(finalState).then(() => {
-      setNextCompleted(state.focusBlocksCompleted + 1);
-      setPendingBreak(true);
-      setShowLabelSheet(false);
-      setState(null);
-      setLabel("");
-    });
+    completeAndSaveBlock(finalState)
+      .catch(() => {
+        /* queued for retry; the UI moves on regardless */
+      })
+      .finally(() => {
+        setNextCompleted(state.focusBlocksCompleted + 1);
+        setPendingBreak(true);
+        setShowLabelSheet(false);
+        setState(null);
+        setLabel("");
+      });
   }
 
   function handleLabelSkip() {
     if (!state) return;
     const finalState: TimerState = { ...state, label: "Unlabeled" };
-    completeAndSaveBlock(finalState).then(() => {
-      setNextCompleted(state.focusBlocksCompleted + 1);
-      setPendingBreak(true);
-      setShowLabelSheet(false);
-      setState(null);
-      setLabel("");
-    });
+    completeAndSaveBlock(finalState)
+      .catch(() => {
+        /* queued for retry; the UI moves on regardless */
+      })
+      .finally(() => {
+        setNextCompleted(state.focusBlocksCompleted + 1);
+        setPendingBreak(true);
+        setShowLabelSheet(false);
+        setState(null);
+        setLabel("");
+      });
   }
 
   function skipBreak() {
