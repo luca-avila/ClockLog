@@ -231,6 +231,44 @@ class TestService:
         assert duration == timedelta(minutes=12)
 
 
+class TestUpdateBlock:
+    async def test_start_edit_moves_block_across_day_boundary(self, db_session):
+        """Block.started_at must follow an interval start edit — it is what
+        history filters and day-buckets run on (invariant 7)."""
+        from datetime import date
+
+        from app.timer.service import update_block
+
+        user = await _create_test_user(db_session)
+        data = BlockCreate(
+            id=uuid.uuid4(),
+            started_at=datetime(2026, 8, 5, 23, 50, tzinfo=UTC),
+            ended_at=datetime(2026, 8, 6, 0, 10, tzinfo=UTC),
+            status="completed",
+            label="late block",
+            tag_id=None,
+        )
+        block = await create_block(db_session, data, user.id)
+        await db_session.commit()
+
+        # Belongs to the day it started (Aug 5), not the day it ended.
+        assert block.started_at.date() == date(2026, 8, 5)
+
+        # Edit the start into the next day: both columns must move.
+        await update_block(
+            db_session,
+            block.id,
+            user.id,
+            {"started_at": datetime(2026, 8, 6, 0, 10, tzinfo=UTC)},
+        )
+        await db_session.commit()
+
+        moved = await get_block_by_id(db_session, block.id, user.id)
+        assert moved is not None
+        assert moved.started_at.date() == date(2026, 8, 6)
+        assert moved.intervals[0].started_at == moved.started_at
+
+
 async def _create_test_user(db_session: AsyncSession) -> User:
     email = f"test-{uuid.uuid4()}@example.com"
     user = await create_user(db_session, UserCreate(email=email, password="secret12"))

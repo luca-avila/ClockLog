@@ -189,6 +189,10 @@ async def update_block(
                     detail={"code": "NAIVE_DATETIME", "message": "datetime must be timezone-aware"},
                 )
             interval.started_at = new_start
+            # Block.started_at is the indexed column every history query and
+            # the day bucketing run on (invariant 7) — keep it in sync or the
+            # block silently stays on its old day after an edit.
+            block.started_at = new_start
         if "ended_at" in data:
             new_end = data["ended_at"]
             if new_end is not None:
