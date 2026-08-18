@@ -119,6 +119,17 @@ export function onReauthNeeded(cb: () => void): () => void {
   return () => reauthListeners.delete(cb);
 }
 
+const droppedListeners = new Set<(count: number) => void>();
+
+/**
+ * Fires when permanently-rejected payloads are dropped. Time spent is time
+ * spent (invariant 9), so a drop is data loss and must be visible, not silent.
+ */
+export function onBlocksDropped(cb: (count: number) => void): () => void {
+  droppedListeners.add(cb);
+  return () => droppedListeners.delete(cb);
+}
+
 let flushing = false;
 
 export async function flushQueue(
@@ -140,10 +151,11 @@ export async function flushQueue(
   try {
     const remaining: BlockPayload[] = [];
 
-    for (const item of queue) {
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i];
       if (!deps.isOnline()) {
-        remaining.push(item);
-        continue;
+        remaining.push(...queue.slice(i));
+        break;
       }
       try {
         await deps.post(item);
@@ -151,17 +163,18 @@ export async function flushQueue(
       } catch (err) {
         const status = statusOf(err);
         if (status === 401 || status === 403) {
-          remaining.push(item, ...queue.slice(queue.indexOf(item) + 1));
+          remaining.push(...queue.slice(i));
           result.needsReauth = true;
           reauthListeners.forEach((cb) => cb());
           break;
         }
         if (status >= 400 && status < 500) {
           // Permanently rejected — retrying forever would poison the queue.
+          console.warn("block dropped: server rejected payload", item);
           result.dropped++;
           continue;
         }
-        remaining.push(item, ...queue.slice(queue.indexOf(item) + 1));
+        remaining.push(...queue.slice(i));
         break;
       }
     }
@@ -170,6 +183,10 @@ export async function flushQueue(
     result.pending = remaining.length;
   } finally {
     flushing = false;
+  }
+
+  if (result.dropped > 0) {
+    droppedListeners.forEach((cb) => cb(result.dropped));
   }
 
   return result;
@@ -184,19 +201,22 @@ export async function enqueueAndSync(
   return flushQueue(custom);
 }
 
-let triggersAttached = false;
+let initialized = false;
 
-function ensureSyncTriggers(): void {
-  if (triggersAttached || typeof window === "undefined") return;
-  triggersAttached = true;
+/**
+ * App-wide sync wiring: initial flush of anything left from a previous
+ * session, retry on reconnect, periodic retry while offline. Called from a
+ * client effect (QueueSync), never at import time — import-time side
+ * effects fire in every bundle that touches this module and can't be
+ * tested or torn down.
+ */
+export function initQueueSync(): void {
+  if (initialized || typeof window === "undefined") return;
+  initialized = true;
+  // Reopening the app with a pending queue must sync without waiting for a new block.
+  if (readQueue().length > 0) void flushQueue();
   window.addEventListener("online", () => void flushQueue());
   window.setInterval(() => {
     if (readQueue().length > 0) void flushQueue();
   }, RETRY_MS);
-}
-
-if (typeof window !== "undefined") {
-  // Reopening the app with a pending queue must sync without waiting for a new block.
-  if (readQueue().length > 0) void flushQueue();
-  ensureSyncTriggers();
 }

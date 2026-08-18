@@ -21,6 +21,7 @@ import {
   flushQueue,
   readQueue,
   onReauthNeeded,
+  onBlocksDropped,
   type QueueDeps,
   type BlockPayload,
 } from "@/lib/api/queue";
@@ -134,9 +135,29 @@ describe("offline queue", () => {
     enqueueBlock(payload("bad"), localStorage);
     enqueueBlock(payload("good"), localStorage);
 
+    const dropped = vi.fn();
+    const off = onBlocksDropped(dropped);
+
     const r = await flushQueue(deps);
     expect(r).toMatchObject({ synced: 1, dropped: 1, pending: 0 });
     expect(readQueue(localStorage)).toHaveLength(0);
+    // A drop is data loss (invariant 9) — it must be surfaced, not silent.
+    expect(dropped).toHaveBeenCalledExactlyOnceWith(1);
+
+    off();
+  });
+
+  it("no drop notification when everything syncs", async () => {
+    const post = vi.fn<(p: BlockPayload) => Promise<void>>().mockResolvedValue(undefined);
+    const deps = makeDeps(post);
+    const dropped = vi.fn();
+    const off = onBlocksDropped(dropped);
+
+    enqueueBlock(payload("a"), localStorage);
+    await flushQueue(deps);
+    expect(dropped).not.toHaveBeenCalled();
+
+    off();
   });
 
   it("concurrent flushes do not double-POST", async () => {

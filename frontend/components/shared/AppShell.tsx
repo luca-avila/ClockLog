@@ -17,6 +17,7 @@
 import Link from "next/link";
 import Sidebar from "./Sidebar";
 import TabBar from "./TabBar";
+import QueueSync from "./QueueSync";
 
 // SCR-01: mobile = bottom tab bar + header gear to Settings; desktop =
 // persistent sidebar. The shell knows no module beyond shared/ — it
@@ -42,6 +43,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex-1 pb-20 md:pb-6">{children}</main>
       </div>
       <TabBar />
+      <QueueSync />
     </div>
   );
 }

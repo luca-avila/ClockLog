@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import type { TimerState } from "@/lib/timer/engine";
-import { enqueueAndSync, type BlockPayload } from "./queue";
+import { enqueueAndSync, type BlockPayload, type FlushResult } from "./queue";
 
 function stateToPayload(state: TimerState): BlockPayload {
   const lastInterval = state.intervals[state.intervals.length - 1];
@@ -35,8 +35,10 @@ function stateToPayload(state: TimerState): BlockPayload {
   };
 }
 
-export async function saveBlock(state: TimerState): Promise<void> {
+export async function saveBlock(state: TimerState): Promise<FlushResult> {
   // Always queues first: an offline or expired-session save is deferred,
   // never dropped, and never interrupts the running timer by rejecting.
-  await enqueueAndSync(stateToPayload(state));
+  // The result is returned (not discarded) so callers can see drops —
+  // invariant 9 makes silent data loss unacceptable.
+  return enqueueAndSync(stateToPayload(state));
 }
