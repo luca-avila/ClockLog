@@ -23,8 +23,7 @@ const ITEMS = [
   { href: "/", label: "Timer", icon: "⏱" },
   { href: "/history", label: "History", icon: "▤" },
   { href: "/plan", label: "Plan", icon: "▦" },
-  // Tags live under Settings' Data section (SCR-40); the anchor lands there
-  // once that section ships — until then it opens Settings.
+  // Tags live under Settings' Data section (SCR-40).
   { href: "/settings#tags", label: "Tags", icon: "●" },
   { href: "/settings", label: "Settings", icon: "⚙" },
 ] as const;

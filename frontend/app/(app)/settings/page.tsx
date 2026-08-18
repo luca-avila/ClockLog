@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import { type TimerSettings } from "@/lib/timer/engine";
 import { updateSettings } from "@/lib/api/settings";
 import { useSettings } from "@/lib/useSettings";
+import TagManager from "@/components/shared/TagManager";
 
 const DURATION_OPTIONS = [5, 10, 15, 20, 25, 30, 45, 50, 60];
 
@@ -119,6 +120,11 @@ export default function SettingsPage() {
           value={settings.notifications}
           onChange={(v) => save({ notifications: v })}
         />
+      </section>
+
+      <section className="mb-8" id="tags">
+        <h2 className="text-xs uppercase tracking-widest text-neutral-400 mb-4">Data: Tags</h2>
+        <TagManager />
       </section>
 
       <section className="mb-8">
