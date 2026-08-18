@@ -129,6 +129,12 @@ describe("cyclePosition", () => {
     const pos = cyclePosition(1, 4);
     expect(pos).toEqual({ completed: 1, remaining: 3, isLongBreak: false });
   });
+
+  it("blocksPerCycle=0 from stale storage degrades to a 1-block cycle, not NaN", () => {
+    const pos = cyclePosition(3, 0);
+    expect(Number.isNaN(pos.completed)).toBe(false);
+    expect(Number.isNaN(pos.remaining)).toBe(false);
+  });
 });
 
 describe("nextDuration", () => {
@@ -195,11 +201,84 @@ describe("state serialization", () => {
     const restored = localStorage.getItem(STORAGE_KEY);
     expect(restored).not.toBeNull();
     const parsed = deserializeState(restored!);
-    expect(parsed.type).toBe("focus");
-    expect(parsed.label).toBe("testing localStorage");
-    expect(parsed.intervals).toHaveLength(1);
+    expect(parsed?.type).toBe("focus");
+    expect(parsed?.label).toBe("testing localStorage");
+    expect(parsed?.intervals).toHaveLength(1);
 
     clearStorage();
+  });
+
+  it("accepts a state persisted before targetMs existed", () => {
+    const legacy = {
+      id: "legacy",
+      type: "short_break",
+      startedAt: 1_700_000_000_000,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 4,
+      blockStatus: "completed",
+      intervals: [{ startedAt: 1_700_000_000_000 }],
+    };
+    expect(deserializeState(JSON.stringify(legacy))).toEqual(legacy);
+  });
+});
+
+describe("deserializeState rejects corrupt or stale shapes (null, never NaN)", () => {
+  it("rejects non-JSON and non-objects", () => {
+    expect(deserializeState("not json{{{")).toBeNull();
+    expect(deserializeState("42")).toBeNull();
+    expect(deserializeState("null")).toBeNull();
+  });
+
+  it("rejects a missing id and unknown block type", () => {
+    const base = {
+      type: "focus",
+      startedAt: 1,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      blockStatus: "completed",
+      intervals: [{ startedAt: 1 }],
+    };
+    expect(deserializeState(JSON.stringify({ ...base }))).toBeNull();
+    expect(
+      deserializeState(JSON.stringify({ ...base, id: "x", type: "siesta" }))
+    ).toBeNull();
+  });
+
+  it("rejects non-finite startedAt and non-array intervals", () => {
+    const base = {
+      id: "x",
+      type: "focus",
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      blockStatus: "completed",
+    };
+    expect(
+      deserializeState(JSON.stringify({ ...base, startedAt: "nope", intervals: [] }))
+    ).toBeNull();
+    expect(
+      deserializeState(JSON.stringify({ ...base, startedAt: 1, intervals: "no" }))
+    ).toBeNull();
+  });
+
+  it("rejects intervals without finite numbers", () => {
+    const base = {
+      id: "x",
+      type: "focus",
+      startedAt: 1,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      blockStatus: "completed",
+    };
+    expect(
+      deserializeState(JSON.stringify({ ...base, intervals: [{ endedAt: 5 }] }))
+    ).toBeNull();
+    expect(
+      deserializeState(JSON.stringify({ ...base, intervals: [{ startedAt: Infinity }] }))
+    ).toBeNull();
   });
 });
 

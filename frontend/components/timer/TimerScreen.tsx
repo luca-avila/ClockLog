@@ -72,7 +72,14 @@ function loadStoredState(): TimerState | null {
   if (typeof window === "undefined") return null;
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return deserializeState(stored);
+    if (!stored) return null;
+    const state = deserializeState(stored);
+    if (!state) {
+      // Corrupt or stale-shape — a fresh start beats a NaN timer.
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return state;
   } catch {
     localStorage.removeItem(STORAGE_KEY);
   }

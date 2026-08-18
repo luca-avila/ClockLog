@@ -92,12 +92,15 @@ export function cyclePosition(
   focusBlocksCompleted: number,
   blocksPerCycle: number
 ): CyclePosition {
-  const position = focusBlocksCompleted % blocksPerCycle;
+  // The server enforces ge=1, but stale localStorage or a hand-edited
+  // response can carry 0 — modulo by zero is NaN, not a cycle.
+  const cycle = Math.max(1, blocksPerCycle);
+  const position = focusBlocksCompleted % cycle;
   const isLongBreak = focusBlocksCompleted > 0 && position === 0;
 
   return {
     completed: isLongBreak ? 0 : position,
-    remaining: blocksPerCycle - (isLongBreak ? 0 : position),
+    remaining: cycle - (isLongBreak ? 0 : position),
     isLongBreak,
   };
 }
@@ -118,6 +121,45 @@ export function serializeState(state: TimerState): string {
   return JSON.stringify(state);
 }
 
-export function deserializeState(json: string): TimerState {
-  return JSON.parse(json) as TimerState;
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+const BLOCK_TYPES: readonly string[] = ["focus", "short_break", "long_break"];
+
+/**
+ * Parse persisted timer state, validating the shape by hand. Corrupt or
+ * stale-shape localStorage yields null — never a TimerState whose
+ * startedAt is undefined and whose elapsed() is NaN. The caller clears
+ * the key on null.
+ */
+export function deserializeState(json: string): TimerState | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const s = parsed as Record<string, unknown>;
+
+  if (typeof s.id !== "string" || s.id.length === 0) return null;
+  if (typeof s.type !== "string" || !BLOCK_TYPES.includes(s.type)) return null;
+  if (!isFiniteNumber(s.startedAt)) return null;
+  if (s.label !== null && typeof s.label !== "string") return null;
+  if (s.tagId !== null && typeof s.tagId !== "string") return null;
+  if (!isFiniteNumber(s.focusBlocksCompleted)) return null;
+  if (s.blockStatus !== "completed" && s.blockStatus !== "aborted") return null;
+  if (s.targetMs !== undefined && !isFiniteNumber(s.targetMs)) return null;
+  if (!Array.isArray(s.intervals)) return null;
+  for (const iv of s.intervals) {
+    if (typeof iv !== "object" || iv === null) return null;
+    const interval = iv as Record<string, unknown>;
+    if (!isFiniteNumber(interval.startedAt)) return null;
+    if (interval.endedAt !== undefined && !isFiniteNumber(interval.endedAt)) {
+      return null;
+    }
+  }
+
+  return parsed as TimerState;
 }
