@@ -96,8 +96,10 @@ function defaultPlaySound(): void {
 function defaultShowNotification(title: string, body: string): void {
   try {
     new Notification(title, { body, silent: true });
-  } catch {
-    /* unsupported or denied mid-flight */
+  } catch (e) {
+    // A revoked permission is invisible otherwise — sound stays silent on
+    // purpose, but notifications failing deserves a trace.
+    console.warn("notification failed (permission revoked?)", e);
   }
 }
 
@@ -179,8 +181,8 @@ export function fireAlert(
   }
 
   if (plan.requestPermission) {
-    void deps.requestPermission().catch(() => {
-      /* never block */
+    void deps.requestPermission().catch((e) => {
+      console.warn("permission request failed", e); // never block
     });
   }
 
