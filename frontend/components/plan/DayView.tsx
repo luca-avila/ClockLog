@@ -18,12 +18,9 @@
 
 import Link from "next/link";
 import type { EntryOccurrence } from "@/lib/api/plan";
-import { timelineLanes } from "@/lib/plan/layout";
+import { railFor, railPosition, timelineLanes } from "@/lib/plan/layout";
 import { addDays } from "@/lib/date/week";
 
-// Visible rail default (ux-research § Plan edge cases): 07:00–22:00.
-const RAIL_START = 7 * 60;
-const RAIL_MINUTES = 15 * 60;
 const HOUR = 60;
 
 function minuteOfDay(t: string): number {
@@ -49,9 +46,14 @@ export default function DayView({ date, occurrences }: DayViewProps) {
   const allDay = occurrences.filter((o) => o.all_day);
   const timed = occurrences.filter((o) => !o.all_day);
   const laid = timelineLanes(timed);
+  // The rail stretches to fit outliers — an early or late entry renders at
+  // its real time instead of being clamped onto the default window.
+  const rail = railFor(timed);
 
   const hours: number[] = [];
-  for (let h = RAIL_START / HOUR; h < RAIL_START / HOUR + 15; h++) hours.push(h);
+  for (let h = Math.ceil(rail.startMin / HOUR); h * HOUR <= rail.startMin + rail.minutes; h++) {
+    hours.push(h);
+  }
 
   const weekday = new Date(`${date}T00:00:00Z`);
 
@@ -106,16 +108,17 @@ export default function DayView({ date, occurrences }: DayViewProps) {
       )}
 
       <div className="relative" data-testid="timeline">
-        {/* Hour rail: each empty hour is a tap-to-create target */}
+        {/* Hour rail: each empty hour is a tap-to-create target. Labels wrap
+            past midnight when a late entry extended the rail. */}
         {hours.map((h) => (
           <div key={h} className="flex h-16 border-t border-neutral-100">
             <span className="w-10 shrink-0 -mt-1.5 text-[10px] text-neutral-300 tabular-nums">
-              {String(h).padStart(2, "0")}
+              {String(h % 24).padStart(2, "0")}
             </span>
             <Link
-              href={`/plan?new=1&date=${date}&hour=${h}`}
+              href={`/plan?new=1&date=${date}&hour=${h % 24}`}
               className="flex-1"
-              aria-label={`Add entry at ${String(h).padStart(2, "0")}:00`}
+              aria-label={`Add entry at ${String(h % 24).padStart(2, "0")}:00`}
             />
           </div>
         ))}
@@ -127,16 +130,17 @@ export default function DayView({ date, occurrences }: DayViewProps) {
             const end = start + (minuteOfDay(occ.end_time!) <= start
               ? 24 * 60 - start + minuteOfDay(occ.end_time!)
               : minuteOfDay(occ.end_time!) - start);
-            const top = ((Math.max(start, RAIL_START) - RAIL_START) / RAIL_MINUTES) * 100;
-            const height = (Math.min(end - Math.max(start, RAIL_START), RAIL_MINUTES - (Math.max(start, RAIL_START) - RAIL_START)) / RAIL_MINUTES) * 100;
+            const pos = railPosition(start, end, rail);
+            if (!pos) return null;
             return (
               <Link
                 key={`${occ.entry_id}-${occ.date}`}
                 href={`/plan/day?date=${date}&edit=${occ.entry_id}`}
                 className="absolute rounded-md border border-neutral-200 bg-white px-2 py-1 overflow-hidden"
                 style={{
-                  top: `${top}%`,
-                  height: `${Math.max(height, 3)}%`,
+                  top: `${pos.topPct}%`,
+                  height: `${pos.heightPct}%`,
+                  minHeight: "28px",
                   left: `${(lane / lanes) * 100}%`,
                   width: `${(1 / lanes) * 100}%`,
                 }}

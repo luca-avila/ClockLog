@@ -20,7 +20,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import WeekView from "@/components/plan/WeekView";
 import DayView from "@/components/plan/DayView";
-import { timelineLanes } from "@/lib/plan/layout";
+import { railFor, railPosition, timelineLanes } from "@/lib/plan/layout";
 import type { EntryOccurrence } from "@/lib/api/plan";
 
 const WEEK = { from: "2026-07-27", to: "2026-08-02" };
@@ -191,6 +191,45 @@ describe("timelineLanes", () => {
     ]);
     expect(laid[0].lanes).toBe(2);
     expect(new Set(laid.map((l) => l.lane))).toEqual(new Set([0, 1]));
+  });
+});
+
+describe("rail geometry (railFor / railPosition)", () => {
+  const DEFAULT = { startMin: 7 * 60, minutes: 15 * 60 };
+
+  it("default rail when nothing exceeds 07:00–22:00", () => {
+    expect(railFor([occ("Gym", "2026-07-28", "18:30", "19:30")])).toEqual(DEFAULT);
+    expect(railFor([])).toEqual(DEFAULT);
+  });
+
+  it("a 06:00 entry extends the rail earlier — it is never clamped to 07:00", () => {
+    const rail = railFor([occ("Swim", "2026-07-28", "06:00", "07:00")]);
+    expect(rail).toEqual({ startMin: 6 * 60, minutes: 16 * 60 });
+    const pos = railPosition(6 * 60, 7 * 60, rail)!;
+    expect(pos.topPct).toBe(0); // the real time sits at the rail's top edge
+    expect(pos.heightPct).toBeCloseTo((60 / (16 * 60)) * 100);
+  });
+
+  it("a 23:00 entry extends the rail later — no negative height", () => {
+    const rail = railFor([occ("Late", "2026-07-28", "23:00", "23:30")]);
+    expect(rail.startMin + rail.minutes).toBe(23 * 60 + 30);
+    const pos = railPosition(23 * 60, 23 * 60 + 30, rail)!;
+    expect(pos.topPct).toBeGreaterThan(0);
+    expect(pos.heightPct).toBeGreaterThan(0);
+  });
+
+  it("a midnight-spanning entry pushes the end past 24:00", () => {
+    // 23:00 – 01:00 = 120 minutes, ending at minute-of-day 1500.
+    const rail = railFor([occ("Party", "2026-07-28", "23:00", "01:00")]);
+    expect(rail.startMin + rail.minutes).toBe(25 * 60);
+    const pos = railPosition(23 * 60, 25 * 60, rail)!;
+    expect(pos.topPct).toBeCloseTo(((23 * 60 - 7 * 60) / (25 * 60 - 7 * 60)) * 100);
+    expect(pos.heightPct).toBeCloseTo((120 / (25 * 60 - 7 * 60)) * 100);
+  });
+
+  it("degenerate intervals return null instead of a geometry lie", () => {
+    expect(railPosition(600, 600, DEFAULT)).toBeNull();
+    expect(railPosition(700, 600, DEFAULT)).toBeNull();
   });
 });
 

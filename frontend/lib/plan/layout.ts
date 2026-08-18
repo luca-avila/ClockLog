@@ -32,6 +32,51 @@ function minutes(t: string): number {
   return h * 60 + m;
 }
 
+export interface RailSpec {
+  /** Minute of day the rail starts at. */
+  startMin: number;
+  /** Total minutes the rail spans. */
+  minutes: number;
+}
+
+export const DEFAULT_RAIL: RailSpec = { startMin: 7 * 60, minutes: 15 * 60 };
+
+/**
+ * Rail bounds expanded to include every timed entry. An entry outside the
+ * default 07:00–22:00 window extends the rail so it renders at its real
+ * time — clamping it to the edge would show a time the user did not enter.
+ * Midnight-spanning entries may push the end past 24:00; hour labels wrap.
+ */
+export function railFor(entries: EntryOccurrence[]): RailSpec {
+  let start = DEFAULT_RAIL.startMin;
+  let end = start + DEFAULT_RAIL.minutes;
+  for (const occ of entries) {
+    if (occ.all_day || !occ.start_time || !occ.end_time) continue;
+    const s = minutes(occ.start_time);
+    const e = s + minutesBetween(occ.start_time, occ.end_time);
+    start = Math.min(start, s);
+    end = Math.max(end, e);
+  }
+  return { startMin: start, minutes: end - start };
+}
+
+/**
+ * Percent geometry for an entry on the rail. `endMin` is the entry's end in
+ * extended minutes-of-day (may exceed 24h when it spans midnight). Returns
+ * null only for degenerate input (end <= start) — never clamps.
+ */
+export function railPosition(
+  startMin: number,
+  endMin: number,
+  rail: RailSpec
+): { topPct: number; heightPct: number } | null {
+  if (!(endMin > startMin)) return null;
+  return {
+    topPct: ((startMin - rail.startMin) / rail.minutes) * 100,
+    heightPct: ((endMin - startMin) / rail.minutes) * 100,
+  };
+}
+
 /**
  * Assign side-by-side lanes to overlapping entries. All-day entries are
  * passed through on lane 0 — they render in the header band, not here.
