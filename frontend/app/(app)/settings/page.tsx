@@ -29,16 +29,20 @@ export default function SettingsPage() {
   const router = useRouter();
   const { settings, setSettings, loading } = useSettings();
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function save(partial: Partial<TimerSettings>) {
-    const updated = { ...settings, ...partial };
-    setSettings(updated);
+    const previous = settings;
+    setSettings({ ...settings, ...partial });
+    setError(null);
     try {
       await updateSettings(partial);
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch {
-      // revert?
+      // The server does not have this value — show the truth again.
+      setSettings(previous);
+      setError("Could not save — try again");
     }
   }
 
@@ -51,50 +55,30 @@ export default function SettingsPage() {
       <section className="mb-8">
         <h2 className="text-xs uppercase tracking-widest text-neutral-400 mb-4">Timer</h2>
         <div className="space-y-4">
-          <SettingRow label="Focus">
-            <select
-              value={settings.focusDuration}
-              onChange={(e) => save({ focusDuration: Number(e.target.value) })}
-              className="text-sm text-neutral-600 border rounded px-2 py-1"
-            >
-              {DURATION_OPTIONS.map((d) => (
-                <option key={d} value={d}>{d} min</option>
-              ))}
-            </select>
-          </SettingRow>
-          <SettingRow label="Short break">
-            <select
-              value={settings.shortBreakDuration}
-              onChange={(e) => save({ shortBreakDuration: Number(e.target.value) })}
-              className="text-sm text-neutral-600 border rounded px-2 py-1"
-            >
-              {DURATION_OPTIONS.map((d) => (
-                <option key={d} value={d}>{d} min</option>
-              ))}
-            </select>
-          </SettingRow>
-          <SettingRow label="Long break">
-            <select
-              value={settings.longBreakDuration}
-              onChange={(e) => save({ longBreakDuration: Number(e.target.value) })}
-              className="text-sm text-neutral-600 border rounded px-2 py-1"
-            >
-              {DURATION_OPTIONS.map((d) => (
-                <option key={d} value={d}>{d} min</option>
-              ))}
-            </select>
-          </SettingRow>
-          <SettingRow label="Blocks per cycle">
-            <select
-              value={settings.blocksPerCycle}
-              onChange={(e) => save({ blocksPerCycle: Number(e.target.value) })}
-              className="text-sm text-neutral-600 border rounded px-2 py-1"
-            >
-              {[2, 3, 4, 5, 6].map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </SettingRow>
+          <SelectRow
+            label="Focus"
+            options={DURATION_OPTIONS}
+            value={settings.focusDuration}
+            onChange={(focusDuration) => save({ focusDuration })}
+          />
+          <SelectRow
+            label="Short break"
+            options={DURATION_OPTIONS}
+            value={settings.shortBreakDuration}
+            onChange={(shortBreakDuration) => save({ shortBreakDuration })}
+          />
+          <SelectRow
+            label="Long break"
+            options={DURATION_OPTIONS}
+            value={settings.longBreakDuration}
+            onChange={(longBreakDuration) => save({ longBreakDuration })}
+          />
+          <SelectRow
+            label="Blocks per cycle"
+            options={[2, 3, 4, 5, 6]}
+            value={settings.blocksPerCycle}
+            onChange={(blocksPerCycle) => save({ blocksPerCycle })}
+          />
           <ToggleRow
             label="Auto-start breaks"
             value={settings.autoStartBreaks}
@@ -145,15 +129,41 @@ export default function SettingsPage() {
           Saved
         </div>
       )}
+      {error && (
+        <div role="alert" className="fixed bottom-4 left-1/2 -translate-x-1/2 text-xs text-red-600 bg-red-50 px-3 py-1.5 rounded-full">
+          {error}
+        </div>
+      )}
     </div>
   );
 }
 
-function SettingRow({ label, children }: { label: string; children: React.ReactNode }) {
+function SelectRow({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: number[];
+  value: number;
+  onChange: (v: number) => void;
+}) {
   return (
     <div className="flex items-center justify-between py-1">
       <span className="text-sm text-neutral-600">{label}</span>
-      {children}
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="text-sm text-neutral-600 border rounded px-2 py-1"
+      >
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o} min
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
