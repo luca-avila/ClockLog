@@ -106,6 +106,23 @@ class TestProtectedRoutes:
         assert response.status_code == 200
         assert response.json()["email"] == email
 
+    @pytest.mark.asyncio
+    async def test_registration_closes_once_a_user_exists(self):
+        """Single-user app: the second account is a 409, not a new tenant."""
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            first = await client.post(
+                "/auth/register",
+                json={"email": "owner@example.com", "password": "secret12"},
+            )
+            second = await client.post(
+                "/auth/register",
+                json={"email": "intruder@example.com", "password": "secret12"},
+            )
+        assert first.status_code == 201
+        assert second.status_code == 409
+        assert second.json()["code"] == "REGISTRATION_CLOSED"
+
 
 class TestErrorFormat:
     @pytest.mark.asyncio
