@@ -20,7 +20,7 @@ import uuid
 from datetime import date, time, timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.plan.models import Entry
@@ -140,7 +140,16 @@ async def list_occurrences(
     of truth and there is no materialization to keep consistent.
     """
     _validate_range(from_date, to_date)
-    result = await db.execute(select(Entry).where(Entry.user_id == user_id))
+    # Exactly the set the loop below keeps, pushed into SQL so the
+    # ix_entry_user_id_date index does its job instead of reading the
+    # whole table: entries dated in range, plus earlier weekly repeaters.
+    result = await db.execute(
+        select(Entry).where(
+            Entry.user_id == user_id,
+            Entry.date <= to_date,
+            or_(Entry.repeat_weekly, Entry.date >= from_date),
+        )
+    )
     all_entries = list(result.scalars().all())
 
     # Shared tag data (invariant 11: shared/ is importable from features).
