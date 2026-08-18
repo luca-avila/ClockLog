@@ -38,6 +38,7 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - LOGIN_RATE_LIMIT=${LOGIN_RATE_LIMIT:-10}
       - LOGIN_RATE_WINDOW_SECONDS=${LOGIN_RATE_WINDOW_SECONDS:-60}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
     depends_on:
       db:
         condition: service_healthy

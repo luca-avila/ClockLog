@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     secret_key: str
     login_rate_limit: int = 10
     login_rate_window_seconds: float = 60
+    # Comma-separated origins allowed to call the API. Dev is the Next
+    # default port; prod sets this to the nginx-served origin.
+    cors_origins: str = "http://localhost:3000"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()

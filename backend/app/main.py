@@ -21,13 +21,25 @@ import traceback
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.core.config import settings
 from app.shared.setting.api import router as setting_router
 from app.shared.tag.api import router as tag_router
 from app.shared.user.api import router as user_router
 
 app = FastAPI(title="Tempo")
+
+# Bearer header, not cookie — credentials stay off so any origin list is
+# an explicit allow, never an implicit ambient one.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=False,
+)
 
 app.include_router(user_router)
 app.include_router(tag_router)

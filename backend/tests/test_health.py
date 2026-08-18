@@ -25,3 +25,27 @@ async def test_health_returns_200():
         response = await client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+async def test_cors_allows_configured_origin():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        preflight = await client.options(
+            "/auth/login",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        simple = await client.get("/health", headers={"Origin": "http://localhost:3000"})
+    assert preflight.status_code == 200
+    assert preflight.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert simple.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+async def test_cors_rejects_unknown_origin():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/health", headers={"Origin": "http://evil.example"})
+    assert response.status_code == 200  # request itself is fine
+    assert "access-control-allow-origin" not in response.headers
