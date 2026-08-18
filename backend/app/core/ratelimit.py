@@ -26,11 +26,12 @@ from collections import deque
 from app.core.config import settings
 
 _hits: dict[str, deque[float]] = {}
-_clock_offset = 0.0
 
 
 def _now() -> float:
-    return time.monotonic() + _clock_offset
+    # Plain module function: tests monkeypatch this to advance the clock
+    # instead of production code carrying test machinery.
+    return time.monotonic()
 
 
 def check(key: str, limit: int | None = None, window: float | None = None) -> bool:
@@ -38,10 +39,18 @@ def check(key: str, limit: int | None = None, window: float | None = None) -> bo
     limit = settings.login_rate_limit if limit is None else limit
     window = settings.login_rate_window_seconds if window is None else window
 
-    bucket = _hits.setdefault(key, deque())
     now = _now()
-    while bucket and now - bucket[0] >= window:
-        bucket.popleft()
+    bucket = _hits.get(key)
+    if bucket is not None:
+        while bucket and now - bucket[0] >= window:
+            bucket.popleft()
+        if not bucket:
+            # Evict emptied buckets: an entry per (path, IP) forever is an
+            # unbounded dict on a long-lived process.
+            del _hits[key]
+            bucket = None
+    if bucket is None:
+        bucket = _hits[key] = deque()
     if len(bucket) >= limit:
         return False
     bucket.append(now)
@@ -60,14 +69,6 @@ def retry_after(key: str, window: float | None = None) -> int:
 
 def reset() -> None:
     _hits.clear()
-    global _clock_offset
-    _clock_offset = 0.0
-
-
-def advance_all(seconds: float) -> None:
-    """Test helper: fast-forward every bucket's clock."""
-    global _clock_offset
-    _clock_offset += seconds
 
 
 def client_ip(request) -> str:

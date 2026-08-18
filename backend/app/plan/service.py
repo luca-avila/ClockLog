@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.plan.models import Entry
 from app.plan.schemas import EntryCreate, EntryOccurrence, EntryUpdate
+from app.shared.tag.models import Tag
 
 
 def _validate_times(all_day: bool, start, end) -> None:
@@ -62,7 +63,8 @@ async def create_entry(db: AsyncSession, data: EntryCreate, user_id: uuid.UUID) 
     return entry
 
 
-async def _get_owned(db: AsyncSession, entry_id: uuid.UUID, user_id: uuid.UUID) -> Entry:
+async def get_entry(db: AsyncSession, entry_id: uuid.UUID, user_id: uuid.UUID) -> Entry:
+    """Fetch one owned entry (the editor's view of the stored row)."""
     result = await db.execute(select(Entry).where(Entry.id == entry_id, Entry.user_id == user_id))
     entry = result.scalar_one_or_none()
     if not entry:
@@ -71,11 +73,6 @@ async def _get_owned(db: AsyncSession, entry_id: uuid.UUID, user_id: uuid.UUID) 
             detail={"code": "ENTRY_NOT_FOUND", "message": "Entry not found"},
         )
     return entry
-
-
-async def get_entry(db: AsyncSession, entry_id: uuid.UUID, user_id: uuid.UUID) -> Entry:
-    """Fetch one owned entry (the editor's view of the stored row)."""
-    return await _get_owned(db, entry_id, user_id)
 
 
 MAX_RANGE_DAYS = 366
@@ -101,7 +98,7 @@ def _validate_range(from_date: date, to_date: date) -> None:
 async def update_entry(
     db: AsyncSession, entry_id: uuid.UUID, data: EntryUpdate, user_id: uuid.UUID
 ) -> Entry:
-    entry = await _get_owned(db, entry_id, user_id)
+    entry = await get_entry(db, entry_id, user_id)
     updates = data.model_dump(exclude_unset=True)
     if any(k in updates for k in ("all_day", "start_time", "end_time")):
         _validate_times(
@@ -115,20 +112,8 @@ async def update_entry(
 
 
 async def delete_entry(db: AsyncSession, entry_id: uuid.UUID, user_id: uuid.UUID) -> None:
-    entry = await _get_owned(db, entry_id, user_id)
+    entry = await get_entry(db, entry_id, user_id)
     await db.delete(entry)
-
-
-async def list_entries(
-    db: AsyncSession, user_id: uuid.UUID, from_date: date, to_date: date
-) -> list[Entry]:
-    """Stored entries whose own date falls in the range."""
-    result = await db.execute(
-        select(Entry)
-        .where(Entry.user_id == user_id, Entry.date >= from_date, Entry.date <= to_date)
-        .order_by(Entry.date, Entry.start_time)
-    )
-    return list(result.scalars().all())
 
 
 async def list_occurrences(
@@ -152,10 +137,7 @@ async def list_occurrences(
     )
     all_entries = list(result.scalars().all())
 
-    # Shared tag data (invariant 11: shared/ is importable from features).
     # Colors ride on occurrences so the views never need a second round trip.
-    from app.shared.tag.models import Tag
-
     tags = await db.execute(select(Tag).where(Tag.user_id == user_id))
     tag_colors = {t.id: t.color for t in tags.scalars().all()}
 

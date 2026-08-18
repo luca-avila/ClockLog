@@ -66,15 +66,18 @@ async def test_rate_limit_scopes_by_ip(client, login_payload):
     assert other.status_code == 401  # wrong password, not blocked
 
 
-async def test_rate_limit_window_expires(client, login_payload):
+async def test_rate_limit_window_expires(client, login_payload, monkeypatch):
     from app.core import ratelimit
 
+    real_now = ratelimit._now
     for _ in range(10):
         await client.post("/auth/login", json=login_payload)
     blocked = await client.post("/auth/login", json=login_payload)
     assert blocked.status_code == 429
 
-    ratelimit.advance_all(61)  # past the 60s window
+    # Fast-forward the limiter's clock past the 60s window — injected,
+    # not faked by production machinery.
+    monkeypatch.setattr(ratelimit, "_now", lambda: real_now() + 61)
     allowed = await client.post("/auth/login", json=login_payload)
     assert allowed.status_code == 401
 

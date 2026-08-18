@@ -25,7 +25,6 @@ from app.plan.schemas import EntryCreate, EntryUpdate
 from app.plan.service import (
     create_entry,
     delete_entry,
-    list_entries,
     list_occurrences,
     update_entry,
 )
@@ -66,9 +65,9 @@ class TestEntryBelongsToDate:
     async def test_create_and_read_back_on_its_date(self, db_session, user):
         entry = await create_entry(db_session, make_create(), user.id)
         await db_session.commit()
-        entries = await list_entries(db_session, user.id, date(2026, 7, 27), date(2026, 8, 2))
-        assert [e.id for e in entries] == [entry.id]
-        assert entries[0].date == date(2026, 7, 28)
+        occs = await list_occurrences(db_session, user.id, date(2026, 7, 27), date(2026, 8, 2))
+        assert [o.entry_id for o in occs] == [entry.id]
+        assert occs[0].date == date(2026, 7, 28)
 
 
 class TestRepeatWeekly:
@@ -157,8 +156,8 @@ class TestAllDayAndMultiDay:
             db_session, make_create(start=time(22, 0), end=time(0, 30)), user.id
         )
         await db_session.commit()
-        entries = await list_entries(db_session, user.id, date(2026, 7, 28), date(2026, 7, 28))
-        assert [e.id for e in entries] == [entry.id]
+        occs = await list_occurrences(db_session, user.id, date(2026, 7, 28), date(2026, 7, 28))
+        assert [o.entry_id for o in occs] == [entry.id]
 
 
 class TestOverlapAllowed:
@@ -174,8 +173,8 @@ class TestOverlapAllowed:
             user.id,
         )
         await db_session.commit()
-        entries = await list_entries(db_session, user.id, date(2026, 7, 28), date(2026, 7, 28))
-        assert len(entries) == 2  # overlap is a fact, not a validation error
+        occs = await list_occurrences(db_session, user.id, date(2026, 7, 28), date(2026, 7, 28))
+        assert len(occs) == 2  # overlap is a fact, not a validation error
 
 
 class TestNoTimerCouplingInSchema:
@@ -214,7 +213,9 @@ class TestUpdateDelete:
         await db_session.commit()
         await delete_entry(db_session, entry.id, user.id)
         await db_session.commit()
-        assert await list_entries(db_session, user.id, date(2026, 7, 27), date(2026, 8, 2)) == []
+        assert (
+            await list_occurrences(db_session, user.id, date(2026, 7, 27), date(2026, 8, 2)) == []
+        )
 
     async def test_other_users_entries_are_invisible_and_unwritable(self, db_session, user):
 
@@ -227,7 +228,9 @@ class TestUpdateDelete:
         entry = await create_entry(db_session, make_create(), other.id)
         await db_session.commit()
 
-        assert await list_entries(db_session, user.id, date(2026, 7, 27), date(2026, 8, 2)) == []
+        assert (
+            await list_occurrences(db_session, user.id, date(2026, 7, 27), date(2026, 8, 2)) == []
+        )
         with pytest.raises(HTTPException) as exc:
             await delete_entry(db_session, entry.id, user.id)
         assert exc.value.status_code == 404

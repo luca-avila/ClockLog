@@ -22,6 +22,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.shared.tag.models import Tag
 from app.timer.models import Block, BlockInterval
 from app.timer.schemas import BlockCreate
 
@@ -139,8 +140,6 @@ async def get_summary_by_tag(
 
     Breaks are excluded — "4h 10m focus" must not include break time.
     """
-    from app.shared.tag.models import Tag
-
     blocks = [
         b for b in await get_blocks_in_range(db, user_id, from_dt, to_dt) if b.kind == "focus"
     ]

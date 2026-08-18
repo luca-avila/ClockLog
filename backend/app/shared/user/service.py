@@ -18,7 +18,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import get_password_hash, verify_password
+from app.core.security import create_access_token, get_password_hash, verify_password
 from app.shared.user.models import User
 from app.shared.user.schemas import TokenResponse, UserCreate, UserLogin, UserResponse
 
@@ -41,8 +41,6 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
 
 
 async def authenticate_user(db: AsyncSession, data: UserLogin) -> TokenResponse:
-    from app.core.security import create_access_token
-
     user = await get_user_by_email(db, data.email)
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(
