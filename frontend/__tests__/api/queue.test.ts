@@ -24,6 +24,7 @@ import {
   type QueueDeps,
   type BlockPayload,
 } from "@/lib/api/queue";
+import { ApiError } from "@/lib/api/client";
 
 function payload(id: string, label = "Work"): BlockPayload {
   return {
@@ -104,7 +105,7 @@ describe("offline queue", () => {
 
   it("expired session keeps the queue and stops, without rejecting the caller", async () => {
     const post = vi.fn<(p: BlockPayload) => Promise<void>>()
-      .mockRejectedValue(new Error('401 {"code":"invalid_token"}'));
+      .mockRejectedValue(new ApiError(401, "INVALID_TOKEN", "Invalid or expired token"));
     const deps = makeDeps(post);
     const reauth = vi.fn();
     onReauthNeeded(reauth);
@@ -126,7 +127,7 @@ describe("offline queue", () => {
 
   it("drops a permanently-rejected payload so it cannot poison the queue", async () => {
     const post = vi.fn<(p: BlockPayload) => Promise<void>>()
-      .mockRejectedValueOnce(new Error('400 {"code":"validation_error"}'))
+      .mockRejectedValueOnce(new ApiError(400, "VALIDATION_ERROR", "bad payload"))
       .mockResolvedValue(undefined);
     const deps = makeDeps(post);
 

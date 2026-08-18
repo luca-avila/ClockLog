@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { apiFetch } from "./client";
+import { apiFetch, ApiError } from "./client";
 
 export interface BlockPayload {
   id: string;
@@ -107,9 +107,8 @@ export function enqueueBlock(
   writeQueue(storage, queue);
 }
 
-function statusFromError(err: unknown): number {
-  const m = /^(\d{3})\b/.exec(err instanceof Error ? err.message : "");
-  return m ? Number(m[1]) : 0;
+function statusOf(err: unknown): number {
+  return err instanceof ApiError ? err.status : 0;
 }
 
 const reauthListeners = new Set<() => void>();
@@ -150,7 +149,7 @@ export async function flushQueue(
         await deps.post(item);
         result.synced++;
       } catch (err) {
-        const status = statusFromError(err);
+        const status = statusOf(err);
         if (status === 401 || status === 403) {
           remaining.push(item, ...queue.slice(queue.indexOf(item) + 1));
           result.needsReauth = true;

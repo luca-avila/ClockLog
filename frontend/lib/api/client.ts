@@ -16,6 +16,22 @@
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+/**
+ * Structured API error: the backend returns a stable `code` on every
+ * error and callers should branch on it, not parse strings.
+ */
+export class ApiError extends Error {
+  status: number;
+  code: string;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("token");
@@ -54,7 +70,16 @@ export async function apiFetch<T>(
       window.location.href = "/login";
     }
     const body = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${body}`);
+    let code = "UNKNOWN";
+    let message = `${res.status} ${body}`;
+    try {
+      const parsed = JSON.parse(body) as { code?: string; message?: string };
+      if (parsed && typeof parsed.code === "string") code = parsed.code;
+      if (parsed && typeof parsed.message === "string") message = parsed.message;
+    } catch {
+      /* non-JSON body — keep the status + raw text */
+    }
+    throw new ApiError(res.status, code, message);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
