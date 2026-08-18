@@ -94,7 +94,8 @@ export default function DayView({ date, occurrences }: DayViewProps) {
                   all day
                 </span>
                 <span
-                  className={`inline-block w-1.5 h-1.5 rounded-full ${o.tag_id ? "bg-neutral-500" : "bg-neutral-300"}`}
+                  className={`inline-block w-1.5 h-1.5 rounded-full ${o.tag_color ? "" : "bg-neutral-300"}`}
+                  style={o.tag_color ? { backgroundColor: o.tag_color } : undefined}
                   aria-hidden
                 />
                 {o.name}

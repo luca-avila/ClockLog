@@ -75,4 +75,6 @@ class EntryOccurrence(BaseModel):
     start_time: _time | None
     end_time: _time | None
     tag_id: uuid.UUID | None
+    # Shared tag data rides along so views never need a second round trip.
+    tag_color: str | None = None
     repeat_weekly: bool

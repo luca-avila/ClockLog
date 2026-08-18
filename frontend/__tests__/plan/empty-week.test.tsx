@@ -33,6 +33,7 @@ const ONE_ENTRY: EntryOccurrence[] = [
     start_time: "18:30:00",
     end_time: "19:30:00",
     tag_id: null,
+    tag_color: null,
     repeat_weekly: false,
   },
 ];

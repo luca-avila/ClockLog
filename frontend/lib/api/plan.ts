@@ -27,6 +27,7 @@ export interface EntryOccurrence {
   start_time: string | null;
   end_time: string | null;
   tag_id: string | null;
+  tag_color: string | null;
   repeat_weekly: boolean;
 }
 

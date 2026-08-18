@@ -43,6 +43,7 @@ function occ(
     start_time: start,
     end_time: end,
     tag_id: null,
+    tag_color: null,
     repeat_weekly: false,
     ...extra,
   };
@@ -71,8 +72,25 @@ describe("WeekView (SCR-30)", () => {
     expect(flagged.match(/Gym/g)).toHaveLength(1);
   });
 
-  it("renders the summary line from the data", () => {
+  it("paints the tag dot from tag_color — the UI's only saturated color", () => {
     const markup = renderToStaticMarkup(
+      <WeekView
+        week={WEEK}
+        occurrences={[
+          occ("Gym", "2026-07-28", "18:30", "19:30", {
+            tag_id: "t1",
+            tag_color: "#22c55e",
+          }),
+          occ("Run", "2026-07-29", "07:00", "07:30"),
+        ]}
+      />
+    );
+    expect(markup).toContain("#22c55e");
+    // Untagged entries keep a neutral dot, not a fabricated color.
+    expect(markup).toContain("bg-neutral-300");
+  });
+
+  it("renders the summary line from the data", () => {    const markup = renderToStaticMarkup(
       <WeekView
         week={WEEK}
         occurrences={[

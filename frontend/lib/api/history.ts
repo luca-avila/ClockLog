@@ -30,6 +30,7 @@ export interface BlockData {
 export interface TagSummary {
   tag_id: string | null;
   tag_name: string;
+  tag_color: string | null;
   total_seconds: number;
   block_count: number;
 }

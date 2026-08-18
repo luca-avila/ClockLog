@@ -143,25 +143,32 @@ async def list_occurrences(
     result = await db.execute(select(Entry).where(Entry.user_id == user_id))
     all_entries = list(result.scalars().all())
 
+    # Shared tag data (invariant 11: shared/ is importable from features).
+    # Colors ride on occurrences so the views never need a second round trip.
+    from app.shared.tag.models import Tag
+
+    tags = await db.execute(select(Tag).where(Tag.user_id == user_id))
+    tag_colors = {t.id: t.color for t in tags.scalars().all()}
+
     occurrences: list[EntryOccurrence] = []
     for entry in all_entries:
         if entry.date > to_date:
             continue  # not started yet
         if entry.date >= from_date:
-            occurrences.append(_occurrence_of(entry, entry.date))
+            occurrences.append(_occurrence_of(entry, entry.date, tag_colors))
         if entry.repeat_weekly:
             # +7 preserves the weekday; strictly after the anchor, which the
             # branch above already emitted.
             d = entry.date + timedelta(days=7)
             while d <= to_date:
                 if d >= from_date:
-                    occurrences.append(_occurrence_of(entry, d))
+                    occurrences.append(_occurrence_of(entry, d, tag_colors))
                 d += timedelta(days=7)
     occurrences.sort(key=lambda o: (o.date, o.start_time or time.min))
     return occurrences
 
 
-def _occurrence_of(entry: Entry, d: date) -> EntryOccurrence:
+def _occurrence_of(entry: Entry, d: date, tag_colors: dict) -> EntryOccurrence:
     return EntryOccurrence(
         entry_id=entry.id,
         name=entry.name,
@@ -170,5 +177,6 @@ def _occurrence_of(entry: Entry, d: date) -> EntryOccurrence:
         start_time=entry.start_time,
         end_time=entry.end_time,
         tag_id=entry.tag_id,
+        tag_color=tag_colors.get(entry.tag_id) if entry.tag_id else None,
         repeat_weekly=entry.repeat_weekly,
     )

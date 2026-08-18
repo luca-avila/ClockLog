@@ -147,9 +147,12 @@ async def get_summary_by_tag(
 
     tag_ids = {b.tag_id for b in blocks if b.tag_id is not None}
     tag_map: dict[uuid.UUID, str] = {}
+    tag_colors: dict[uuid.UUID, str] = {}
     if tag_ids:
         tags = await db.execute(select(Tag).where(Tag.id.in_(tag_ids)))
-        tag_map = {t.id: t.name for t in tags.scalars().all()}
+        for t in tags.scalars().all():
+            tag_map[t.id] = t.name
+            tag_colors[t.id] = t.color
 
     tag_totals: dict[str, dict] = {}
 
@@ -163,6 +166,7 @@ async def get_summary_by_tag(
             tag_totals[key] = {
                 "tag_id": str(tag_id) if tag_id else None,
                 "tag_name": tag_name or "Unlabeled",
+                "tag_color": tag_colors.get(tag_id) if tag_id else None,
                 "total_seconds": 0.0,
                 "block_count": 0,
             }

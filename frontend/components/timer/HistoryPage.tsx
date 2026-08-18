@@ -175,7 +175,10 @@ export default function HistoryPage() {
               </p>
               {summary.map((s) => (
                 <div key={s.tag_name} className="flex items-center gap-2 text-sm text-neutral-600">
-                  <span className="inline-block w-2 h-2 rounded-full bg-neutral-700" />
+                  <span
+                    className="inline-block w-2 h-2 rounded-full bg-neutral-300"
+                    style={s.tag_color ? { backgroundColor: s.tag_color } : undefined}
+                  />
                   <span className="flex-1">{s.tag_name}</span>
                   <span className="text-neutral-400 tabular-nums">
                     {formatDuration(s.total_seconds)}
