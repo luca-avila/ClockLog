@@ -6,6 +6,9 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://tempo:tempo@db:5432/tempo
       - SECRET_KEY=dev-secret-change-in-production
+      # Tests DELETE from every table — they run against tempo_test, never
+      # the dev DB. The name must end in _test (conftest enforces it).
+      - TEST_DATABASE_URL=postgresql+asyncpg://tempo:tempo@db:5432/tempo_test
     depends_on:
       db:
         condition: service_healthy

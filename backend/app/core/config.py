@@ -27,10 +27,22 @@ class Settings(BaseSettings):
     # Comma-separated origins allowed to call the API. Dev is the Next
     # default port; prod sets this to the nginx-served origin.
     cors_origins: str = "http://localhost:3000"
+    # Tests DELETE from every table — this must never be the dev DB. The
+    # conftest enforces the *_test suffix; deriving the default keeps the
+    # documented `docker compose exec backend pytest` working unchanged.
+    test_database_url: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def resolved_test_database_url(self) -> str:
+        url = self.test_database_url
+        if url:
+            return url
+        # Derive from the dev URL: same server, a *_test database.
+        return self.database_url.rstrip("/").rsplit("/", 1)[0] + "/tempo_test"
 
 
 settings = Settings()

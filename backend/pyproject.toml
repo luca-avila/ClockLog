@@ -22,6 +22,11 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# One loop for the whole session — an asyncpg connection is bound to the
+# loop that created it, so fixtures and tests must share one (the old
+# session event_loop fixture did this; these options replace it).
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 
 [tool.ruff]
