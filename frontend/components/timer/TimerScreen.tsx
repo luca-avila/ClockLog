@@ -39,6 +39,34 @@ import CycleIndicator from "./CycleIndicator";
 import LabelSheet from "./LabelSheet";
 
 const STORAGE_KEY = "tempo_clock";
+const CYCLE_KEY = "tempo_cycle";
+
+interface StoredCycle {
+  completed: number | null;
+  pendingBreak: boolean;
+}
+
+function loadStoredCycle(): StoredCycle {
+  if (typeof window === "undefined") return { completed: null, pendingBreak: false };
+  try {
+    const raw = localStorage.getItem(CYCLE_KEY);
+    if (!raw) return { completed: null, pendingBreak: false };
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) {
+      return { completed: null, pendingBreak: false };
+    }
+    const p = parsed as { completed?: unknown; pendingBreak?: unknown };
+    return {
+      completed:
+        typeof p.completed === "number" && Number.isFinite(p.completed)
+          ? p.completed
+          : null,
+      pendingBreak: p.pendingBreak === true,
+    };
+  } catch {
+    return { completed: null, pendingBreak: false };
+  }
+}
 
 function loadStoredState(): TimerState | null {
   if (typeof window === "undefined") return null;
@@ -93,8 +121,13 @@ export default function TimerScreen() {
   const [label, setLabel] = useState(() => loadStoredState()?.label ?? "");
   const [now, setNow] = useState(() => Date.now());
   const [showLabelSheet, setShowLabelSheet] = useState(false);
-  const [nextCompleted, setNextCompleted] = useState<number | null>(null);
-  const [pendingBreak, setPendingBreak] = useState(false);
+  // Cycle position survives a refresh while idle-awaiting-a-break — the
+  // ● ● ○ ○ indicator and the pending break are core cycle state (SCR-10).
+  const [storedCycle] = useState(loadStoredCycle);
+  const [nextCompleted, setNextCompleted] = useState<number | null>(
+    storedCycle.completed
+  );
+  const [pendingBreak, setPendingBreak] = useState(storedCycle.pendingBreak);
 
   const stateRef = useRef(state);
   const settingsRef = useRef(settings);
@@ -103,6 +136,17 @@ export default function TimerScreen() {
     stateRef.current = state;
     settingsRef.current = settings;
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        CYCLE_KEY,
+        JSON.stringify({ completed: nextCompleted, pendingBreak })
+      );
+    } catch {
+      /* private mode — cycle resets on refresh, nothing else breaks */
+    }
+  }, [nextCompleted, pendingBreak]);
 
   const running = state !== null;
 
