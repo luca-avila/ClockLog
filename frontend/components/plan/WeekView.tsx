@@ -65,16 +65,14 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
   for (const list of byDay.values()) {
     list.sort((a, b) => {
       if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
-      return (a.start_time ?? "").localeCompare(b.start_time ?? "");
+      if (a.all_day || b.all_day) return 0; // all-day rows keep order
+      return a.start_time.localeCompare(b.start_time);
     });
   }
 
   const totalMinutes = occurrences
     .filter((o) => !o.all_day)
-    .reduce(
-      (sum, o) => sum + minutesBetween(o.start_time!, o.end_time!),
-      0
-    );
+    .reduce((sum, o) => sum + minutesBetween(o.start_time, o.end_time), 0);
 
   return (
     <div className="px-4 py-4 max-w-3xl mx-auto">
@@ -151,7 +149,7 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
                         className="flex items-center gap-2 text-neutral-600 hover:text-neutral-900"
                       >
                         <span className="text-xs tabular-nums text-neutral-400">
-                          {hhmm(o.start_time!)}–{hhmm(o.end_time!)}
+                          {hhmm(o.start_time)}–{hhmm(o.end_time)}
                         </span>
                         <span
                           className={`inline-block w-1.5 h-1.5 rounded-full ${o.tag_color ? "" : "bg-neutral-300"}`}

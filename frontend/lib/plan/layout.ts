@@ -16,11 +16,11 @@
 
 // Header omits the word this module may never contain (invariant 13).
 
-import type { EntryOccurrence } from "@/lib/api/plan";
+import type { EntryOccurrence, TimedOccurrence } from "@/lib/api/plan";
 import { minutesBetween } from "@/lib/date/week";
 
 export interface LaidOutEntry {
-  occ: EntryOccurrence;
+  occ: TimedOccurrence;
   /** Lane index within its overlap cluster (0 = leftmost). */
   lane: number;
   /** Total lanes in this entry's overlap cluster. */
@@ -51,7 +51,7 @@ export function railFor(entries: EntryOccurrence[]): RailSpec {
   let start = DEFAULT_RAIL.startMin;
   let end = start + DEFAULT_RAIL.minutes;
   for (const occ of entries) {
-    if (occ.all_day || !occ.start_time || !occ.end_time) continue;
+    if (occ.all_day) continue; // all-day entries render in the header band
     const s = minutes(occ.start_time);
     const e = s + minutesBetween(occ.start_time, occ.end_time);
     start = Math.min(start, s);
@@ -77,35 +77,30 @@ export function railPosition(
   };
 }
 
-/**
- * Assign side-by-side lanes to overlapping entries. All-day entries are
- * passed through on lane 0 — they render in the header band, not here.
- */
-export function timelineLanes(entries: EntryOccurrence[]): LaidOutEntry[] {
+/** Assign side-by-side lanes to overlapping timed entries. */
+export function timelineLanes(entries: TimedOccurrence[]): LaidOutEntry[] {
+  // A timed entry always has both times — the TimedOccurrence type carries
+  // the server's invariant, so no fallbacks or assertions here.
   const timed = [...entries].sort(
-    (a, b) =>
-      minutes(a.start_time ?? "00:00") - minutes(b.start_time ?? "00:00")
+    (a, b) => minutes(a.start_time) - minutes(b.start_time)
   );
 
   const result: LaidOutEntry[] = [];
   // Cluster = a run of entries connected by overlap.
-  let cluster: EntryOccurrence[] = [];
+  let cluster: TimedOccurrence[] = [];
   let clusterEnd = -1;
 
   const flush = () => {
     if (cluster.length === 0) return;
     const laneEnds: number[] = [];
     for (const occ of cluster) {
-      const start = minutes(occ.start_time ?? "00:00");
+      const start = minutes(occ.start_time);
       let lane = laneEnds.findIndex((end) => end <= start);
       if (lane === -1) {
         lane = laneEnds.length;
         laneEnds.push(0);
       }
-      laneEnds[lane] = start + minutesBetween(
-        occ.start_time ?? "00:00",
-        occ.end_time ?? "00:00"
-      );
+      laneEnds[lane] = start + minutesBetween(occ.start_time, occ.end_time);
       result.push({ occ, lane, lanes: 1 }); // lanes fixed up below
     }
     const lanes = laneEnds.length;
@@ -117,8 +112,8 @@ export function timelineLanes(entries: EntryOccurrence[]): LaidOutEntry[] {
   };
 
   for (const occ of timed) {
-    const start = minutes(occ.start_time ?? "00:00");
-    const end = start + minutesBetween(occ.start_time ?? "00:00", occ.end_time ?? "00:00");
+    const start = minutes(occ.start_time);
+    const end = start + minutesBetween(occ.start_time, occ.end_time);
     if (cluster.length > 0 && start >= clusterEnd) flush();
     cluster.push(occ);
     clusterEnd = Math.max(clusterEnd, end);

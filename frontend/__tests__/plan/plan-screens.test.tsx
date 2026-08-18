@@ -21,7 +21,7 @@ import { resolve } from "node:path";
 import WeekView from "@/components/plan/WeekView";
 import DayView from "@/components/plan/DayView";
 import { railFor, railPosition, timelineLanes } from "@/lib/plan/layout";
-import type { EntryOccurrence } from "@/lib/api/plan";
+import type { EntryOccurrence, TimedOccurrence } from "@/lib/api/plan";
 
 const WEEK = { from: "2026-07-27", to: "2026-08-02" };
 
@@ -32,21 +32,24 @@ function occ(
   date: string,
   start: string | null,
   end: string | null,
-  extra: Partial<EntryOccurrence> = {}
+  extra: Partial<Omit<TimedOccurrence, "all_day" | "start_time" | "end_time">> = {}
 ): EntryOccurrence {
   // Opaque ids: hrefs embed entry_id, so names must stay out of it.
-  return {
+  // A timed entry always has both times — the discriminated union in the
+  // type mirrors the server's invariant.
+  const base = {
     entry_id: `occ-${++occSeq}`,
     name,
     date,
-    all_day: start === null,
-    start_time: start,
-    end_time: end,
     tag_id: null,
     tag_color: null,
     repeat_weekly: false,
     ...extra,
   };
+  if (start === null || end === null) {
+    return { ...base, all_day: true };
+  }
+  return { ...base, all_day: false, start_time: start, end_time: end };
 }
 
 describe("WeekView (SCR-30)", () => {
@@ -179,7 +182,7 @@ describe("timelineLanes", () => {
     const laid = timelineLanes([
       occ("A", "2026-07-28", "09:00", "10:00"),
       occ("B", "2026-07-28", "11:00", "12:00"),
-    ]);
+    ] as TimedOccurrence[]);
     expect(laid.map((l) => l.lane)).toEqual([0, 0]);
     expect(laid.map((l) => l.lanes)).toEqual([1, 1]);
   });
@@ -188,7 +191,7 @@ describe("timelineLanes", () => {
     const laid = timelineLanes([
       occ("Office", "2026-07-28", "09:00", "17:00"),
       occ("Call", "2026-07-28", "15:00", "16:00"),
-    ]);
+    ] as TimedOccurrence[]);
     expect(laid[0].lanes).toBe(2);
     expect(new Set(laid.map((l) => l.lane))).toEqual(new Set([0, 1]));
   });

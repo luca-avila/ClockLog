@@ -126,10 +126,10 @@ export default function DayView({ date, occurrences }: DayViewProps) {
         {/* Timed entries, positioned on the rail */}
         <div className="absolute inset-y-0 left-10 right-0">
           {laid.map(({ occ, lane, lanes }) => {
-            const start = minuteOfDay(occ.start_time!);
-            const end = start + (minuteOfDay(occ.end_time!) <= start
-              ? 24 * 60 - start + minuteOfDay(occ.end_time!)
-              : minuteOfDay(occ.end_time!) - start);
+            const start = minuteOfDay(occ.start_time);
+            const end = start + (minuteOfDay(occ.end_time) <= start
+              ? 24 * 60 - start + minuteOfDay(occ.end_time)
+              : minuteOfDay(occ.end_time) - start);
             const pos = railPosition(start, end, rail);
             if (!pos) return null;
             return (
@@ -147,7 +147,7 @@ export default function DayView({ date, occurrences }: DayViewProps) {
               >
                 <p className="text-xs font-medium text-neutral-700 truncate">{occ.name}</p>
                 <p className="text-[10px] text-neutral-400 tabular-nums">
-                  {hhmm(occ.start_time!)} – {hhmm(occ.end_time!)}
+                  {hhmm(occ.start_time)} – {hhmm(occ.end_time)}
                 </p>
               </Link>
             );

@@ -19,17 +19,29 @@
 
 import { apiFetch } from "./client";
 
-export interface EntryOccurrence {
+// A timed entry always carries both times; an all-day entry carries
+// neither. Server-enforced on write — the union makes the invariant
+// travel with the data so views never assert around it.
+export interface OccurrenceBase {
   entry_id: string;
   name: string;
   date: string;
-  all_day: boolean;
-  start_time: string | null;
-  end_time: string | null;
   tag_id: string | null;
   tag_color: string | null;
   repeat_weekly: boolean;
 }
+
+export interface TimedOccurrence extends OccurrenceBase {
+  all_day: false;
+  start_time: string;
+  end_time: string;
+}
+
+export interface AllDayOccurrence extends OccurrenceBase {
+  all_day: true;
+}
+
+export type EntryOccurrence = TimedOccurrence | AllDayOccurrence;
 
 export interface Entry {
   id: string;
