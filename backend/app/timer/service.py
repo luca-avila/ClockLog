@@ -164,7 +164,9 @@ async def get_summary_by_tag(
         if key not in tag_totals:
             tag_totals[key] = {
                 "tag_id": str(tag_id) if tag_id else None,
-                "tag_name": tag_name or "Unlabeled",
+                # "Untagged", not "Unlabeled": a label placeholder and a tag
+                # placeholder must not share one string across the stack.
+                "tag_name": tag_name or "Untagged",
                 "tag_color": tag_colors.get(tag_id) if tag_id else None,
                 "total_seconds": 0.0,
                 "block_count": 0,

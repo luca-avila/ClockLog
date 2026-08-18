@@ -207,11 +207,11 @@ class TestSummary:
             )
         assert resp.status_code == 200
         summary = resp.json()
-        # Two buckets: "Study" and "Unlabeled"
+        # Two buckets: "Study" and "Untagged"
         assert len(summary) == 2
         names = {s["tag_name"] for s in summary}
         assert "Study" in names
-        assert "Unlabeled" in names
+        assert "Untagged" in names
 
     @pytest.mark.asyncio
     async def test_includes_aborted_in_summary(self, db_session):
@@ -238,7 +238,7 @@ class TestSummary:
             )
         assert resp.status_code == 200
         summary = resp.json()
-        assert len(summary) == 1  # "Unlabeled" for both
+        assert len(summary) == 1  # "Untagged" for both
         # Both blocks have one interval of 0 duration (ended_at is null),
         # so duration will be 0. But the test just verifies they're included.
 

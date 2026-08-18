@@ -214,7 +214,9 @@ export default function TimerScreen() {
     if (!state) return;
     const finalState: TimerState = {
       ...state,
-      label: labelText || "Unlabeled",
+      // No label is honest null; "Unlabeled" is a display-time placeholder
+      // in HistoryPage, never stored data.
+      label: labelText || null,
       tagId,
     };
     completeAndSaveBlock(finalState)
@@ -232,7 +234,7 @@ export default function TimerScreen() {
 
   function handleLabelSkip() {
     if (!state) return;
-    const finalState: TimerState = { ...state, label: "Unlabeled" };
+    const finalState: TimerState = { ...state, label: null };
     completeAndSaveBlock(finalState)
       .catch(() => {
         /* queued for retry; the UI moves on regardless */

@@ -42,7 +42,7 @@ export default function LabelSheet({ onSave, onSkip }: LabelSheetProps) {
   }, []);
 
   function handleSave() {
-    onSave(label || "Unlabeled", tagId);
+    onSave(label, tagId);
   }
 
   function handleRecentClick(item: string) {
