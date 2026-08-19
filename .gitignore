@@ -1,0 +1,24 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# env
+.env
+.env.*
+!.env.example
+
+# archives
+docs/UX research wireframes.zip
+
+# agent tooling (local only)
+.agents/
+skills-lock.json
+
+# generated reports
+architecture-review-*.html
