@@ -25,7 +25,7 @@ from app.shared.user.models import User
 from app.shared.user.schemas import UserCreate
 from app.shared.user.service import create_user
 from app.timer.models import Block, BlockInterval
-from app.timer.schemas import BlockCreate
+from app.timer.schemas import BlockCreate, BlockUpdate
 from app.timer.service import compute_duration, create_block, get_block_by_id
 
 
@@ -259,7 +259,7 @@ class TestUpdateBlock:
             db_session,
             block.id,
             user.id,
-            {"started_at": datetime(2026, 8, 6, 0, 10, tzinfo=UTC)},
+            BlockUpdate(started_at=datetime(2026, 8, 6, 0, 10, tzinfo=UTC)),
         )
         await db_session.commit()
 

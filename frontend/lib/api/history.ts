@@ -43,10 +43,18 @@ export async function fetchSummary(from: string, to: string): Promise<TagSummary
   return apiFetch(`/blocks/summary?${new URLSearchParams({ from, to })}`);
 }
 
-export async function updateBlock(
-  id: string,
-  data: Record<string, unknown>
-): Promise<BlockData> {
+/** PATCH /blocks/:id — mirrors backend BlockUpdate. An omitted key is
+ *  untouched; an explicit null clears. started_at has no null: a block
+ *  always has a start (invariant 7). */
+export interface BlockPatch {
+  label?: string | null;
+  tag_id?: string | null;
+  status?: BlockData["status"];
+  started_at?: string;
+  ended_at?: string | null;
+}
+
+export async function updateBlock(id: string, data: BlockPatch): Promise<BlockData> {
   return apiFetch(`/blocks/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

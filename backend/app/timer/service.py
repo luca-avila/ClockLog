@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 
 from app.shared.tag.models import Tag
 from app.timer.models import Block, BlockInterval
-from app.timer.schemas import BlockCreate
+from app.timer.schemas import BlockCreate, BlockUpdate
 
 
 def compute_duration(block: Block) -> timedelta:
@@ -178,7 +178,7 @@ async def get_summary_by_tag(
 
 
 async def update_block(
-    db: AsyncSession, block_id: uuid.UUID, user_id: uuid.UUID, data: dict
+    db: AsyncSession, block_id: uuid.UUID, user_id: uuid.UUID, data: BlockUpdate
 ) -> Block:
     result = await db.execute(
         select(Block)
@@ -192,50 +192,42 @@ async def update_block(
             detail={"code": "BLOCK_NOT_FOUND", "message": "Block not found"},
         )
 
-    for key, value in data.items():
-        if key in ("started_at", "ended_at"):
-            continue  # handled against the interval below
-        setattr(block, key, value)
+    # model_fields_set, not truthiness: an explicit null must survive as
+    # "clear this field" (invariant 10's untag path).
+    fields = data.model_fields_set
 
-    if "started_at" in data or "ended_at" in data:
+    if "label" in fields:
+        block.label = data.label
+    if "tag_id" in fields:
+        block.tag_id = data.tag_id
+    if "status" in fields:
+        block.status = data.status
+
+    if "started_at" in fields or "ended_at" in fields:
         if not block.intervals:
             raise HTTPException(
                 status_code=400,
                 detail={"code": "NO_INTERVALS", "message": "Block has no intervals"},
             )
         interval = block.intervals[0]
-        if "started_at" in data:
-            new_start = data["started_at"]
-            if not isinstance(new_start, datetime) or new_start.tzinfo is None:
-                raise HTTPException(
-                    status_code=422,
-                    detail={"code": "NAIVE_DATETIME", "message": "datetime must be timezone-aware"},
-                )
-            interval.started_at = new_start
+        if "started_at" in fields:
+            interval.started_at = data.started_at
             # Block.started_at is the indexed column every history query and
             # the day bucketing run on (invariant 7) — keep it in sync or the
             # block silently stays on its old day after an edit.
-            block.started_at = new_start
-        if "ended_at" in data:
-            new_end = data["ended_at"]
-            if new_end is not None:
-                if not isinstance(new_end, datetime) or new_end.tzinfo is None:
-                    raise HTTPException(
-                        status_code=422,
-                        detail={
-                            "code": "NAIVE_DATETIME",
-                            "message": "datetime must be timezone-aware",
-                        },
-                    )
-                if new_end < interval.started_at:
-                    raise HTTPException(
-                        status_code=422,
-                        detail={
-                            "code": "INVALID_INTERVAL",
-                            "message": "ended_at must be after started_at",
-                        },
-                    )
-            interval.ended_at = new_end
+            block.started_at = data.started_at
+        if "ended_at" in fields:
+            # Cross-field and cross-row: the schema cannot see the stored
+            # start, so this one rule stays in the service.
+            if data.ended_at is not None and data.ended_at < interval.started_at:
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "INVALID_INTERVAL",
+                        "message": "ended_at must be after started_at",
+                    },
+                )
+            interval.ended_at = data.ended_at
 
     return block
 

@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 
 class BlockIntervalSchema(BaseModel):
@@ -47,6 +47,11 @@ class BlockCreate(BaseModel):
 
 
 class BlockUpdate(BaseModel):
+    # extra="forbid": the patch body is the whole edit contract, so an
+    # unknown key is a client bug, not something to drop silently.
+    # Matches plan/schemas.py.
+    model_config = ConfigDict(extra="forbid")
+
     label: str | None = None
     tag_id: uuid.UUID | None = None
     status: Literal["completed", "aborted"] | None = None
@@ -59,6 +64,17 @@ class BlockUpdate(BaseModel):
         if v is not None and v.tzinfo is None:
             raise ValueError("datetime must be timezone-aware")
         return v
+
+    @model_validator(mode="after")
+    def non_clearable_fields(self) -> "BlockUpdate":
+        # label, tag_id and ended_at back nullable columns, so null there
+        # legitimately clears. started_at and status back NOT NULL columns —
+        # for them the Optional type is only how "unset" is spelled, and a
+        # literal null would reach the ORM and 500 on commit.
+        for name in ("started_at", "status"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name} cannot be cleared")
+        return self
 
 
 class BlockResponse(BaseModel):

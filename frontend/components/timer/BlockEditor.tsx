@@ -18,7 +18,12 @@
 
 import { useState } from "react";
 import TagPicker from "@/components/shared/TagPicker";
-import { type BlockData, updateBlock, deleteBlock } from "@/lib/api/history";
+import {
+  type BlockData,
+  type BlockPatch,
+  updateBlock,
+  deleteBlock,
+} from "@/lib/api/history";
 import type { Tag } from "@/lib/api/tags";
 
 function toTimeInput(iso: string): string {
@@ -84,7 +89,7 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
     setBusy(true);
     setError(null);
 
-    const payload: Record<string, unknown> = {
+    const payload: BlockPatch = {
       label: label.trim() || null,
       tag_id: tagId,
       status,
@@ -97,10 +102,8 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
     if (startDirty) payload.started_at = sameLocalDay(originalStartIso, start);
     if (endDirty) payload.ended_at = sameLocalDay(originalEndIso, end);
     if (startDirty || endDirty) {
-      const newStart = new Date(
-        (payload.started_at as string | undefined) ?? originalStartIso
-      );
-      const newEnd = new Date((payload.ended_at as string | undefined) ?? originalEndIso ?? "");
+      const newStart = new Date(payload.started_at ?? originalStartIso);
+      const newEnd = new Date(payload.ended_at ?? originalEndIso ?? "");
       if (originalEndIso && newEnd <= newStart) {
         setError("End must be after start");
         setBusy(false);

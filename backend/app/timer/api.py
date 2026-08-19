@@ -90,14 +90,7 @@ async def patch_block(
     data: BlockUpdate,
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
-    block = await update_block(
-        db,
-        uuid.UUID(block_id),
-        current_user.id,
-        # exclude_unset alone: an explicit null must survive as "clear this
-        # field" (invariant 10's untag path).
-        data.model_dump(exclude_unset=True),
-    )
+    block = await update_block(db, uuid.UUID(block_id), current_user.id, data)
     await db.commit()
     block = await get_block_by_id(db, block.id, current_user.id)
     return BlockResponse.model_validate(block)
