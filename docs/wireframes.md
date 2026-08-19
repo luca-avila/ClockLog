@@ -18,7 +18,7 @@ que el orden de las fases.
 | SCR-01 | Shell / navegación | MVP |
 | SCR-10 | Timer — idle | MVP |
 | SCR-11 | Timer — running | MVP |
-| SCR-12 | Timer — paused | MVP *(pendiente: decisión pause vs. abort)* |
+| SCR-12 | Timer — paused | MVP |
 | SCR-13 | Timer — break | MVP |
 | SCR-14 | Label sheet | MVP |
 | SCR-20 | History — day | MVP |
