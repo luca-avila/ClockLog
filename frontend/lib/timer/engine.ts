@@ -16,6 +16,8 @@
 
 export type BlockType = "focus" | "short_break" | "long_break";
 
+export type TimerPhase = "running" | "paused" | "ended";
+
 export interface Interval {
   startedAt: number; // epoch ms
   endedAt?: number; // epoch ms, undefined if in-progress
@@ -24,6 +26,7 @@ export interface Interval {
 export interface TimerState {
   id: string;
   type: BlockType;
+  phase: TimerPhase;
   startedAt: number;
   label: string | null;
   tagId: string | null;
@@ -61,7 +64,7 @@ export const defaultSettings: TimerSettings = {
   notifications: true,
 };
 
-// ─── Pure helpers ──────────────────────────────────────────────────
+// ─── Pure helpers (invariant 1 lives here) ─────────────────────────
 
 /** Elapsed ms between startedAt and now, adjusted for pause intervals. */
 export function elapsed(
@@ -117,17 +120,24 @@ export function serializeState(state: TimerState): string {
   return JSON.stringify(state);
 }
 
+// ─── Deserialization ───────────────────────────────────────────────
+
 function isFiniteNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);
 }
 
 const BLOCK_TYPES: readonly string[] = ["focus", "short_break", "long_break"];
+const VALID_PHASES: readonly string[] = ["running", "paused", "ended"];
 
 /**
  * Parse persisted timer state, validating the shape by hand. Corrupt or
  * stale-shape localStorage yields null — never a TimerState whose
  * startedAt is undefined and whose elapsed() is NaN. The caller clears
  * the key on null.
+ *
+ * Back-compat: `phase` is optional.  Absent → derive from the last
+ * interval (closed → "paused", else "running").  Present but invalid
+ * → reject.
  */
 export function deserializeState(json: string): TimerState | null {
   let parsed: unknown;
@@ -157,7 +167,21 @@ export function deserializeState(json: string): TimerState | null {
     }
   }
 
-  return parsed as TimerState;
+  // Phase: accept absent (back-compat), reject invalid present.
+  let phase: TimerPhase;
+  if (s.phase === undefined || s.phase === null) {
+    // Derive from the last interval — mirrors the old isPaused() logic.
+    const ivs = s.intervals as { endedAt?: number }[];
+    const last = ivs[ivs.length - 1];
+    phase = last !== undefined && last.endedAt !== undefined ? "paused" : "running";
+  } else if (typeof s.phase === "string" && VALID_PHASES.includes(s.phase)) {
+    phase = s.phase as TimerPhase;
+  } else {
+    return null;
+  }
+
+  const result = { ...s, phase } as TimerState;
+  return result;
 }
 
 // ─── ClockDeps seam ────────────────────────────────────────────────
@@ -176,6 +200,16 @@ export const browserClock: ClockDeps = {
   uuid: () => crypto.randomUUID(),
 };
 
+// ─── Interval helpers ──────────────────────────────────────────────
+
+/** Deep-copy intervals and close the last open one. Pure — never mutates input. */
+function closeLastInterval(intervals: Interval[], at: number): Interval[] {
+  const copy = intervals.map((iv) => ({ ...iv }));
+  const last = copy[copy.length - 1];
+  if (last && last.endedAt === undefined) last.endedAt = at;
+  return copy;
+}
+
 // ─── State machine ─────────────────────────────────────────────────
 
 export type TimerEvent =
@@ -184,41 +218,30 @@ export type TimerEvent =
   | { kind: "resume" }
   | { kind: "stop" }
   | { kind: "labelSave"; label: string | null; tagId: string | null }
+  | { kind: "skipBreak" }
   | { kind: "tick" };
 
 export type TimerEffect =
   | { type: "save"; state: TimerState }
-  | { type: "alert"; blockType: BlockType }
+  | { type: "alert"; blockType: BlockType; nextBreak?: BlockType }
   | { type: "showLabelSheet" }
-  | { type: "advanceCycle"; completed: number; pendingBreak: boolean };
+  | { type: "setCycle"; completed: number; pendingBreak: boolean };
 
 export interface TransitionResult {
   state: TimerState | null;
   effects: TimerEffect[];
 }
 
-function isPaused(state: TimerState): boolean {
-  const last = state.intervals[state.intervals.length - 1];
-  return last !== undefined && last.endedAt !== undefined;
-}
-
-function togglePause(state: TimerState, now: number): TimerState {
-  const intervals = [...state.intervals];
-  const last = intervals[intervals.length - 1];
-  if (last.endedAt === undefined) {
-    last.endedAt = now;
-  } else {
-    intervals.push({ startedAt: now });
-  }
-  return { ...state, intervals };
-}
-
 /**
  * Pure state machine.  Takes the current state (null = idle), an event,
  * a clock, and settings; returns the next state plus a list of effects
- * the caller must execute (save, alert, show label sheet, advance cycle).
+ * the caller must execute (save, alert, show label sheet, set cycle).
  *
- * No side effects, no async, no imports — just computation.
+ * Phase gates make double-fire suppression explicit and provable —
+ * ticking the same ended state twice yields effects only on the first
+ * call.
+ *
+ * No side effects, no async, no mutations of input — just computation.
  */
 export function transition(
   state: TimerState | null,
@@ -232,50 +255,78 @@ export function transition(
 
   switch (event.kind) {
     case "start": {
-      const t = now;
       const completed = cycleCompleted;
       const newState: TimerState = {
         id: clock.uuid(),
         type: event.type,
-        startedAt: t,
+        phase: "running",
+        startedAt: now,
         label: event.label,
         tagId: event.tagId,
         focusBlocksCompleted: completed,
-        intervals: [{ startedAt: t }],
+        intervals: [{ startedAt: now }],
         blockStatus: "completed",
         targetMs: nextDuration(event.type, settings) * 1000,
       };
       return {
         state: newState,
         effects: cyclePendingBreak
-          ? [{ type: "advanceCycle", completed, pendingBreak: false }]
+          ? [{ type: "setCycle", completed, pendingBreak: false }]
           : [],
       };
     }
 
     case "pause": {
-      if (!state || isPaused(state)) return { state, effects: [] };
-      return { state: togglePause(state, now), effects: [] };
+      if (!state || state.phase !== "running") return { state, effects: [] };
+      return {
+        state: {
+          ...state,
+          phase: "paused",
+          intervals: closeLastInterval(state.intervals, now),
+        },
+        effects: [],
+      };
     }
 
     case "resume": {
-      if (!state || !isPaused(state)) return { state, effects: [] };
-      return { state: togglePause(state, now), effects: [] };
+      if (!state || state.phase !== "paused") return { state, effects: [] };
+      return {
+        state: {
+          ...state,
+          phase: "running",
+          intervals: [...state.intervals, { startedAt: now }],
+        },
+        effects: [],
+      };
     }
 
     case "stop": {
       if (!state) return { state: null, effects: [] };
-      const aborted: TimerState = { ...state, blockStatus: "aborted" };
+      const intervals =
+        state.phase === "running"
+          ? closeLastInterval(state.intervals, now)
+          : state.intervals.map((iv) => ({ ...iv }));
+      const aborted: TimerState = {
+        ...state,
+        phase: "ended",
+        blockStatus: "aborted",
+        intervals,
+      };
       const effects: TimerEffect[] = [
         { type: "save", state: aborted },
-        { type: "alert", blockType: state.type },
       ];
       if (state.type === "focus") {
+        const nextCompleted = state.focusBlocksCompleted + 1;
+        const nextPos = cyclePosition(nextCompleted, settings.blocksPerCycle);
+        const nextBreak: BlockType = nextPos.isLongBreak ? "long_break" : "short_break";
+        effects.push({ type: "alert", blockType: "focus", nextBreak });
         effects.push({
-          type: "advanceCycle",
-          completed: state.focusBlocksCompleted + 1,
+          type: "setCycle",
+          completed: nextCompleted,
           pendingBreak: true,
         });
+      } else {
+        effects.push({ type: "alert", blockType: state.type });
       }
       return { state: null, effects };
     }
@@ -292,9 +343,8 @@ export function transition(
         state: null,
         effects: [
           { type: "save", state: finalState },
-          { type: "alert", blockType: state.type },
           {
-            type: "advanceCycle",
+            type: "setCycle",
             completed: nextCompleted,
             pendingBreak: true,
           },
@@ -302,9 +352,32 @@ export function transition(
       };
     }
 
+    case "skipBreak": {
+      // A skipped break is not recorded (wireframes § Storyboard) —
+      // discard the state instead of saving it.
+      if (!state) {
+        // Idle with pending break — just clear the cycle.
+        return {
+          state: null,
+          effects: cyclePendingBreak
+            ? [{ type: "setCycle", completed: cycleCompleted, pendingBreak: false }]
+            : [],
+        };
+      }
+      if (state.type !== "focus" && (state.phase === "running" || state.phase === "paused")) {
+        // Running or paused break — discard without saving.
+        return {
+          state: null,
+          effects: [{ type: "setCycle", completed: cycleCompleted, pendingBreak: false }],
+        };
+      }
+      // Defensive: focus block or ended state — no-op.
+      return { state, effects: [] };
+    }
+
     case "tick": {
       if (!state) return { state: null, effects: [] };
-      if (isPaused(state)) return { state, effects: [] };
+      if (state.phase !== "running") return { state, effects: [] };
 
       const target =
         state.targetMs ?? nextDuration(state.type, settings) * 1000;
@@ -314,34 +387,38 @@ export function transition(
 
       // Block time is up
       if (state.type === "focus") {
-        // Complete the intervals for saving
-        const intervals = [...state.intervals];
-        const last = intervals[intervals.length - 1];
-        if (last.endedAt === undefined) last.endedAt = now;
+        const nextCompleted = state.focusBlocksCompleted + 1;
+        const nextPos = cyclePosition(nextCompleted, settings.blocksPerCycle);
+        const nextBreak: BlockType = nextPos.isLongBreak ? "long_break" : "short_break";
         return {
-          state: { ...state, intervals },
+          state: {
+            ...state,
+            phase: "ended",
+            intervals: closeLastInterval(state.intervals, now),
+          },
           effects: [
             { type: "showLabelSheet" },
-            { type: "alert", blockType: "focus" },
+            { type: "alert", blockType: "focus", nextBreak },
           ],
         };
       }
 
       // Break done → close the last interval, save, and go idle.
-      // The save needs endedAt on the last interval to produce a valid
-      // BlockPayload, matching the focus-completion path.
-      {
-        const intervals = [...state.intervals];
-        const last = intervals[intervals.length - 1];
-        if (last.endedAt === undefined) last.endedAt = now;
-        return {
-          state: null,
-          effects: [
-            { type: "save", state: { ...state, intervals } },
-            { type: "alert", blockType: state.type },
-          ],
-        };
-      }
+      // The recorded end must be the block's real end rather than a
+      // default computed downstream in stateToPayload.
+      return {
+        state: null,
+        effects: [
+          {
+            type: "save",
+            state: {
+              ...state,
+              intervals: closeLastInterval(state.intervals, now),
+            },
+          },
+          { type: "alert", blockType: state.type },
+        ],
+      };
     }
   }
 }

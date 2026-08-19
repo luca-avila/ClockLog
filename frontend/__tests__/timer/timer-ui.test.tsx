@@ -165,6 +165,7 @@ describe("completed focus block shows label sheet", () => {
     const state: TimerState = {
       id: "test-complete",
       type: "focus",
+      phase: "running",
       startedAt,
       label: null,
       tagId: null,

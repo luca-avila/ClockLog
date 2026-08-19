@@ -20,7 +20,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   type TimerState,
   type BlockType,
-  type TimerEffect,
   elapsed,
   cyclePosition,
   nextDuration,
@@ -88,42 +87,27 @@ function loadStoredState(): TimerState | null {
   return null;
 }
 
-function alertBlockEnd(blockType: BlockType, settings: { sound: boolean; notifications: boolean }) {
+function alertBlockEnd(
+  blockType: BlockType,
+  settings: { sound: boolean; notifications: boolean },
+  nextBreak?: BlockType
+) {
+  let body: string;
+  if (blockType === "focus") {
+    body = nextBreak === "long_break" ? "Time for a long break" : "Time for a break";
+  } else {
+    body = "Ready for the next focus block";
+  }
   fireAlert(
     {
       settings: { sound: settings.sound, notifications: settings.notifications },
       hasCompletedBlock: readHasCompletedBlock(),
       title: blockType === "focus" ? "Focus block done" : "Break over",
-      body:
-        blockType === "focus"
-          ? "Time for a break"
-          : "Ready for the next focus block",
+      body,
     },
     createBrowserDeps()
   );
   markBlockCompleted();
-}
-
-function executeEffects(
-  effects: TimerEffect[],
-  settings: { sound: boolean; notifications: boolean }
-) {
-  for (const effect of effects) {
-    switch (effect.type) {
-      case "save":
-        saveBlock(effect.state).catch(() => {
-          /* queued for retry; the UI moves on regardless */
-        });
-        break;
-      case "alert":
-        alertBlockEnd(effect.blockType, settings);
-        break;
-      case "showLabelSheet":
-        break; // handled via state in the component
-      case "advanceCycle":
-        break; // handled via state in the component
-    }
-  }
 }
 
 export default function TimerScreen() {
@@ -144,10 +128,7 @@ export default function TimerScreen() {
   const pendingBreakRef = useRef(pendingBreak);
 
   useEffect(() => {
-    stateRef.current = state;
     settingsRef.current = settings;
-    nextCompletedRef.current = nextCompleted;
-    pendingBreakRef.current = pendingBreak;
   });
 
   useEffect(() => {
@@ -161,7 +142,7 @@ export default function TimerScreen() {
     }
   }, [nextCompleted, pendingBreak]);
 
-  const running = state !== null;
+  const ticking = state?.phase === "running";
 
   const dispatch = useCallback(
     (event: Parameters<typeof transition>[1]) => {
@@ -173,34 +154,40 @@ export default function TimerScreen() {
         nextCompletedRef.current ?? stateRef.current?.focusBlocksCompleted ?? 0,
         pendingBreakRef.current
       );
+      stateRef.current = result.state;
       setState(result.state);
 
-      // Handle cycle advancement effects inline
+      // Single effect loop — list order is execution order.
       for (const effect of result.effects) {
-        if (effect.type === "advanceCycle") {
-          setNextCompleted(effect.completed);
-          setPendingBreak(effect.pendingBreak);
-        } else if (effect.type === "showLabelSheet") {
-          setShowLabelSheet(true);
+        switch (effect.type) {
+          case "setCycle":
+            nextCompletedRef.current = effect.completed;
+            pendingBreakRef.current = effect.pendingBreak;
+            setNextCompleted(effect.completed);
+            setPendingBreak(effect.pendingBreak);
+            break;
+          case "showLabelSheet":
+            setShowLabelSheet(true);
+            break;
+          case "save":
+            saveBlock(effect.state).catch(() => {
+              /* queued for retry; the UI moves on regardless */
+            });
+            break;
+          case "alert":
+            alertBlockEnd(effect.blockType, settingsRef.current, effect.nextBreak);
+            break;
         }
       }
 
-      // Execute side effects (save, alert)
-      executeEffects(
-        result.effects.filter(
-          (e) => e.type === "save" || e.type === "alert"
-        ),
-        settingsRef.current
-      );
-
-      // Clear label on any state->null transition
+      // Clear label on any state→null transition
       if (result.state === null) setLabel("");
     },
     []
   );
 
   useEffect(() => {
-    if (!running) return;
+    if (!ticking) return;
 
     const id = setInterval(() => {
       setNow(Date.now());
@@ -208,7 +195,7 @@ export default function TimerScreen() {
     }, 200);
 
     return () => clearInterval(id);
-  }, [running, dispatch]);
+  }, [ticking, dispatch]);
 
   useEffect(() => {
     if (state) localStorage.setItem(STORAGE_KEY, serializeState(state));
@@ -278,9 +265,7 @@ export default function TimerScreen() {
                   START
                 </button>
                 <button
-                  onClick={() => {
-                    setPendingBreak(false);
-                  }}
+                  onClick={() => dispatch({ kind: "skipBreak" })}
                   className="px-10 py-3 text-sm font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
                 >
                   Skip break
@@ -333,13 +318,12 @@ export default function TimerScreen() {
     );
   }
 
-  // RUNNING or PAUSED
+  // RUNNING, PAUSED, or ENDED
   const fraction = targetDuration > 0 ? currentElapsed / targetDuration : 0;
   const circumference = 2 * Math.PI * 42;
   const isBreak = state.type !== "focus";
-  const isPaused =
-    state.intervals.length > 0 &&
-    state.intervals[state.intervals.length - 1].endedAt !== undefined;
+  const isPaused = state.phase === "paused";
+  const isEnded = state.phase === "ended";
 
   return (
     <>
@@ -374,9 +358,9 @@ export default function TimerScreen() {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <div className="text-3xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
-              {isPaused ? "PAUSED" : formatCountdown(currentElapsed)}
+              {isPaused ? "PAUSED" : isEnded ? formatCountdown(targetDuration) : formatCountdown(currentElapsed)}
             </div>
-            {!isPaused && (
+            {!isPaused && !isEnded && (
               <div className="text-[10px] text-neutral-400 mt-0.5">
                 of {formatCountdown(targetDuration)}
               </div>
@@ -397,10 +381,7 @@ export default function TimerScreen() {
         {/* Break: Skip link */}
         {isBreak && !isPaused && (
           <button
-            onClick={() => {
-              setState(null);
-              setPendingBreak(false);
-            }}
+            onClick={() => dispatch({ kind: "skipBreak" })}
             className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors mt-2"
           >
             Skip break
