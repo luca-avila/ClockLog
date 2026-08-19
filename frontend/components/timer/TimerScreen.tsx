@@ -16,16 +16,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   type TimerState,
-  type TimerSettings,
   type BlockType,
+  type TimerEffect,
   elapsed,
   cyclePosition,
   nextDuration,
   serializeState,
   deserializeState,
+  transition,
+  browserClock,
 } from "@/lib/timer/engine";
 import { useSettings } from "@/lib/useSettings";
 import { saveBlock } from "@/lib/api/blocks";
@@ -75,7 +77,6 @@ function loadStoredState(): TimerState | null {
     if (!stored) return null;
     const state = deserializeState(stored);
     if (!state) {
-      // Corrupt or stale-shape — a fresh start beats a NaN timer.
       localStorage.removeItem(STORAGE_KEY);
       return null;
     }
@@ -86,40 +87,42 @@ function loadStoredState(): TimerState | null {
   return null;
 }
 
-async function completeAndSaveBlock(s: TimerState) {
-  const t = Date.now();
-  const intervals = s.intervals.map((iv) => ({ ...iv }));
-  const last = intervals[intervals.length - 1];
-  if (last?.endedAt === undefined) last.endedAt = t;
-
-  const finalState: TimerState = { ...s, intervals };
-  try {
-    await saveBlock(finalState);
-  } finally {
-    // Unconditional: a rejected save must not leave a stale block that
-    // resurrects on refresh.
-    localStorage.removeItem(STORAGE_KEY);
-  }
-}
-
-// Sound + notification + title change on every block end; channels degrade independently.
-function alertBlockEnd(type: BlockType, settings: TimerSettings) {
-  const long = type === "long_break";
+function alertBlockEnd(blockType: BlockType, settings: { sound: boolean; notifications: boolean }) {
   fireAlert(
     {
       settings: { sound: settings.sound, notifications: settings.notifications },
       hasCompletedBlock: readHasCompletedBlock(),
-      title: type === "focus" ? "Focus block done" : "Break over",
+      title: blockType === "focus" ? "Focus block done" : "Break over",
       body:
-        type === "focus"
-          ? long
-            ? "Time for a long break"
-            : "Time for a break"
+        blockType === "focus"
+          ? "Time for a break"
           : "Ready for the next focus block",
     },
     createBrowserDeps()
   );
   markBlockCompleted();
+}
+
+function executeEffects(
+  effects: TimerEffect[],
+  settings: { sound: boolean; notifications: boolean }
+) {
+  for (const effect of effects) {
+    switch (effect.type) {
+      case "save":
+        saveBlock(effect.state).catch(() => {
+          /* queued for retry; the UI moves on regardless */
+        });
+        break;
+      case "alert":
+        alertBlockEnd(effect.blockType, settings);
+        break;
+      case "showLabelSheet":
+        break; // handled via state in the component
+      case "advanceCycle":
+        break; // handled via state in the component
+    }
+  }
 }
 
 export default function TimerScreen() {
@@ -128,8 +131,6 @@ export default function TimerScreen() {
   const [label, setLabel] = useState(() => loadStoredState()?.label ?? "");
   const [now, setNow] = useState(() => Date.now());
   const [showLabelSheet, setShowLabelSheet] = useState(false);
-  // Cycle position survives a refresh while idle-awaiting-a-break — the
-  // ● ● ○ ○ indicator and the pending break are core cycle state (SCR-10).
   const [storedCycle] = useState(loadStoredCycle);
   const [nextCompleted, setNextCompleted] = useState<number | null>(
     storedCycle.completed
@@ -138,10 +139,14 @@ export default function TimerScreen() {
 
   const stateRef = useRef(state);
   const settingsRef = useRef(settings);
+  const nextCompletedRef = useRef(nextCompleted);
+  const pendingBreakRef = useRef(pendingBreak);
 
   useEffect(() => {
     stateRef.current = state;
     settingsRef.current = settings;
+    nextCompletedRef.current = nextCompleted;
+    pendingBreakRef.current = pendingBreak;
   });
 
   useEffect(() => {
@@ -157,153 +162,66 @@ export default function TimerScreen() {
 
   const running = state !== null;
 
+  const dispatch = useCallback(
+    (event: Parameters<typeof transition>[1]) => {
+      const result = transition(
+        stateRef.current,
+        event,
+        browserClock,
+        settingsRef.current,
+        nextCompletedRef.current ?? stateRef.current?.focusBlocksCompleted ?? 0,
+        pendingBreakRef.current
+      );
+      setState(result.state);
+
+      // Handle cycle advancement effects inline
+      for (const effect of result.effects) {
+        if (effect.type === "advanceCycle") {
+          setNextCompleted(effect.completed);
+          setPendingBreak(effect.pendingBreak);
+        } else if (effect.type === "showLabelSheet") {
+          setShowLabelSheet(true);
+        }
+      }
+
+      // Execute side effects (save, alert)
+      executeEffects(
+        result.effects.filter(
+          (e) => e.type === "save" || e.type === "alert"
+        ),
+        settingsRef.current
+      );
+
+      // Clear label on any state->null transition
+      if (result.state === null) setLabel("");
+    },
+    []
+  );
+
   useEffect(() => {
     if (!running) return;
 
     const id = setInterval(() => {
-      const t = Date.now();
-      setNow(t);
-
-      const s = stateRef.current;
-      if (!s) return;
-
-      const paused =
-        s.intervals.length > 0 &&
-        s.intervals[s.intervals.length - 1].endedAt !== undefined;
-      if (paused) return;
-
-      const target = s.targetMs ?? nextDuration(s.type, settingsRef.current) * 1000;
-      const e = elapsed(s.startedAt, t, s.intervals);
-
-      if (e >= target) {
-        clearInterval(id);
-        if (s.type === "focus") {
-          // Focus done → show label sheet
-          setShowLabelSheet(true);
-          alertBlockEnd("focus", settingsRef.current);
-          // Complete the intervals for saving
-          const intervals = [...s.intervals];
-          const last = intervals[intervals.length - 1];
-          if (last.endedAt === undefined) last.endedAt = t;
-          setState({ ...s, intervals });
-        } else {
-          // Break done → go to idle, keep cycle position
-          alertBlockEnd(s.type, settingsRef.current);
-          completeAndSaveBlock(s)
-            .catch(() => {
-              /* queued for retry; the UI moves on regardless */
-            })
-            .finally(() => setState(null));
-        }
-      }
+      setNow(Date.now());
+      dispatch({ kind: "tick" });
     }, 200);
 
     return () => clearInterval(id);
-  }, [running]);
+  }, [running, dispatch]);
 
   useEffect(() => {
     if (state) localStorage.setItem(STORAGE_KEY, serializeState(state));
     else localStorage.removeItem(STORAGE_KEY);
   }, [state]);
 
-  function startBlock(type: BlockType, initialLabel: string | null = null) {
-    const t = Date.now();
-    const newState: TimerState = {
-      id: crypto.randomUUID(),
-      type,
-      startedAt: t,
-      label: initialLabel ?? null,
-      tagId: null,
-      focusBlocksCompleted: nextCompleted ?? state?.focusBlocksCompleted ?? 0,
-      intervals: [{ startedAt: t }],
-      blockStatus: "completed",
-      // Capture the finish line now: a settings change mid-block must not
-      // move it, and the captured value survives a refresh (invariant 4).
-      targetMs: nextDuration(type, settingsRef.current) * 1000,
-    };
-    setPendingBreak(false);
-    setState(newState);
-  }
-
-  function togglePause() {
-    if (!state) return;
-    const t = Date.now();
-    const intervals = [...state.intervals];
-    const last = intervals[intervals.length - 1];
-    if (last.endedAt === undefined) {
-      last.endedAt = t;
-    } else {
-      intervals.push({ startedAt: t });
-    }
-    setState({ ...state, intervals });
-  }
-
-  const isPaused =
-    state !== null &&
-    state.intervals.length > 0 &&
-    state.intervals[state.intervals.length - 1].endedAt !== undefined;
-
-  function stopBlock() {
-    if (!state) return;
-    const s: TimerState = { ...state, blockStatus: "aborted" };
-    alertBlockEnd(state.type, settingsRef.current);
-    completeAndSaveBlock(s)
-      .catch(() => {
-        /* queued for retry; the UI moves on regardless */
-      })
-      .finally(() => {
-        if (state.type === "focus") {
-          setNextCompleted(state.focusBlocksCompleted + 1);
-          setPendingBreak(true);
-        }
-        setState(null);
-        setLabel("");
-      });
-  }
-
   function handleLabelSave(labelText: string, tagId: string | null) {
-    if (!state) return;
-    const finalState: TimerState = {
-      ...state,
-      // No label is honest null; "Unlabeled" is a display-time placeholder
-      // in HistoryPage, never stored data.
-      label: labelText || null,
-      tagId,
-    };
-    completeAndSaveBlock(finalState)
-      .catch(() => {
-        /* queued for retry; the UI moves on regardless */
-      })
-      .finally(() => {
-        setNextCompleted(state.focusBlocksCompleted + 1);
-        setPendingBreak(true);
-        setShowLabelSheet(false);
-        setState(null);
-        setLabel("");
-      });
+    setShowLabelSheet(false);
+    dispatch({ kind: "labelSave", label: labelText || null, tagId });
   }
 
   function handleLabelSkip() {
-    if (!state) return;
-    const finalState: TimerState = { ...state, label: null };
-    completeAndSaveBlock(finalState)
-      .catch(() => {
-        /* queued for retry; the UI moves on regardless */
-      })
-      .finally(() => {
-        setNextCompleted(state.focusBlocksCompleted + 1);
-        setPendingBreak(true);
-        setShowLabelSheet(false);
-        setState(null);
-        setLabel("");
-      });
-  }
-
-  function skipBreak() {
-    // A skipped break is not recorded (wireframes § Storyboard) — discard
-    // the state instead of saving it.
-    setState(null);
-    setPendingBreak(false);
+    setShowLabelSheet(false);
+    dispatch({ kind: "labelSave", label: null, tagId: null });
   }
 
   const currentElapsed = state
@@ -357,13 +275,17 @@ export default function TimerScreen() {
               <p className="text-sm text-neutral-400">Step away from the screen</p>
               <div className="flex gap-4">
                 <button
-                  onClick={() => startBlock(breakType)}
+                  onClick={() =>
+                    dispatch({ kind: "start", type: breakType, label: null, tagId: null })
+                  }
                   className="px-10 py-3 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors"
                 >
                   START
                 </button>
                 <button
-                  onClick={skipBreak}
+                  onClick={() => {
+                    setPendingBreak(false);
+                  }}
                   className="px-10 py-3 text-sm font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
                 >
                   Skip break
@@ -381,7 +303,14 @@ export default function TimerScreen() {
               />
 
               <button
-                onClick={() => startBlock("focus", label || null)}
+                onClick={() =>
+                  dispatch({
+                    kind: "start",
+                    type: "focus",
+                    label: label || null,
+                    tagId: null,
+                  })
+                }
                 className="px-12 py-3 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors"
               >
                 START
@@ -389,7 +318,14 @@ export default function TimerScreen() {
 
               {label && (
                 <button
-                  onClick={() => startBlock("focus", label)}
+                  onClick={() =>
+                    dispatch({
+                      kind: "start",
+                      type: "focus",
+                      label,
+                      tagId: null,
+                    })
+                  }
                   className="text-sm text-neutral-400 hover:text-neutral-600 transition-colors"
                 >
                   ● Last: &quot;{label}&quot; ↺
@@ -406,6 +342,9 @@ export default function TimerScreen() {
   const fraction = targetDuration > 0 ? currentElapsed / targetDuration : 0;
   const circumference = 2 * Math.PI * 42;
   const isBreak = state.type !== "focus";
+  const isPaused =
+    state.intervals.length > 0 &&
+    state.intervals[state.intervals.length - 1].endedAt !== undefined;
 
   return (
     <>
@@ -463,7 +402,10 @@ export default function TimerScreen() {
         {/* Break: Skip link */}
         {isBreak && !isPaused && (
           <button
-            onClick={skipBreak}
+            onClick={() => {
+              setState(null);
+              setPendingBreak(false);
+            }}
             className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors mt-2"
           >
             Skip break
@@ -474,13 +416,13 @@ export default function TimerScreen() {
         <div className="mt-2">
           <div className="flex gap-3 items-center" data-testid="secondary-controls">
             <button
-              onClick={togglePause}
+              onClick={() => dispatch(isPaused ? { kind: "resume" } : { kind: "pause" })}
               className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
             >
               {isPaused ? "RESUME" : "⏸ PAUSE"}
             </button>
             <button
-              onClick={stopBlock}
+              onClick={() => dispatch({ kind: "stop" })}
               className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
             >
               ⏹ STOP

@@ -19,11 +19,13 @@ import {
   elapsed,
   cyclePosition,
   nextDuration,
-  TimerState,
+  type TimerState,
+  type TimerSettings,
   serializeState,
   deserializeState,
   defaultSettings,
-  TimerSettings,
+  transition,
+  type ClockDeps,
 } from "@/lib/timer/engine";
 
 const STORAGE_KEY = "tempo_clock";
@@ -298,5 +300,409 @@ describe("reopened after block ended", () => {
     // The elapsed time exceeds the target duration
     expect(e).toBeGreaterThan(targetDuration);
     // The caller decides save/adjust/discard — engine just reports facts
+  });
+});
+
+// ─── transition() ──────────────────────────────────────────────────
+
+function makeClock(start: number): ClockDeps & { advance: (ms: number) => void } {
+  let time = start;
+  let idCounter = 0;
+  const clock = {
+    now: () => time,
+    uuid: () => `test-uuid-${++idCounter}`,
+    advance: (ms: number) => {
+      time += ms;
+    },
+  };
+  return clock;
+}
+
+const settings: TimerSettings = {
+  ...defaultSettings,
+  focusDuration: 25,
+  shortBreakDuration: 5,
+  longBreakDuration: 15,
+  blocksPerCycle: 4,
+};
+
+describe("transition — start", () => {
+  it("creates a new focus block with captured targetMs", () => {
+    const clock = makeClock(1_000_000);
+    const result = transition(
+      null,
+      { kind: "start", type: "focus", label: "test", tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    expect(result.state).not.toBeNull();
+    expect(result.state!.type).toBe("focus");
+    expect(result.state!.label).toBe("test");
+    expect(result.state!.targetMs).toBe(25 * 60 * 1000);
+    expect(result.state!.intervals).toHaveLength(1);
+    expect(result.state!.intervals[0].startedAt).toBe(1_000_000);
+  });
+
+  it("clears pendingBreak on start", () => {
+    const clock = makeClock(1_000_000);
+    const result = transition(
+      null,
+      { kind: "start", type: "short_break", label: null, tagId: null },
+      clock,
+      settings,
+      4,
+      true
+    );
+    expect(result.effects).toContainEqual({
+      type: "advanceCycle",
+      completed: 4,
+      pendingBreak: false,
+    });
+  });
+
+  it("does not emit advanceCycle when pendingBreak is false", () => {
+    const clock = makeClock(1_000_000);
+    const result = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    expect(result.effects.filter((e) => e.type === "advanceCycle")).toHaveLength(0);
+  });
+});
+
+describe("transition — pause and resume", () => {
+  it("pauses a running block", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(5000);
+    const paused = transition(started.state, { kind: "pause" }, clock, settings, 0, false);
+    expect(paused.state!.intervals).toHaveLength(1);
+    expect(paused.state!.intervals[0].endedAt).toBe(1_005_000);
+  });
+
+  it("resumes a paused block", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(5000);
+    const paused = transition(started.state, { kind: "pause" }, clock, settings, 0, false);
+    clock.advance(3000);
+    const resumed = transition(paused.state, { kind: "resume" }, clock, settings, 0, false);
+    expect(resumed.state!.intervals).toHaveLength(2);
+    expect(resumed.state!.intervals[1].startedAt).toBe(1_008_000);
+    expect(resumed.state!.intervals[1].endedAt).toBeUndefined();
+  });
+
+  it("ignores pause when already paused", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(5000);
+    const paused = transition(started.state, { kind: "pause" }, clock, settings, 0, false);
+    const pausedAgain = transition(paused.state, { kind: "pause" }, clock, settings, 0, false);
+    expect(pausedAgain.state!.intervals).toHaveLength(1);
+  });
+
+  it("ignores resume when not paused", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    const resumed = transition(started.state, { kind: "resume" }, clock, settings, 0, false);
+    expect(resumed.state!.intervals).toHaveLength(1);
+    expect(resumed.state!.intervals[0].endedAt).toBeUndefined();
+  });
+});
+
+describe("transition — stop", () => {
+  it("aborts a focus block and advances cycle", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      2,
+      false
+    );
+    clock.advance(5000);
+    const stopped = transition(started.state, { kind: "stop" }, clock, settings, 2, false);
+    expect(stopped.state).toBeNull();
+    expect(stopped.effects).toContainEqual(expect.objectContaining({ type: "save" }));
+    expect(stopped.effects).toContainEqual({ type: "alert", blockType: "focus" });
+    expect(stopped.effects).toContainEqual({
+      type: "advanceCycle",
+      completed: 3,
+      pendingBreak: true,
+    });
+  });
+
+  it("aborts a break block without advancing cycle", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "short_break", label: null, tagId: null },
+      clock,
+      settings,
+      4,
+      true
+    );
+    clock.advance(5000);
+    const stopped = transition(started.state, { kind: "stop" }, clock, settings, 4, true);
+    expect(stopped.state).toBeNull();
+    expect(stopped.effects).toContainEqual(expect.objectContaining({ type: "save" }));
+    const cycleEffects = stopped.effects.filter((e) => e.type === "advanceCycle");
+    expect(cycleEffects).toHaveLength(0);
+  });
+});
+
+describe("transition — tick", () => {
+  it("returns state unchanged when time is under target", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(1000);
+    const result = transition(started.state, { kind: "tick" }, clock, settings, 0, false);
+    expect(result.state).toBe(started.state);
+    expect(result.effects).toHaveLength(0);
+  });
+
+  it("shows label sheet when focus time is up", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(25 * 60 * 1000 + 1);
+    const result = transition(started.state, { kind: "tick" }, clock, settings, 0, false);
+    expect(result.state).not.toBeNull();
+    expect(result.state!.type).toBe("focus");
+    expect(result.effects).toContainEqual({ type: "showLabelSheet" });
+    expect(result.effects).toContainEqual({ type: "alert", blockType: "focus" });
+  });
+
+  it("closes the last interval on focus completion", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(25 * 60 * 1000 + 1);
+    const result = transition(started.state, { kind: "tick" }, clock, settings, 0, false);
+    const last = result.state!.intervals[result.state!.intervals.length - 1];
+    expect(last.endedAt).toBe(1_000_000 + 25 * 60 * 1000 + 1);
+  });
+
+  it("saves and goes idle when break time is up", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "short_break", label: null, tagId: null },
+      clock,
+      settings,
+      4,
+      true
+    );
+    clock.advance(5 * 60 * 1000 + 1);
+    const result = transition(started.state, { kind: "tick" }, clock, settings, 4, true);
+    expect(result.state).toBeNull();
+    expect(result.effects).toContainEqual(expect.objectContaining({ type: "save" }));
+    expect(result.effects).toContainEqual({ type: "alert", blockType: "short_break" });
+  });
+
+  it("does nothing on tick when paused", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(5000);
+    const paused = transition(started.state, { kind: "pause" }, clock, settings, 0, false);
+    clock.advance(25 * 60 * 1000);
+    const result = transition(paused.state, { kind: "tick" }, clock, settings, 0, false);
+    expect(result.state).toBe(paused.state);
+    expect(result.effects).toHaveLength(0);
+  });
+});
+
+describe("transition — labelSave", () => {
+  it("saves with label and advances cycle", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(5000);
+    const result = transition(
+      started.state,
+      { kind: "labelSave", label: "my task", tagId: "tag-1" },
+      clock,
+      settings,
+      0,
+      false
+    );
+    expect(result.state).toBeNull();
+    const saveEffect = result.effects.find(
+      (e): e is { type: "save"; state: TimerState } => e.type === "save"
+    )!;
+    expect(saveEffect).toBeDefined();
+    expect(saveEffect.state.label).toBe("my task");
+    expect(saveEffect.state.tagId).toBe("tag-1");
+    expect(result.effects).toContainEqual({
+      type: "advanceCycle",
+      completed: 1,
+      pendingBreak: true,
+    });
+  });
+
+  it("empty label becomes null", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    const result = transition(
+      started.state,
+      { kind: "labelSave", label: "", tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    const saveEffect = result.effects.find(
+      (e): e is { type: "save"; state: TimerState } => e.type === "save"
+    )!;
+    expect(saveEffect.state.label).toBeNull();
+  });
+});
+
+describe("transition — elapsed time (drift-proof)", () => {
+  it("background tab jump does not accumulate", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    // Simulate 10 minutes of background throttle
+    clock.advance(10 * 60 * 1000);
+    const result = transition(started.state, { kind: "tick" }, clock, settings, 0, false);
+    // 10 min elapsed, target is 25 min — should not complete
+    expect(result.state).toBe(started.state);
+    expect(result.effects).toHaveLength(0);
+  });
+
+  it("respects captured targetMs, not current settings", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    // Even if we pass different settings to tick, the captured targetMs governs
+    const differentSettings = { ...settings, focusDuration: 5 };
+    clock.advance(25 * 60 * 1000 + 1);
+    const result = transition(started.state, { kind: "tick" }, clock, differentSettings, 0, false);
+    // targetMs was 25 min, so 25 min + 1 should trigger completion
+    expect(result.effects).toContainEqual({ type: "showLabelSheet" });
+  });
+});
+
+describe("transition — cycle integration", () => {
+  it("start after 4 completions with pendingBreak clears pendingBreak", () => {
+    const clock = makeClock(1_000_000);
+    const result = transition(
+      null,
+      { kind: "start", type: "long_break", label: null, tagId: null },
+      clock,
+      settings,
+      4,
+      true
+    );
+    expect(result.effects).toContainEqual({
+      type: "advanceCycle",
+      completed: 4,
+      pendingBreak: false,
+    });
+  });
+
+  it("stop focus at position 3 advances to 4 (triggers long break next)", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      3,
+      false
+    );
+    const stopped = transition(started.state, { kind: "stop" }, clock, settings, 3, false);
+    expect(stopped.effects).toContainEqual({
+      type: "advanceCycle",
+      completed: 4,
+      pendingBreak: true,
+    });
   });
 });

@@ -30,10 +30,6 @@ export interface TimerState {
   focusBlocksCompleted: number;
   intervals: Interval[];
   blockStatus: "completed" | "aborted";
-  // Target duration in ms, captured when the block starts so a settings
-  // change mid-block never moves the finish line. Optional because blocks
-  // persisted before this field existed have no value and fall back to
-  // the current settings.
   targetMs?: number;
 }
 
@@ -65,7 +61,9 @@ export const defaultSettings: TimerSettings = {
   notifications: true,
 };
 
-/** Pure function: elapsed ms between startedAt and now, adjusted for pause intervals. */
+// ─── Pure helpers ──────────────────────────────────────────────────
+
+/** Elapsed ms between startedAt and now, adjusted for pause intervals. */
 export function elapsed(
   startedAt: number,
   now: number,
@@ -92,8 +90,6 @@ export function cyclePosition(
   focusBlocksCompleted: number,
   blocksPerCycle: number
 ): CyclePosition {
-  // The server enforces ge=1, but stale localStorage or a hand-edited
-  // response can carry 0 — modulo by zero is NaN, not a cycle.
   const cycle = Math.max(1, blocksPerCycle);
   const position = focusBlocksCompleted % cycle;
   const isLongBreak = focusBlocksCompleted > 0 && position === 0;
@@ -162,4 +158,190 @@ export function deserializeState(json: string): TimerState | null {
   }
 
   return parsed as TimerState;
+}
+
+// ─── ClockDeps seam ────────────────────────────────────────────────
+//
+// The engine is pure: it never reads the clock or generates IDs
+// directly.  Two adapters justify the seam (browser + test), matching
+// the pattern in lib/api/queue.ts.
+
+export interface ClockDeps {
+  now: () => number;
+  uuid: () => string;
+}
+
+export const browserClock: ClockDeps = {
+  now: () => Date.now(),
+  uuid: () => crypto.randomUUID(),
+};
+
+// ─── State machine ─────────────────────────────────────────────────
+
+export type TimerEvent =
+  | { kind: "start"; type: BlockType; label: string | null; tagId: string | null }
+  | { kind: "pause" }
+  | { kind: "resume" }
+  | { kind: "stop" }
+  | { kind: "labelSave"; label: string | null; tagId: string | null }
+  | { kind: "tick" };
+
+export type TimerEffect =
+  | { type: "save"; state: TimerState }
+  | { type: "alert"; blockType: BlockType }
+  | { type: "showLabelSheet" }
+  | { type: "advanceCycle"; completed: number; pendingBreak: boolean };
+
+export interface TransitionResult {
+  state: TimerState | null;
+  effects: TimerEffect[];
+}
+
+function isPaused(state: TimerState): boolean {
+  const last = state.intervals[state.intervals.length - 1];
+  return last !== undefined && last.endedAt !== undefined;
+}
+
+function togglePause(state: TimerState, now: number): TimerState {
+  const intervals = [...state.intervals];
+  const last = intervals[intervals.length - 1];
+  if (last.endedAt === undefined) {
+    last.endedAt = now;
+  } else {
+    intervals.push({ startedAt: now });
+  }
+  return { ...state, intervals };
+}
+
+/**
+ * Pure state machine.  Takes the current state (null = idle), an event,
+ * a clock, and settings; returns the next state plus a list of effects
+ * the caller must execute (save, alert, show label sheet, advance cycle).
+ *
+ * No side effects, no async, no imports — just computation.
+ */
+export function transition(
+  state: TimerState | null,
+  event: TimerEvent,
+  clock: ClockDeps,
+  settings: TimerSettings,
+  cycleCompleted: number,
+  cyclePendingBreak: boolean
+): TransitionResult {
+  const now = clock.now();
+
+  switch (event.kind) {
+    case "start": {
+      const t = now;
+      const completed = cycleCompleted;
+      const newState: TimerState = {
+        id: clock.uuid(),
+        type: event.type,
+        startedAt: t,
+        label: event.label,
+        tagId: event.tagId,
+        focusBlocksCompleted: completed,
+        intervals: [{ startedAt: t }],
+        blockStatus: "completed",
+        targetMs: nextDuration(event.type, settings) * 1000,
+      };
+      return {
+        state: newState,
+        effects: cyclePendingBreak
+          ? [{ type: "advanceCycle", completed, pendingBreak: false }]
+          : [],
+      };
+    }
+
+    case "pause": {
+      if (!state || isPaused(state)) return { state, effects: [] };
+      return { state: togglePause(state, now), effects: [] };
+    }
+
+    case "resume": {
+      if (!state || !isPaused(state)) return { state, effects: [] };
+      return { state: togglePause(state, now), effects: [] };
+    }
+
+    case "stop": {
+      if (!state) return { state: null, effects: [] };
+      const aborted: TimerState = { ...state, blockStatus: "aborted" };
+      const effects: TimerEffect[] = [
+        { type: "save", state: aborted },
+        { type: "alert", blockType: state.type },
+      ];
+      if (state.type === "focus") {
+        effects.push({
+          type: "advanceCycle",
+          completed: state.focusBlocksCompleted + 1,
+          pendingBreak: true,
+        });
+      }
+      return { state: null, effects };
+    }
+
+    case "labelSave": {
+      if (!state) return { state: null, effects: [] };
+      const finalState: TimerState = {
+        ...state,
+        label: event.label || null,
+        tagId: event.tagId,
+      };
+      const nextCompleted = state.focusBlocksCompleted + 1;
+      return {
+        state: null,
+        effects: [
+          { type: "save", state: finalState },
+          { type: "alert", blockType: state.type },
+          {
+            type: "advanceCycle",
+            completed: nextCompleted,
+            pendingBreak: true,
+          },
+        ],
+      };
+    }
+
+    case "tick": {
+      if (!state) return { state: null, effects: [] };
+      if (isPaused(state)) return { state, effects: [] };
+
+      const target =
+        state.targetMs ?? nextDuration(state.type, settings) * 1000;
+      const e = elapsed(state.startedAt, now, state.intervals);
+
+      if (e < target) return { state, effects: [] };
+
+      // Block time is up
+      if (state.type === "focus") {
+        // Complete the intervals for saving
+        const intervals = [...state.intervals];
+        const last = intervals[intervals.length - 1];
+        if (last.endedAt === undefined) last.endedAt = now;
+        return {
+          state: { ...state, intervals },
+          effects: [
+            { type: "showLabelSheet" },
+            { type: "alert", blockType: "focus" },
+          ],
+        };
+      }
+
+      // Break done → close the last interval, save, and go idle.
+      // The save needs endedAt on the last interval to produce a valid
+      // BlockPayload, matching the focus-completion path.
+      {
+        const intervals = [...state.intervals];
+        const last = intervals[intervals.length - 1];
+        if (last.endedAt === undefined) last.endedAt = now;
+        return {
+          state: null,
+          effects: [
+            { type: "save", state: { ...state, intervals } },
+            { type: "alert", blockType: state.type },
+          ],
+        };
+      }
+    }
+  }
 }
