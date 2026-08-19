@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start services
+        run: docker compose up -d --build
+        env:
+          DATABASE_URL: postgresql+asyncpg://tempo:tempo@db:5432/tempo
+          TEST_DATABASE_URL: postgresql+asyncpg://tempo:tempo@db:5432/tempo_test
+
+      - name: Wait for backend
+        run: |
+          for i in $(seq 1 30); do
+            docker compose exec -T backend python -c "import httpx; httpx.get('http://localhost:8000/docs')" 2>/dev/null && break
+            sleep 2
+          done
+
+      - name: Backend — pytest
+        run: docker compose exec -T backend pytest
+
+      - name: Backend — ruff check
+        run: docker compose exec -T backend ruff check .
+
+      - name: Backend — ruff format
+        run: docker compose exec -T backend ruff format --check app tests
+
+      - name: Frontend — setup
+        run: npm ci
+        working-directory: frontend
+
+      - name: Frontend — vitest
+        run: npm run test
+        working-directory: frontend
+
+      - name: Frontend — eslint
+        run: npm run lint
+        working-directory: frontend
+
+      - name: Frontend — tsc
+        run: npx tsc --noEmit
+        working-directory: frontend
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
