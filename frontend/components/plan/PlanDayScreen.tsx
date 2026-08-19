@@ -16,36 +16,10 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import DayView from "./DayView";
-import { fetchOccurrences, type EntryOccurrence } from "@/lib/api/plan";
-import { localTodayIso } from "@/lib/date/week";
+import { useOccurrences } from "@/lib/plan/hooks";
 
-export default function PlanDayScreen() {
-  const params = useSearchParams();
-  const dateParam = params.get("date");
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateParam ?? "")
-    ? dateParam!
-    : localTodayIso();
-  // Editor saves redirect with a fresh tick so this screen refetches.
-  const tick = params.get("t") ?? "";
-
-  const [occurrences, setOccurrences] = useState<EntryOccurrence[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchOccurrences(date, date)
-      .then((data) => {
-        if (!cancelled) setOccurrences(data);
-      })
-      .catch(() => {
-        if (!cancelled) setOccurrences([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [date, tick]);
-
+export default function PlanDayScreen({ date, tick }: { date: string; tick: string }) {
+  const occurrences = useOccurrences(date, date, tick);
   return <DayView date={date} occurrences={occurrences} />;
 }

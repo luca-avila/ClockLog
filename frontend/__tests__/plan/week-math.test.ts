@@ -22,6 +22,7 @@ import {
   minutesBetween,
   formatDuration,
   localTodayIso,
+  isCalendarDate,
 } from "@/lib/date/week";
 
 describe("weekBounds (Monday-start, pure date math)", () => {
@@ -117,6 +118,26 @@ describe("minutesBetween (wall-clock, midnight-spanning)", () => {
   it("an end before its start spans midnight and keeps the real length", () => {
     expect(minutesBetween("22:00:00", "00:30:00")).toBe(150);
     expect(minutesBetween("23:00:00", "01:00:00")).toBe(120);
+  });
+});
+
+describe("isCalendarDate", () => {
+  it("rejects malformed shapes", () => {
+    expect(isCalendarDate(undefined)).toBe(false);
+    expect(isCalendarDate(null)).toBe(false);
+    expect(isCalendarDate("")).toBe(false);
+    expect(isCalendarDate("2026-8-3")).toBe(false);
+    expect(isCalendarDate("not-a-date")).toBe(false);
+  });
+
+  it("rejects dates that would roll over on round-trip", () => {
+    expect(isCalendarDate("2026-13-45")).toBe(false);
+    expect(isCalendarDate("2026-02-30")).toBe(false);
+  });
+
+  it("accepts real calendar dates, including a leap day", () => {
+    expect(isCalendarDate("2026-08-03")).toBe(true);
+    expect(isCalendarDate("2028-02-29")).toBe(true);
   });
 });
 

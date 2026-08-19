@@ -52,6 +52,12 @@ export function localTodayIso(): string {
   ).padStart(2, "0")}`;
 }
 
+/** A real calendar date in "YYYY-MM-DD" — the shape check alone accepts
+ *  2026-02-30, which Date.UTC would silently roll into March. */
+export function isCalendarDate(s: string | null | undefined): s is string {
+  return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && fromUtc(toUtc(s)) === s;
+}
+
 export function weekDays(from: string): string[] {
   return Array.from({ length: 7 }, (_, i) => addDays(from, i));
 }

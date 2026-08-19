@@ -40,8 +40,8 @@ components/
 lib/
   api/          client (ApiError, bearer token), blocks, history, plan, tags, settings, queue
   timer/        engine.ts — the single source of elapsed-time truth
-  plan/         layout.ts — day-timeline geometry
-  date/         week.ts
+  plan/         layout.ts — day-timeline geometry; view.ts — URL state; hooks.ts
+  date/         week.ts (calendar dates) · instant.ts (UTC instants)
   alerts/       notifications and sound
 __tests__/      mirrors the areas above; *.test.tsx when a component is rendered
 ```

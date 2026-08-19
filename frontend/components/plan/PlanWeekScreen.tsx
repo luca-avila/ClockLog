@@ -16,35 +16,18 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import WeekView from "./WeekView";
-import { fetchOccurrences, type EntryOccurrence } from "@/lib/api/plan";
-import { localTodayIso, weekBounds } from "@/lib/date/week";
+import { useOccurrences } from "@/lib/plan/hooks";
 
-export default function PlanWeekScreen() {
-  const params = useSearchParams();
-  const weekParam = params.get("week");
-  const anchor = /^\d{4}-\d{2}-\d{2}$/.test(weekParam ?? "") ? weekParam! : localTodayIso();
-  const week = weekBounds(anchor);
-  // Editor saves redirect with a fresh tick so this screen refetches.
-  const tick = params.get("t") ?? "";
-
-  const [occurrences, setOccurrences] = useState<EntryOccurrence[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchOccurrences(week.from, week.to)
-      .then((data) => {
-        if (!cancelled) setOccurrences(data);
-      })
-      .catch(() => {
-        if (!cancelled) setOccurrences([]); // signed out or offline: empty week
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [week.from, week.to, tick]);
-
-  return <WeekView week={week} occurrences={occurrences} today={localTodayIso()} />;
+export default function PlanWeekScreen({
+  week,
+  tick,
+  today,
+}: {
+  week: { from: string; to: string };
+  tick: string;
+  today: string;
+}) {
+  const occurrences = useOccurrences(week.from, week.to, tick);
+  return <WeekView week={week} occurrences={occurrences} today={today} />;
 }

@@ -17,31 +17,19 @@
 "use client";
 
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import PlanDayScreen from "@/components/plan/PlanDayScreen";
-import EntrySheet, { type EntrySheetMode } from "@/components/plan/EntrySheet";
-import { localTodayIso } from "@/lib/date/week";
+import EntrySheet from "@/components/plan/EntrySheet";
+import { usePlanView } from "@/lib/plan/hooks";
 
 function Page() {
-  const params = useSearchParams();
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get("date") ?? "")
-    ? params.get("date")!
-    : localTodayIso();
-  const editId = params.get("edit");
-  const isNew = params.get("new") === "1";
-  const hour = Number(params.get("hour"));
-
-  let sheet: EntrySheetMode | null = null;
-  if (editId) {
-    sheet = { kind: "edit", entryId: editId };
-  } else if (isNew) {
-    sheet = { kind: "create", date, hour: Number.isFinite(hour) ? hour : null };
-  }
+  const view = usePlanView();
 
   return (
     <>
-      <PlanDayScreen />
-      {sheet && <EntrySheet mode={sheet} returnTo={`/plan/day?date=${date}`} />}
+      <PlanDayScreen date={view.date} tick={view.tick} />
+      {view.sheet && (
+        <EntrySheet mode={view.sheet} returnTo={`/plan/day?date=${view.date}`} />
+      )}
     </>
   );
 }

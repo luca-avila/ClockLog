@@ -29,10 +29,7 @@ import {
   type Entry,
 } from "@/lib/api/plan";
 import { fetchTags, type Tag } from "@/lib/api/tags";
-
-export type EntrySheetMode =
-  | { kind: "create"; date: string; hour?: number | null }
-  | { kind: "edit"; entryId: string };
+import type { EntrySheetMode } from "@/lib/plan/view";
 
 export default function EntrySheet({
   mode,
