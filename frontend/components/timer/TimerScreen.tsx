@@ -115,7 +115,13 @@ export default function TimerScreen() {
   const { settings } = useSettings();
   const [label, setLabel] = useState(() => loadStoredState()?.label ?? "");
   const [now, setNow] = useState(() => Date.now());
-  const [showLabelSheet, setShowLabelSheet] = useState(false);
+  // Only a focus block awaiting its label is ever persisted "ended" (G-2), so a
+  // stored ended block means the sheet was open when the tab closed — reopen it
+  // rather than stranding a completed block (ux-research § success criteria 5).
+  const [showLabelSheet, setShowLabelSheet] = useState(() => {
+    const stored = loadStoredState();
+    return stored?.phase === "ended" && stored.type === "focus";
+  });
   const [storedCycle] = useState(loadStoredCycle);
   const [nextCompleted, setNextCompleted] = useState<number | null>(
     storedCycle.completed

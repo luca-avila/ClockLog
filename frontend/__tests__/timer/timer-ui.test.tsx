@@ -159,6 +159,64 @@ describe("corrupt localStorage (invariant 4)", () => {
   });
 });
 
+describe("reload while the label sheet is open (SCR-14)", () => {
+  function seedEndedFocusBlock() {
+    const startedAt = now - 25 * 60 * 1000;
+    const state: TimerState = {
+      id: "test-ended",
+      type: "focus",
+      phase: "ended",
+      startedAt,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      intervals: [{ startedAt, endedAt: now }],
+      blockStatus: "completed",
+      targetMs: 25 * 60 * 1000,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(CYCLE_KEY, JSON.stringify({ completed: 0, pendingBreak: false }));
+  }
+
+  it("reopens the sheet instead of stranding the block", () => {
+    seedEndedFocusBlock();
+    const { container } = render();
+    expect(container.querySelector('[data-testid="label-sheet"]')).toBeTruthy();
+  });
+
+  it("saves the recovered block as completed, not aborted", async () => {
+    seedEndedFocusBlock();
+    const { container } = render();
+    clickButton(container, "SAVE");
+    await act(async () => {});
+    expect(saveBlock).toHaveBeenCalledTimes(1);
+    expect(saveBlock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "test-ended", blockStatus: "completed", label: "test label" })
+    );
+  });
+
+  it("does not open the sheet for a block that is merely paused", () => {
+    const startedAt = now - 60_000;
+    const state: TimerState = {
+      id: "test-paused",
+      type: "focus",
+      phase: "paused",
+      startedAt,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      intervals: [{ startedAt, endedAt: now }],
+      blockStatus: "completed",
+      targetMs: 25 * 60 * 1000,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(CYCLE_KEY, JSON.stringify({ completed: 0, pendingBreak: false }));
+    const { container } = render();
+    expect(container.querySelector('[data-testid="label-sheet"]')).toBeNull();
+    expect(container.textContent).toContain("PAUSED");
+  });
+});
+
 describe("completed focus block shows label sheet", () => {
   it("label sheet appears when elapsed >= target", () => {
     const startedAt = now;
