@@ -22,7 +22,12 @@ from app.core import ratelimit
 from app.core.db import DBSession
 from app.core.security import decode_access_token
 from app.shared.user.schemas import TokenResponse, UserCreate, UserLogin, UserResponse
-from app.shared.user.service import authenticate_user, create_user, get_current_user
+from app.shared.user.service import (
+    authenticate_user,
+    create_user,
+    get_current_user,
+    user_count,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer()
@@ -64,6 +69,17 @@ async def get_current_user_dependency(
     "/register", response_model=UserResponse, status_code=201, dependencies=[Depends(_rate_limited)]
 )
 async def register(db: DBSession, data: UserCreate):
+    # Single-user, self-hosted: once the owner exists, the door is closed —
+    # otherwise any visitor to the VPS could create an account. Instance
+    # policy lives at the endpoint; the service stays a plain factory.
+    if await user_count(db) > 0:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "REGISTRATION_CLOSED",
+                "message": "This instance already has an account",
+            },
+        )
     user = await create_user(db, data)
     await db.commit()
     await db.refresh(user)

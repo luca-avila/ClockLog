@@ -30,17 +30,6 @@ async def create_user(db: AsyncSession, data: UserCreate) -> User:
             status_code=409,
             detail={"code": "EMAIL_EXISTS", "message": "Email already registered"},
         )
-    # Single-user, self-hosted: once the owner exists, the door is closed.
-    # Otherwise every visitor to the VPS could create an account.
-    any_user = await db.execute(select(User).limit(1))
-    if any_user.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code": "REGISTRATION_CLOSED",
-                "message": "This instance already has an account",
-            },
-        )
     user = User(email=data.email, hashed_password=get_password_hash(data.password))
     db.add(user)
     return user
@@ -49,6 +38,11 @@ async def create_user(db: AsyncSession, data: UserCreate) -> User:
 async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
     result = await db.execute(select(User).where(User.email == email))
     return result.scalar_one_or_none()
+
+
+async def user_count(db: AsyncSession) -> int:
+    result = await db.execute(select(User).limit(1))
+    return 1 if result.scalar_one_or_none() is not None else 0
 
 
 async def authenticate_user(db: AsyncSession, data: UserLogin) -> TokenResponse:
