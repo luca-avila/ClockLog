@@ -25,28 +25,7 @@ import {
   deleteBlock,
 } from "@/lib/api/history";
 import type { Tag } from "@/lib/api/tags";
-
-function toTimeInput(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(
-    d.getMinutes()
-  ).padStart(2, "0")}`;
-}
-
-/** Combine the block's local calendar day with an edited HH:MM. */
-function sameLocalDay(iso: string, hhmm: string): string {
-  const d = new Date(iso);
-  const [h, m] = hhmm.split(":").map(Number);
-  d.setHours(h, m, 0, 0);
-  return d.toISOString();
-}
-
-function formatDuration(seconds: number) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
+import { formatClock, withLocalTime, formatDuration, durationSeconds } from "@/lib/date/instant";
 
 export interface BlockEditorProps {
   block: BlockData;
@@ -67,22 +46,12 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
   const [label, setLabel] = useState(block.label ?? "");
   const [tagId, setTagId] = useState<string | null>(block.tag_id);
   const [status, setStatus] = useState<BlockData["status"]>(block.status);
-  const [start, setStart] = useState(() => toTimeInput(originalStartIso));
+  const [start, setStart] = useState(() => formatClock(originalStartIso));
   const [end, setEnd] = useState(() =>
-    originalEndIso ? toTimeInput(originalEndIso) : ""
+    originalEndIso ? formatClock(originalEndIso) : ""
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const durationSeconds = block.intervals.reduce((sum, iv) => {
-    if (iv.ended_at) {
-      return (
-        sum +
-        (new Date(iv.ended_at).getTime() - new Date(iv.started_at).getTime()) / 1000
-      );
-    }
-    return sum;
-  }, 0);
 
   async function handleSave() {
     if (busy) return;
@@ -97,10 +66,10 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
     // Send times only when touched: a block that spans midnight stores an
     // end on the next local day, which an untouched time input would
     // otherwise flatten back onto the start's day.
-    const startDirty = start !== toTimeInput(originalStartIso);
-    const endDirty = originalEndIso !== null && end !== toTimeInput(originalEndIso);
-    if (startDirty) payload.started_at = sameLocalDay(originalStartIso, start);
-    if (endDirty) payload.ended_at = sameLocalDay(originalEndIso, end);
+    const startDirty = start !== formatClock(originalStartIso);
+    const endDirty = originalEndIso !== null && end !== formatClock(originalEndIso);
+    if (startDirty) payload.started_at = withLocalTime(originalStartIso, start);
+    if (endDirty) payload.ended_at = withLocalTime(originalEndIso, end);
     if (startDirty || endDirty) {
       const newStart = new Date(payload.started_at ?? originalStartIso);
       const newEnd = new Date(payload.ended_at ?? originalEndIso ?? "");
@@ -189,7 +158,7 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
             Duration
           </span>
           <span className="text-sm text-neutral-400 tabular-nums pb-1 block">
-            {formatDuration(durationSeconds)}
+            {formatDuration(durationSeconds(block.intervals))}
           </span>
         </div>
       </div>

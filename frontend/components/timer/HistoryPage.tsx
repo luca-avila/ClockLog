@@ -24,16 +24,8 @@ import {
   type TagSummary,
 } from "@/lib/api/history";
 import { fetchTags, type Tag } from "@/lib/api/tags";
+import { localDayRange, formatClock, formatDuration, durationSeconds } from "@/lib/date/instant";
 import BlockEditor from "./BlockEditor";
-
-function dayRange(date: Date) {
-  const from = new Date(date);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(date);
-  to.setDate(to.getDate() + 1);
-  to.setHours(0, 0, 0, 0);
-  return { from: from.toISOString().slice(0, -5) + "Z", to: to.toISOString().slice(0, -5) + "Z" };
-}
 
 function formatLabel(date: Date) {
   const today = new Date();
@@ -47,31 +39,6 @@ function formatLabel(date: Date) {
     day: "numeric",
     weekday: "short",
   });
-}
-
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-function formatDuration(seconds: number) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
-function blockDuration(b: BlockData) {
-  return b.intervals.reduce((sum, iv) => {
-    if (iv.ended_at) {
-      return sum + (new Date(iv.ended_at).getTime() - new Date(iv.started_at).getTime()) / 1000;
-    }
-    return sum;
-  }, 0);
 }
 
 const KIND_LABEL: Record<BlockData["kind"], string> = {
@@ -96,7 +63,7 @@ export default function HistoryPage() {
   }, []);
 
   useEffect(() => {
-    const { from, to } = dayRange(date);
+    const { from, to } = localDayRange(date);
     let cancelled = false;
     Promise.all([fetchBlocks(from, to), fetchSummary(from, to)])
       .then(([b, s]) => {
@@ -130,7 +97,7 @@ export default function HistoryPage() {
   // Focus totals only — breaks appear in the list (SCR-20) but never in
   // the "Xh Ym focus" line.
   const focusBlocks = blocks.filter((b) => b.kind === "focus");
-  const focusSeconds = focusBlocks.reduce((sum, b) => sum + blockDuration(b), 0);
+  const focusSeconds = focusBlocks.reduce((sum, b) => sum + durationSeconds(b.intervals), 0);
   const totalMinutes = focusSeconds / 60;
 
   const selected = blocks.find((b) => b.id === selectedId) ?? null;
@@ -193,7 +160,7 @@ export default function HistoryPage() {
             <div className="space-y-3">
               {blocks.map((b) => {
                 const start = b.intervals[0]?.started_at || b.started_at;
-                const duration = blockDuration(b);
+                const duration = durationSeconds(b.intervals);
                 const isFocus = b.kind === "focus";
 
                 return (
@@ -206,7 +173,7 @@ export default function HistoryPage() {
                     }`}
                   >
                     <span className="text-xs text-neutral-400 w-10 pt-0.5 tabular-nums">
-                      {formatTime(start)}
+                      {formatClock(start)}
                     </span>
                     <div className="flex-1">
                       <div className="flex items-center gap-1">

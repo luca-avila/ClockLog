@@ -31,6 +31,7 @@ import {
 } from "@/lib/timer/engine";
 import { useSettings } from "@/lib/useSettings";
 import { saveBlock } from "@/lib/api/blocks";
+import { formatCountdown } from "@/lib/date/instant";
 import {
   fireAlert,
   createBrowserDeps,
@@ -231,12 +232,6 @@ export default function TimerScreen() {
     ? state.targetMs ?? nextDuration(state.type, settings) * 1000
     : 0;
 
-  function formatTime(ms: number) {
-    const s = Math.floor(ms / 1000);
-    const m = Math.floor(s / 60);
-    return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-  }
-
   const currentCompleted = nextCompleted ?? state?.focusBlocksCompleted ?? 0;
   const pos = cyclePosition(currentCompleted, settings.blocksPerCycle);
 
@@ -258,8 +253,8 @@ export default function TimerScreen() {
 
           <div className="text-7xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
             {pendingBreak
-              ? formatTime(nextDuration(breakType, settings) * 1000)
-              : formatTime(settings.focusDuration * 60 * 1000)}
+              ? formatCountdown(nextDuration(breakType, settings) * 1000)
+              : formatCountdown(settings.focusDuration * 60 * 1000)}
           </div>
 
           <div className="text-sm uppercase tracking-widest text-neutral-400">
@@ -379,11 +374,11 @@ export default function TimerScreen() {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <div className="text-3xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
-              {isPaused ? "PAUSED" : formatTime(currentElapsed)}
+              {isPaused ? "PAUSED" : formatCountdown(currentElapsed)}
             </div>
             {!isPaused && (
               <div className="text-[10px] text-neutral-400 mt-0.5">
-                of {formatTime(targetDuration)}
+                of {formatCountdown(targetDuration)}
               </div>
             )}
           </div>
