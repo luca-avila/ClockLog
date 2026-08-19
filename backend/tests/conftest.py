@@ -37,9 +37,7 @@ def _test_database_url() -> str:
     """
     url = settings.resolved_test_database_url
     if not url.rstrip("/").endswith("_test"):
-        raise RuntimeError(
-            f"TEST_DATABASE_URL must point at a *_test database, got {url!r}"
-        )
+        raise RuntimeError(f"TEST_DATABASE_URL must point at a *_test database, got {url!r}")
     return url
 
 
