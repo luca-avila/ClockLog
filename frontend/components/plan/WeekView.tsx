@@ -123,38 +123,27 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
               <ul className="space-y-1.5">
                 {list.map((o) => (
                   <li key={`${o.entry_id}-${o.date}`} className="text-sm">
-                    {o.all_day ? (
-                      // All-day band: no time slot, ever.
-                      <Link
-                        href={`/plan?edit=${o.entry_id}`}
-                        className="flex items-center gap-2 text-neutral-600"
-                      >
+                    <Link
+                      href={`/plan?edit=${o.entry_id}`}
+                      className="flex items-center gap-2 text-neutral-600 hover:text-neutral-900"
+                    >
+                      {o.all_day ? (
+                        // All-day band: no time slot, ever.
                         <span className="text-[10px] uppercase tracking-widest text-neutral-400">
                           all day
                         </span>
-                        <span
-                          className={`inline-block w-1.5 h-1.5 rounded-full ${o.tag_color ? "" : "bg-neutral-300"}`}
-                          style={o.tag_color ? { backgroundColor: o.tag_color } : undefined}
-                          aria-hidden
-                        />
-                        {o.name}
-                      </Link>
-                    ) : (
-                      <Link
-                        href={`/plan?edit=${o.entry_id}`}
-                        className="flex items-center gap-2 text-neutral-600 hover:text-neutral-900"
-                      >
+                      ) : (
                         <span className="text-xs tabular-nums text-neutral-400">
                           {hhmm(o.start_time)}–{hhmm(o.end_time)}
                         </span>
-                        <span
-                          className={`inline-block w-1.5 h-1.5 rounded-full ${o.tag_color ? "" : "bg-neutral-300"}`}
-                          style={o.tag_color ? { backgroundColor: o.tag_color } : undefined}
-                          aria-hidden
-                        />
-                        {o.name}
-                      </Link>
-                    )}
+                      )}
+                      <span
+                        className={`inline-block w-1.5 h-1.5 rounded-full ${o.tag_color ? "" : "bg-neutral-300"}`}
+                        style={o.tag_color ? { backgroundColor: o.tag_color } : undefined}
+                        aria-hidden
+                      />
+                      {o.name}
+                    </Link>
                   </li>
                 ))}
                 <li>
