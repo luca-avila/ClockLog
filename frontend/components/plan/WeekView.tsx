@@ -19,7 +19,7 @@
 import Link from "next/link";
 import type { EntryOccurrence } from "@/lib/api/plan";
 import EmptyWeek from "./EmptyWeek";
-import { addDays, formatDuration, minutesBetween, weekDays } from "@/lib/date/week";
+import { addDays, formatDuration, hhmm, minutesBetween, weekDays } from "@/lib/date/week";
 
 const DAY_NAMES = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 // [Ugly but honest] months/weekdays come from the runtime locale at render;
@@ -38,10 +38,6 @@ function rangeLabel(from: string, to: string): string {
   return sameMonth
     ? `${months[f.getUTCMonth()]} ${f.getUTCDate()} – ${t.getUTCDate()}`
     : `${months[f.getUTCMonth()]} ${f.getUTCDate()} – ${months[t.getUTCMonth()]} ${t.getUTCDate()}`;
-}
-
-function hhmm(t: string): string {
-  return t.slice(0, 5);
 }
 
 export interface WeekViewProps {

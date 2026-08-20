@@ -30,6 +30,7 @@ import {
 } from "@/lib/api/plan";
 import { fetchTags, type Tag } from "@/lib/api/tags";
 import type { EntrySheetMode } from "@/lib/plan/view";
+import { hhmm } from "@/lib/date/week";
 
 export default function EntrySheet({
   mode,
@@ -75,8 +76,8 @@ export default function EntrySheet({
           setName(e.name);
           setDate(e.date);
           setAllDay(e.all_day);
-          setStart(e.start_time?.slice(0, 5) ?? "");
-          setEnd(e.end_time?.slice(0, 5) ?? "");
+          setStart(e.start_time ? hhmm(e.start_time) : "");
+          setEnd(e.end_time ? hhmm(e.end_time) : "");
           setTagId(e.tag_id);
           setRepeatWeekly(e.repeat_weekly);
         })

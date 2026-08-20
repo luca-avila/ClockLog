@@ -21,6 +21,7 @@ import { resolve } from "node:path";
 import WeekView from "@/components/plan/WeekView";
 import DayView from "@/components/plan/DayView";
 import { railFor, railPosition, timelineLanes } from "@/lib/plan/layout";
+import { minutesBetween } from "@/lib/date/week";
 import type { EntryOccurrence, TimedOccurrence } from "@/lib/api/plan";
 
 const WEEK = { from: "2026-07-27", to: "2026-08-02" };
@@ -175,6 +176,19 @@ describe("DayView (SCR-31)", () => {
     // Hour cells link into the (S-21) editor with the hour prefilled.
     expect(markup).toMatch(/new=1[^"]*hour=14|hour=14[^"]*new=1/);
   });
+
+  it("a midnight-spanning entry renders at the correct height — same computation as the rail", () => {
+    const entries = [occ("Party", DAY, "23:00", "01:00")];
+    const markup = renderToStaticMarkup(
+      <DayView date={DAY} occurrences={entries} />
+    );
+    const rail = railFor(entries as EntryOccurrence[]);
+    const expected = railPosition(1380, 1500, rail)!;
+    // Extract the heightPct from the positioned entry's inline style.
+    const heightMatch = markup.match(/height:\s*([\d.]+)%/);
+    expect(heightMatch).not.toBeNull();
+    expect(parseFloat(heightMatch![1])).toBeCloseTo(expected.heightPct);
+  });
 });
 
 describe("timelineLanes", () => {
@@ -194,6 +208,24 @@ describe("timelineLanes", () => {
     ] as TimedOccurrence[]);
     expect(laid[0].lanes).toBe(2);
     expect(new Set(laid.map((l) => l.lane))).toEqual(new Set([0, 1]));
+  });
+
+  it("carries startMin and endMin matching the canonical helpers", () => {
+    const laid = timelineLanes([
+      occ("A", "2026-07-28", "09:00", "10:00"),
+    ] as TimedOccurrence[]);
+    expect(laid[0].startMin).toBe(540);
+    expect(laid[0].endMin).toBe(600);
+    expect(laid[0].endMin).toBe(laid[0].startMin + minutesBetween("09:00", "10:00"));
+  });
+
+  it("a midnight-spanning entry yields endMin past 24h, not wrapped to early morning", () => {
+    const laid = timelineLanes([
+      occ("Party", "2026-07-28", "23:00", "01:00"),
+    ] as TimedOccurrence[]);
+    expect(laid[0].startMin).toBe(1380);
+    expect(laid[0].endMin).toBe(1500);
+    expect(laid[0].endMin).toBe(laid[0].startMin + minutesBetween("23:00", "01:00"));
   });
 });
 

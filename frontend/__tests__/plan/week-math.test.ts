@@ -23,6 +23,8 @@ import {
   formatDuration,
   localTodayIso,
   isCalendarDate,
+  minuteOfDay,
+  hhmm,
 } from "@/lib/date/week";
 
 describe("weekBounds (Monday-start, pure date math)", () => {
@@ -150,5 +152,27 @@ describe("formatDuration", () => {
   it("renders hours and minutes", () => {
     expect(formatDuration(90)).toBe("1h 30m");
     expect(formatDuration(45)).toBe("45m");
+  });
+});
+
+describe("minuteOfDay", () => {
+  it("parses HH:MM", () => {
+    expect(minuteOfDay("00:00")).toBe(0);
+    expect(minuteOfDay("09:30")).toBe(570);
+    expect(minuteOfDay("23:59")).toBe(1439);
+  });
+
+  it("parses HH:MM:SS, ignoring seconds", () => {
+    expect(minuteOfDay("09:30:00")).toBe(570);
+  });
+});
+
+describe("hhmm", () => {
+  it("trims HH:MM:SS to HH:MM", () => {
+    expect(hhmm("18:30:00")).toBe("18:30");
+  });
+
+  it("returns HH:MM unchanged", () => {
+    expect(hhmm("09:00")).toBe("09:00");
   });
 });

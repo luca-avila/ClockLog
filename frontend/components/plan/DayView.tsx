@@ -19,18 +19,9 @@
 import Link from "next/link";
 import type { EntryOccurrence } from "@/lib/api/plan";
 import { railFor, railPosition, timelineLanes } from "@/lib/plan/layout";
-import { addDays } from "@/lib/date/week";
+import { addDays, hhmm } from "@/lib/date/week";
 
 const HOUR = 60;
-
-function minuteOfDay(t: string): number {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-}
-
-function hhmm(t: string): string {
-  return t.slice(0, 5);
-}
 
 export interface DayViewProps {
   date: string;
@@ -125,12 +116,8 @@ export default function DayView({ date, occurrences }: DayViewProps) {
 
         {/* Timed entries, positioned on the rail */}
         <div className="absolute inset-y-0 left-10 right-0">
-          {laid.map(({ occ, lane, lanes }) => {
-            const start = minuteOfDay(occ.start_time);
-            const end = start + (minuteOfDay(occ.end_time) <= start
-              ? 24 * 60 - start + minuteOfDay(occ.end_time)
-              : minuteOfDay(occ.end_time) - start);
-            const pos = railPosition(start, end, rail);
+          {laid.map(({ occ, lane, lanes, startMin, endMin }) => {
+            const pos = railPosition(startMin, endMin, rail);
             if (!pos) return null;
             return (
               <Link

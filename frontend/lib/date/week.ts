@@ -62,13 +62,20 @@ export function weekDays(from: string): string[] {
   return Array.from({ length: 7 }, (_, i) => addDays(from, i));
 }
 
+/** Minute of day for a "HH:MM[:SS]" wall-clock time. */
+export function minuteOfDay(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** "HH:MM" from the API's "HH:MM:SS". */
+export function hhmm(t: string): string {
+  return t.slice(0, 5);
+}
+
 /** Wall-clock minutes between two "HH:MM[:SS]" times; end < start spans midnight. */
 export function minutesBetween(start: string, end: string): number {
-  const p = (t: string) => {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + m;
-  };
-  const diff = p(end) - p(start);
+  const diff = minuteOfDay(end) - minuteOfDay(start);
   return diff <= 0 ? diff + 24 * 60 : diff;
 }
 
