@@ -86,11 +86,11 @@ async def create(
 @router.patch("/{block_id}", response_model=BlockResponse)
 async def patch_block(
     db: DBSession,
-    block_id: str,
+    block_id: uuid.UUID,
     data: BlockUpdate,
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
-    block = await update_block(db, uuid.UUID(block_id), current_user.id, data)
+    block = await update_block(db, block_id, current_user.id, data)
     await db.commit()
     block = await get_block_by_id(db, block.id, current_user.id)
     return BlockResponse.model_validate(block)
@@ -99,8 +99,8 @@ async def patch_block(
 @router.delete("/{block_id}", status_code=204)
 async def remove_block(
     db: DBSession,
-    block_id: str,
+    block_id: uuid.UUID,
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
-    await delete_block(db, uuid.UUID(block_id), current_user.id)
+    await delete_block(db, block_id, current_user.id)
     await db.commit()

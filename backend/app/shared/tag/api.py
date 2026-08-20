@@ -50,13 +50,13 @@ async def list_tags(
 @router.patch("/{tag_id}", response_model=TagResponse)
 async def update(
     db: DBSession,
-    tag_id: str,
+    tag_id: uuid.UUID,
     data: TagUpdate,
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
     tag = await update_tag(
         db,
-        uuid.UUID(tag_id),
+        tag_id,
         # exclude_unset alone, matching the other modules' PATCH semantics.
         data.model_dump(exclude_unset=True),
         current_user.id,
@@ -68,9 +68,9 @@ async def update(
 @router.delete("/{tag_id}")
 async def delete(
     db: DBSession,
-    tag_id: str,
+    tag_id: uuid.UUID,
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
 ):
-    affected = await delete_tag(db, uuid.UUID(tag_id), current_user.id)
+    affected = await delete_tag(db, tag_id, current_user.id)
     await db.commit()
     return {"affected": affected}

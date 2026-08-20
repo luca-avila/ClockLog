@@ -14,6 +14,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import uuid
+
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
@@ -151,3 +153,37 @@ class TestTagAPI:
         tags = resp.json()
         assert len(tags) >= 1
         assert any(t["name"] == "ListTest" for t in tags)
+
+
+class TestTagAPIPathIdValidation:
+    @pytest.mark.asyncio
+    async def test_malformed_tag_id_is_422_not_500(self, db_session):
+        headers = await _auth_header(db_session)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.patch(
+                "/tags/nope",
+                json={"name": "x"},
+                headers=Headers(headers),
+            )
+            gone = await client.delete("/tags/nope", headers=Headers(headers))
+        assert resp.status_code == 422
+        assert gone.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_unknown_tag_id_is_still_404(self, db_session):
+        headers = await _auth_header(db_session)
+
+        fake_id = str(uuid.uuid4())
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.patch(
+                f"/tags/{fake_id}",
+                json={"name": "x"},
+                headers=Headers(headers),
+            )
+            gone = await client.delete(f"/tags/{fake_id}", headers=Headers(headers))
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "TAG_NOT_FOUND"
+        assert gone.status_code == 404

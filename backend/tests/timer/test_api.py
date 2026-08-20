@@ -375,6 +375,36 @@ class TestPatchBlocks:
         assert resp.status_code == 422
 
 
+class TestPathIdValidation:
+    @pytest.mark.asyncio
+    async def test_malformed_block_id_is_422_not_500(self, db_session):
+        headers, _ = await _register_and_auth(db_session)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.patch(
+                "/blocks/not-a-uuid", json={"label": "x"}, headers=Headers(headers)
+            )
+            gone = await client.delete("/blocks/not-a-uuid", headers=Headers(headers))
+        assert resp.status_code == 422
+        assert gone.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_unknown_block_id_is_still_404(self, db_session):
+        headers, _ = await _register_and_auth(db_session)
+
+        fake_id = str(uuid.uuid4())
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.patch(
+                f"/blocks/{fake_id}", json={"label": "x"}, headers=Headers(headers)
+            )
+            gone = await client.delete(f"/blocks/{fake_id}", headers=Headers(headers))
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "BLOCK_NOT_FOUND"
+        assert gone.status_code == 404
+
+
 class TestHistoryQueryValidation:
     @pytest.mark.asyncio
     async def test_garbage_from_is_422_not_500(self, db_session):
