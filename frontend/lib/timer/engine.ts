@@ -104,6 +104,16 @@ export function cyclePosition(
   };
 }
 
+/** Which break follows N completed focus blocks. Derived, never stored. */
+export function nextBreakType(
+  focusBlocksCompleted: number,
+  blocksPerCycle: number
+): BlockType {
+  return cyclePosition(focusBlocksCompleted, blocksPerCycle).isLongBreak
+    ? "long_break"
+    : "short_break";
+}
+
 /** Duration in seconds for the given block type and settings. */
 export function nextDuration(type: BlockType, settings: TimerSettings): number {
   switch (type) {
@@ -365,8 +375,7 @@ export function transition(
       ];
       if (state.type === "focus") {
         const nextCompleted = state.focusBlocksCompleted + 1;
-        const nextPos = cyclePosition(nextCompleted, settings.blocksPerCycle);
-        const nextBreak: BlockType = nextPos.isLongBreak ? "long_break" : "short_break";
+        const nextBreak = nextBreakType(nextCompleted, settings.blocksPerCycle);
         effects.push({ type: "alert", blockType: "focus", nextBreak });
         effects.push({
           type: "setCycle",
@@ -437,8 +446,7 @@ export function transition(
       // Block time is up
       if (state.type === "focus") {
         const nextCompleted = state.focusBlocksCompleted + 1;
-        const nextPos = cyclePosition(nextCompleted, settings.blocksPerCycle);
-        const nextBreak: BlockType = nextPos.isLongBreak ? "long_break" : "short_break";
+        const nextBreak = nextBreakType(nextCompleted, settings.blocksPerCycle);
         return {
           state: {
             ...state,

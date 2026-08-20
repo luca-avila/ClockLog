@@ -18,6 +18,7 @@ import { describe, it, expect } from "vitest";
 import {
   elapsed,
   cyclePosition,
+  nextBreakType,
   nextDuration,
   type TimerState,
   type TimerSettings,
@@ -124,6 +125,28 @@ describe("cyclePosition", () => {
     const pos = cyclePosition(3, 0);
     expect(Number.isNaN(pos.completed)).toBe(false);
     expect(Number.isNaN(pos.remaining)).toBe(false);
+  });
+});
+
+describe("nextBreakType", () => {
+  it("0 completed → short_break (fresh cycle never opens with long break)", () => {
+    expect(nextBreakType(0, 4)).toBe("short_break");
+  });
+
+  it("3 completed with blocksPerCycle=4 → short_break", () => {
+    expect(nextBreakType(3, 4)).toBe("short_break");
+  });
+
+  it("4 completed with blocksPerCycle=4 → long_break", () => {
+    expect(nextBreakType(4, 4)).toBe("long_break");
+  });
+
+  it("8 completed with blocksPerCycle=4 → long_break (wraps)", () => {
+    expect(nextBreakType(8, 4)).toBe("long_break");
+  });
+
+  it("4 completed with blocksPerCycle=0 → long_break (clamp to 1-block cycle)", () => {
+    expect(nextBreakType(4, 0)).toBe("long_break");
   });
 });
 

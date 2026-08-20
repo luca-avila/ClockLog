@@ -26,6 +26,7 @@ import {
   type TimerEffect,
   elapsed,
   cyclePosition,
+  nextBreakType,
   nextDuration,
   serializeState,
   deserializeState,
@@ -254,10 +255,7 @@ export default function TimerScreen() {
 
   const pos = cyclePosition(machine.completed, settings.blocksPerCycle);
 
-  const breakType: BlockType =
-    machine.completed > 0 && machine.completed % settings.blocksPerCycle === 0
-      ? "long_break"
-      : "short_break";
+  const breakType = nextBreakType(machine.completed, settings.blocksPerCycle);
 
   // IDLE
   if (!machine.timer) {
