@@ -16,10 +16,14 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, useReducer } from "react";
 import {
   type TimerState,
   type BlockType,
+  type TimerEvent,
+  type TimerSettings,
+  type ClockDeps,
+  type TimerEffect,
   elapsed,
   cyclePosition,
   nextDuration,
@@ -110,86 +114,92 @@ function alertBlockEnd(
   markBlockCompleted();
 }
 
+// ─── Reducer ────────────────────────────────────────────────────────
+
+interface Machine {
+  timer: TimerState | null;
+  completed: number;
+  pendingBreak: boolean;
+  labelSheetOpen: boolean;
+  pending: TimerEffect[];
+}
+
+type Action =
+  | { kind: "event"; event: TimerEvent; settings: TimerSettings; clock: ClockDeps }
+  | { kind: "drained"; count: number };
+
+function initMachine(): Machine {
+  const timer = loadStoredState();
+  const cycle = loadStoredCycle();
+  return {
+    timer,
+    completed: cycle.completed ?? timer?.focusBlocksCompleted ?? 0,
+    pendingBreak: cycle.pendingBreak,
+    // Only a focus block awaiting its label is ever persisted "ended" (G-2), so a
+    // stored ended block means the sheet was open when the tab closed — reopen it
+    // rather than stranding a completed block (ux-research § success criteria 5).
+    labelSheetOpen: timer?.phase === "ended" && timer.type === "focus",
+    pending: [],
+  };
+}
+
+function reducer(m: Machine, action: Action): Machine {
+  switch (action.kind) {
+    case "drained":
+      return { ...m, pending: m.pending.slice(action.count) };
+    case "event": {
+      const result = transition(
+        m.timer, action.event, action.clock, action.settings,
+        m.completed, m.pendingBreak,
+      );
+      let next: Machine = { ...m, timer: result.state };
+      const external: TimerEffect[] = [];
+      for (const effect of result.effects) {
+        switch (effect.type) {
+          case "setCycle":
+            next = { ...next, completed: effect.completed, pendingBreak: effect.pendingBreak };
+            break;
+          case "showLabelSheet":
+            next = { ...next, labelSheetOpen: true };
+            break;
+          default:
+            external.push(effect);
+        }
+      }
+      if (action.event.kind === "labelSave") next = { ...next, labelSheetOpen: false };
+      return { ...next, pending: [...m.pending, ...external] };
+    }
+  }
+}
+
+// ─── Component ──────────────────────────────────────────────────────
+
 export default function TimerScreen() {
-  const [state, setState] = useState<TimerState | null>(loadStoredState);
+  const [machine, rawDispatch] = useReducer(reducer, undefined, initMachine);
   const { settings } = useSettings();
-  const [label, setLabel] = useState(() => loadStoredState()?.label ?? "");
+  const [label, setLabel] = useState(() => machine.timer?.label ?? "");
   const [now, setNow] = useState(() => Date.now());
-  // Only a focus block awaiting its label is ever persisted "ended" (G-2), so a
-  // stored ended block means the sheet was open when the tab closed — reopen it
-  // rather than stranding a completed block (ux-research § success criteria 5).
-  const [showLabelSheet, setShowLabelSheet] = useState(() => {
-    const stored = loadStoredState();
-    return stored?.phase === "ended" && stored.type === "focus";
-  });
-  const [storedCycle] = useState(loadStoredCycle);
-  const [nextCompleted, setNextCompleted] = useState<number | null>(
-    storedCycle.completed
-  );
-  const [pendingBreak, setPendingBreak] = useState(storedCycle.pendingBreak);
-
-  const stateRef = useRef(state);
-  const settingsRef = useRef(settings);
-  const nextCompletedRef = useRef(nextCompleted);
-  const pendingBreakRef = useRef(pendingBreak);
-
-  useEffect(() => {
-    settingsRef.current = settings;
-  });
 
   useEffect(() => {
     try {
       localStorage.setItem(
         CYCLE_KEY,
-        JSON.stringify({ completed: nextCompleted, pendingBreak })
+        JSON.stringify({ completed: machine.completed, pendingBreak: machine.pendingBreak })
       );
     } catch {
       /* private mode — cycle resets on refresh, nothing else breaks */
     }
-  }, [nextCompleted, pendingBreak]);
+  }, [machine.completed, machine.pendingBreak]);
 
-  const ticking = state?.phase === "running";
+  const ticking = machine.timer?.phase === "running";
 
+  // Clock rides on the action rather than being read inside the reducer's
+  // closure; transition calls clock.now()/clock.uuid() internally. The reducer
+  // is not literally deterministic under a dev double-invoke, but the discarded
+  // first result is thrown away with its effects, so this is benign.
   const dispatch = useCallback(
-    (event: Parameters<typeof transition>[1]) => {
-      const result = transition(
-        stateRef.current,
-        event,
-        browserClock,
-        settingsRef.current,
-        nextCompletedRef.current ?? stateRef.current?.focusBlocksCompleted ?? 0,
-        pendingBreakRef.current
-      );
-      stateRef.current = result.state;
-      setState(result.state);
-
-      // Single effect loop — list order is execution order.
-      for (const effect of result.effects) {
-        switch (effect.type) {
-          case "setCycle":
-            nextCompletedRef.current = effect.completed;
-            pendingBreakRef.current = effect.pendingBreak;
-            setNextCompleted(effect.completed);
-            setPendingBreak(effect.pendingBreak);
-            break;
-          case "showLabelSheet":
-            setShowLabelSheet(true);
-            break;
-          case "save":
-            saveBlock(effect.state).catch(() => {
-              /* queued for retry; the UI moves on regardless */
-            });
-            break;
-          case "alert":
-            alertBlockEnd(effect.blockType, settingsRef.current, effect.nextBreak);
-            break;
-        }
-      }
-
-      // Clear label on any state→null transition
-      if (result.state === null) setLabel("");
-    },
-    []
+    (event: TimerEvent) => rawDispatch({ kind: "event", event, settings, clock: browserClock }),
+    [settings],
   );
 
   useEffect(() => {
@@ -204,61 +214,77 @@ export default function TimerScreen() {
   }, [ticking, dispatch]);
 
   useEffect(() => {
-    if (state) localStorage.setItem(STORAGE_KEY, serializeState(state));
+    if (machine.timer) localStorage.setItem(STORAGE_KEY, serializeState(machine.timer));
     else localStorage.removeItem(STORAGE_KEY);
-  }, [state]);
+  }, [machine.timer]);
+
+  useEffect(() => {
+    if (machine.timer === null) setLabel(""); // eslint-disable-line react-hooks/set-state-in-effect -- label is a draft input, not machine state
+  }, [machine.timer]);
+
+  useEffect(() => {
+    const batch = machine.pending;
+    if (batch.length === 0) return;
+    for (const effect of batch) {
+      if (effect.type === "save") {
+        saveBlock(effect.state).catch(() => {
+          /* queued for retry; the UI moves on regardless */
+        });
+      } else if (effect.type === "alert") {
+        alertBlockEnd(effect.blockType, settings, effect.nextBreak);
+      }
+    }
+    rawDispatch({ kind: "drained", count: batch.length });
+  }, [machine.pending, settings]);
 
   function handleLabelSave(labelText: string, tagId: string | null) {
-    setShowLabelSheet(false);
     dispatch({ kind: "labelSave", label: labelText || null, tagId });
   }
 
   function handleLabelSkip() {
-    setShowLabelSheet(false);
     dispatch({ kind: "labelSave", label: null, tagId: null });
   }
 
-  const currentElapsed = state
-    ? elapsed(state.startedAt, now, state.intervals)
+  const currentElapsed = machine.timer
+    ? elapsed(machine.timer.startedAt, now, machine.timer.intervals)
     : 0;
-  const targetDuration = state
-    ? state.targetMs ?? nextDuration(state.type, settings) * 1000
+  const targetDuration = machine.timer
+    ? machine.timer.targetMs ?? nextDuration(machine.timer.type, settings) * 1000
     : 0;
 
-  const currentCompleted = nextCompleted ?? state?.focusBlocksCompleted ?? 0;
-  const pos = cyclePosition(currentCompleted, settings.blocksPerCycle);
+  const pos = cyclePosition(machine.completed, settings.blocksPerCycle);
 
   const breakType: BlockType =
-    currentCompleted > 0 && currentCompleted % settings.blocksPerCycle === 0
+    machine.completed > 0 && machine.completed % settings.blocksPerCycle === 0
       ? "long_break"
       : "short_break";
 
   // IDLE
-  if (!state) {
+  if (!machine.timer) {
     return (
       <>
         <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 px-4">
           <CycleIndicator
             completed={pos.completed}
             total={settings.blocksPerCycle}
-            isBreak={pendingBreak}
+            isBreak={machine.pendingBreak}
           />
 
           <div className="text-7xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
-            {pendingBreak
+            {machine.pendingBreak
               ? formatCountdown(nextDuration(breakType, settings) * 1000)
               : formatCountdown(settings.focusDuration * 60 * 1000)}
           </div>
 
           <div className="text-sm uppercase tracking-widest text-neutral-400">
-            {pendingBreak
+            {machine.pendingBreak
               ? breakType === "long_break"
                 ? "Long break"
                 : "Short break"
               : "Focus"}
           </div>
 
-          {pendingBreak ? (
+          {machine.pendingBreak ? (
             <div className="flex flex-col items-center gap-4">
               <p className="text-sm text-neutral-400">Step away from the screen</p>
               <div className="flex gap-4">
@@ -327,13 +353,13 @@ export default function TimerScreen() {
   // RUNNING, PAUSED, or ENDED
   const fraction = targetDuration > 0 ? currentElapsed / targetDuration : 0;
   const circumference = 2 * Math.PI * 42;
-  const isBreak = state.type !== "focus";
-  const isPaused = state.phase === "paused";
-  const isEnded = state.phase === "ended";
+  const isBreak = machine.timer.type !== "focus";
+  const isPaused = machine.timer.phase === "paused";
+  const isEnded = machine.timer.phase === "ended";
 
   return (
     <>
-      {showLabelSheet && <LabelSheet onSave={handleLabelSave} onSkip={handleLabelSkip} />}
+      {machine.labelSheetOpen && <LabelSheet onSave={handleLabelSave} onSkip={handleLabelSkip} />}
 
       <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6 px-4">
         <CycleIndicator
@@ -376,11 +402,11 @@ export default function TimerScreen() {
 
         {/* Label or break message */}
         {isBreak ? (
-          <p className="text-sm text-neutral-400">{state.type === "long_break" ? "Long break" : "Short break"}</p>
-        ) : state.label ? (
+          <p className="text-sm text-neutral-400">{machine.timer.type === "long_break" ? "Long break" : "Short break"}</p>
+        ) : machine.timer.label ? (
           <div className="text-sm text-neutral-500 flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-full bg-neutral-700" />
-            {state.label}
+            {machine.timer.label}
           </div>
         ) : null}
 
