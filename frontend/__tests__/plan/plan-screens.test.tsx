@@ -227,6 +227,56 @@ describe("timelineLanes", () => {
     expect(laid[0].endMin).toBe(1500);
     expect(laid[0].endMin).toBe(laid[0].startMin + minutesBetween("23:00", "01:00"));
   });
+
+  it("a three-entry cluster where the third reuses lane 0 after the first ends", () => {
+    // A: 09:00–10:00  B: 09:30–11:00  C: 10:00–11:00
+    // A and B overlap → lanes 0 and 1. C starts at 10:00, A ends at 10:00,
+    // so C reuses lane 0 (first-fit: lane 0's end 600 <= 600).
+    const laid = timelineLanes([
+      occ("A", "2026-07-28", "09:00", "10:00"),
+      occ("B", "2026-07-28", "09:30", "11:00"),
+      occ("C", "2026-07-28", "10:00", "11:00"),
+    ] as TimedOccurrence[]);
+    expect(laid.map((l) => l.lane)).toEqual([0, 1, 0]);
+    expect(laid.map((l) => l.lanes)).toEqual([2, 2, 2]);
+  });
+
+  it("two separate clusters in one day each report their own lane count", () => {
+    // Cluster 1: 09:00–10:00, 09:30–10:30 → 2 lanes
+    // Cluster 2: 14:00–15:00, 14:15–15:30, 14:45–16:00 → 3 lanes
+    const laid = timelineLanes([
+      occ("A", "2026-07-28", "09:00", "10:00"),
+      occ("B", "2026-07-28", "09:30", "10:30"),
+      occ("C", "2026-07-28", "14:00", "15:00"),
+      occ("D", "2026-07-28", "14:15", "15:30"),
+      occ("E", "2026-07-28", "14:45", "16:00"),
+    ] as TimedOccurrence[]);
+    expect(laid[0].lanes).toBe(2);
+    expect(laid[1].lanes).toBe(2);
+    expect(laid[2].lanes).toBe(3);
+    expect(laid[3].lanes).toBe(3);
+    expect(laid[4].lanes).toBe(3);
+  });
+
+  it("exactly-touching entries (09:00–10:00, 10:00–11:00) stay at lanes: 1", () => {
+    // Entries that merely touch share no overlap — the second starts at
+    // clusterEnd, so the cluster boundary fires (end <= startMin).
+    const laid = timelineLanes([
+      occ("A", "2026-07-28", "09:00", "10:00"),
+      occ("B", "2026-07-28", "10:00", "11:00"),
+    ] as TimedOccurrence[]);
+    expect(laid.map((l) => l.lanes)).toEqual([1, 1]);
+    expect(laid.map((l) => l.lane)).toEqual([0, 0]);
+  });
+
+  it("output order matches input order after sorting by startMin", () => {
+    const laid = timelineLanes([
+      occ("C", "2026-07-28", "14:00", "15:00"),
+      occ("A", "2026-07-28", "09:00", "10:00"),
+      occ("B", "2026-07-28", "11:00", "12:00"),
+    ] as TimedOccurrence[]);
+    expect(laid.map((l) => l.occ.name)).toEqual(["A", "B", "C"]);
+  });
 });
 
 describe("rail geometry (railFor / railPosition)", () => {

@@ -91,37 +91,42 @@ export function timelineLanes(entries: TimedOccurrence[]): LaidOutEntry[] {
     })
     .sort((a, b) => a.startMin - b.startMin);
 
-  const result: LaidOutEntry[] = [];
-  // Cluster = a run of entries connected by overlap.
-  let cluster: (typeof timed)[number][] = [];
-  let clusterEnd = -1;
+  // Pass 1 — group into overlap clusters. A new cluster starts when an
+  // entry begins at or after the running cluster end (entries that merely
+  // touch are not the same cluster).
+  const clusters: { items: typeof timed; end: number }[] = [];
+  for (const item of timed) {
+    const last = clusters[clusters.length - 1];
+    if (last && last.end <= item.startMin) {
+      clusters.push({ items: [item], end: item.endMin });
+    } else if (last) {
+      last.items.push(item);
+      last.end = Math.max(last.end, item.endMin);
+    } else {
+      clusters.push({ items: [item], end: item.endMin });
+    }
+  }
 
-  const flush = () => {
-    if (cluster.length === 0) return;
+  // Pass 2 — lay out each cluster independently and build final entries
+  // with the correct lanes value from the start (no placeholder mutation).
+  return clusters.flatMap(({ items }) => {
     const laneEnds: number[] = [];
-    for (const item of cluster) {
+    const assignments = items.map((item) => {
       let lane = laneEnds.findIndex((end) => end <= item.startMin);
       if (lane === -1) {
         lane = laneEnds.length;
         laneEnds.push(0);
       }
       laneEnds[lane] = item.endMin;
-      result.push({ occ: item.occ, lane, lanes: 1, startMin: item.startMin, endMin: item.endMin }); // lanes fixed up below
-    }
-    const lanes = laneEnds.length;
-    for (const r of result.slice(result.length - cluster.length)) {
-      r.lanes = lanes;
-    }
-    cluster = [];
-    clusterEnd = -1;
-  };
-
-  for (const item of timed) {
-    if (cluster.length > 0 && item.startMin >= clusterEnd) flush();
-    cluster.push(item);
-    clusterEnd = Math.max(clusterEnd, item.endMin);
-  }
-  flush();
-
-  return result;
+      return lane;
+    });
+    const totalLanes = laneEnds.length;
+    return items.map((item, i) => ({
+      occ: item.occ,
+      lane: assignments[i],
+      lanes: totalLanes,
+      startMin: item.startMin,
+      endMin: item.endMin,
+    }));
+  });
 }
