@@ -126,8 +126,13 @@ function isFiniteNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);
 }
 
-const BLOCK_TYPES: readonly string[] = ["focus", "short_break", "long_break"];
-const VALID_PHASES: readonly string[] = ["running", "paused", "ended"];
+function isBlockType(v: unknown): v is BlockType {
+  return v === "focus" || v === "short_break" || v === "long_break";
+}
+
+function isTimerPhase(v: unknown): v is TimerPhase {
+  return v === "running" || v === "paused" || v === "ended";
+}
 
 /**
  * Parse persisted timer state, validating the shape by hand. Corrupt or
@@ -149,15 +154,32 @@ export function deserializeState(json: string): TimerState | null {
   if (typeof parsed !== "object" || parsed === null) return null;
   const s = parsed as Record<string, unknown>;
 
-  if (typeof s.id !== "string" || s.id.length === 0) return null;
-  if (typeof s.type !== "string" || !BLOCK_TYPES.includes(s.type)) return null;
-  if (!isFiniteNumber(s.startedAt)) return null;
-  if (s.label !== null && typeof s.label !== "string") return null;
-  if (s.tagId !== null && typeof s.tagId !== "string") return null;
-  if (!isFiniteNumber(s.focusBlocksCompleted)) return null;
-  if (s.blockStatus !== "completed" && s.blockStatus !== "aborted") return null;
-  if (s.targetMs !== undefined && !isFiniteNumber(s.targetMs)) return null;
+  const id = s.id;
+  if (typeof id !== "string" || id.length === 0) return null;
+
+  const type = s.type;
+  if (!isBlockType(type)) return null;
+
+  const startedAt = s.startedAt;
+  if (!isFiniteNumber(startedAt)) return null;
+
+  const label = s.label;
+  if (label !== null && typeof label !== "string") return null;
+
+  const tagId = s.tagId;
+  if (tagId !== null && typeof tagId !== "string") return null;
+
+  const focusBlocksCompleted = s.focusBlocksCompleted;
+  if (!isFiniteNumber(focusBlocksCompleted)) return null;
+
+  const blockStatus = s.blockStatus;
+  if (blockStatus !== "completed" && blockStatus !== "aborted") return null;
+
+  const rawTargetMs = s.targetMs;
+  if (rawTargetMs !== undefined && !isFiniteNumber(rawTargetMs)) return null;
+
   if (!Array.isArray(s.intervals)) return null;
+  const intervals: Interval[] = [];
   for (const iv of s.intervals) {
     if (typeof iv !== "object" || iv === null) return null;
     const interval = iv as Record<string, unknown>;
@@ -165,31 +187,44 @@ export function deserializeState(json: string): TimerState | null {
     if (interval.endedAt !== undefined && !isFiniteNumber(interval.endedAt)) {
       return null;
     }
+    intervals.push(
+      interval.endedAt === undefined
+        ? { startedAt: interval.startedAt }
+        : { startedAt: interval.startedAt, endedAt: interval.endedAt }
+    );
   }
 
   // Phase: accept absent (back-compat), reject invalid present.
   let phase: TimerPhase;
   if (s.phase === undefined || s.phase === null) {
     // Derive from the last interval — mirrors the old isPaused() logic.
-    const ivs = s.intervals as { endedAt?: number }[];
-    const last = ivs[ivs.length - 1];
+    const last = intervals[intervals.length - 1];
     phase = last !== undefined && last.endedAt !== undefined ? "paused" : "running";
-  } else if (typeof s.phase === "string" && VALID_PHASES.includes(s.phase)) {
-    phase = s.phase as TimerPhase;
+  } else if (isTimerPhase(s.phase)) {
+    phase = s.phase;
   } else {
     return null;
   }
 
-  const type = s.type as BlockType;
   // Fill absent targetMs for state written by a build predating `targetMs`;
   // the component's settings are still loading at `initMachine` time, and a
   // stale in-flight block is not worth threading settings through deserialization for.
-  const targetMs = isFiniteNumber(s.targetMs)
-    ? s.targetMs
+  const targetMs = isFiniteNumber(rawTargetMs)
+    ? rawTargetMs
     : nextDuration(type, defaultSettings) * 1000;
 
-  const result = { ...s, phase, type, targetMs } as TimerState;
-  return result;
+  return {
+    id,
+    type,
+    phase,
+    startedAt,
+    label,
+    tagId,
+    focusBlocksCompleted,
+    intervals,
+    blockStatus,
+    targetMs,
+  };
 }
 
 // ─── ClockDeps seam ────────────────────────────────────────────────

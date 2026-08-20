@@ -279,6 +279,43 @@ describe("state serialization", () => {
     expect(deserializeState(JSON.stringify({ ...base, targetMs: "nope" }))).toBeNull();
     expect(deserializeState(JSON.stringify({ ...base, targetMs: Infinity }))).toBeNull();
   });
+
+  it("drops unknown keys from a stale schema", () => {
+    const valid: TimerState = {
+      id: "stale-test",
+      type: "focus",
+      phase: "running",
+      startedAt: 1_700_000_000_000,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      blockStatus: "completed",
+      targetMs: 25 * 60 * 1000,
+      intervals: [{ startedAt: 1_700_000_000_000 }],
+    };
+    const withGhost = { ...valid, ghost: 1 };
+    const restored = deserializeState(JSON.stringify(withGhost));
+    expect(restored).toEqual(valid);
+    expect("ghost" in restored!).toBe(false);
+  });
+
+  it("drops unknown keys inside an interval", () => {
+    const base = {
+      id: "iv-ghost",
+      type: "focus",
+      phase: "running",
+      startedAt: 1_700_000_000_000,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      blockStatus: "completed",
+      targetMs: 25 * 60 * 1000,
+      intervals: [{ startedAt: 1_700_000_000_000, note: "x" }],
+    };
+    const restored = deserializeState(JSON.stringify(base));
+    expect(restored).not.toBeNull();
+    expect(restored!.intervals).toEqual([{ startedAt: 1_700_000_000_000 }]);
+  });
 });
 
 describe("deserializeState rejects corrupt or stale shapes (null, never NaN)", () => {
