@@ -160,6 +160,7 @@ describe("state serialization", () => {
       tagId: null,
       focusBlocksCompleted: 2,
       blockStatus: "completed",
+      targetMs: 25 * 60 * 1000,
       intervals: [
         { startedAt: 1_700_000_000_000, endedAt: 1_700_000_000_000 + 300_000 },
         { startedAt: 1_700_000_000_000 + 360_000 },
@@ -184,6 +185,7 @@ describe("state serialization", () => {
       tagId: null,
       focusBlocksCompleted: 0,
       blockStatus: "completed",
+      targetMs: 25 * 60 * 1000,
       intervals: [{ startedAt: Date.now() }],
     };
 
@@ -198,7 +200,7 @@ describe("state serialization", () => {
     clearStorage();
   });
 
-  it("accepts a state persisted before targetMs existed", () => {
+  it("fills targetMs from defaults for a state persisted before targetMs existed", () => {
     const legacy = {
       id: "legacy",
       type: "short_break",
@@ -212,6 +214,7 @@ describe("state serialization", () => {
     expect(deserializeState(JSON.stringify(legacy))).toEqual({
       ...legacy,
       phase: "running",
+      targetMs: 5 * 60 * 1000,
     });
   });
 
@@ -260,6 +263,21 @@ describe("state serialization", () => {
     };
     expect(deserializeState(JSON.stringify({ ...base, phase: "siesta" }))).toBeNull();
     expect(deserializeState(JSON.stringify({ ...base, phase: 42 }))).toBeNull();
+  });
+
+  it("rejects a present-but-non-finite targetMs", () => {
+    const base = {
+      id: "x",
+      type: "focus",
+      startedAt: 1,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      blockStatus: "completed",
+      intervals: [{ startedAt: 1 }],
+    };
+    expect(deserializeState(JSON.stringify({ ...base, targetMs: "nope" }))).toBeNull();
+    expect(deserializeState(JSON.stringify({ ...base, targetMs: Infinity }))).toBeNull();
   });
 });
 

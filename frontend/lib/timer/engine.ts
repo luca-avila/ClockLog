@@ -33,7 +33,7 @@ export interface TimerState {
   focusBlocksCompleted: number;
   intervals: Interval[];
   blockStatus: "completed" | "aborted";
-  targetMs?: number;
+  targetMs: number;
 }
 
 export interface TimerSettings {
@@ -180,7 +180,15 @@ export function deserializeState(json: string): TimerState | null {
     return null;
   }
 
-  const result = { ...s, phase } as TimerState;
+  const type = s.type as BlockType;
+  // Fill absent targetMs for state written by a build predating `targetMs`;
+  // the component's settings are still loading at `initMachine` time, and a
+  // stale in-flight block is not worth threading settings through deserialization for.
+  const targetMs = isFiniteNumber(s.targetMs)
+    ? s.targetMs
+    : nextDuration(type, defaultSettings) * 1000;
+
+  const result = { ...s, phase, type, targetMs } as TimerState;
   return result;
 }
 
@@ -386,8 +394,7 @@ export function transition(
       if (!state) return { state: null, effects: [] };
       if (state.phase !== "running") return { state, effects: [] };
 
-      const target =
-        state.targetMs ?? nextDuration(state.type, settings) * 1000;
+      const target = state.targetMs;
       const e = elapsed(state.startedAt, now, state.intervals);
 
       if (e < target) return { state, effects: [] };

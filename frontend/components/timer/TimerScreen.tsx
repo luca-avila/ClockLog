@@ -249,7 +249,7 @@ export default function TimerScreen() {
     ? elapsed(machine.timer.startedAt, now, machine.timer.intervals)
     : 0;
   const targetDuration = machine.timer
-    ? machine.timer.targetMs ?? nextDuration(machine.timer.type, settings) * 1000
+    ? machine.timer.targetMs
     : 0;
 
   const pos = cyclePosition(machine.completed, settings.blocksPerCycle);
