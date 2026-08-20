@@ -691,6 +691,43 @@ describe("transition — stop", () => {
     )!;
     expect(saveEffect.endedAt).toBe(1_003_000);
   });
+
+  it("is a no-op on an ended focus block", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(25 * 60 * 1000);
+    const ticked = transition(started.state, { kind: "tick" }, clock, settings, 0, false);
+    expect(ticked.state!.phase).toBe("ended");
+    const result = transition(ticked.state, { kind: "stop" }, clock, settings, 0, false);
+    expect(result.state).toBe(ticked.state);
+    expect(result.effects).toHaveLength(0);
+  });
+
+  it("does not double-save or double-bump the cycle when stop follows tick", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(25 * 60 * 1000);
+    const ticked = transition(started.state, { kind: "tick" }, clock, settings, 0, false);
+    const result = transition(ticked.state, { kind: "stop" }, clock, settings, 0, false);
+    const saves = result.effects.filter((e) => e.type === "save");
+    const cycles = result.effects.filter((e) => e.type === "setCycle");
+    expect(saves).toHaveLength(0);
+    expect(cycles).toHaveLength(0);
+  });
 });
 
 describe("transition — tick", () => {

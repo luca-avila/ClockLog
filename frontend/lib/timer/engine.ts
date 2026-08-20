@@ -363,6 +363,8 @@ export function transition(
 
     case "stop": {
       if (!state) return { state: null, effects: [] };
+      // Defensive: an ended block is terminal — labelSave owns the save.
+      if (state.phase === "ended") return { state, effects: [] };
       const closed = closeBlock(state.intervals, now);
       const aborted: TimerState = {
         ...state,
