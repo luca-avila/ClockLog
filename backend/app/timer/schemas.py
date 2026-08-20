@@ -88,3 +88,13 @@ class BlockResponse(BaseModel):
     intervals: list[BlockIntervalSchema]
 
     model_config = {"from_attributes": True}
+
+
+class TagSummary(BaseModel):
+    """One row of GET /blocks/summary. Mirrored in frontend/lib/api/history.ts."""
+
+    tag_id: uuid.UUID | None
+    tag_name: str
+    tag_color: str | None
+    total_seconds: float
+    block_count: int

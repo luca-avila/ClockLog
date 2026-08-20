@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.shared.tag.models import Tag
-from app.shared.tag.schemas import TagCreate
+from app.shared.tag.schemas import TagCreate, TagUpdate
 
 
 async def create_tag(db: AsyncSession, data: TagCreate, user_id: uuid.UUID) -> Tag:
@@ -46,7 +46,9 @@ async def get_tag_by_name(db: AsyncSession, name: str, user_id: uuid.UUID) -> Ta
     return result.scalar_one_or_none()
 
 
-async def update_tag(db: AsyncSession, tag_id: uuid.UUID, data: dict, user_id: uuid.UUID) -> Tag:
+async def update_tag(
+    db: AsyncSession, tag_id: uuid.UUID, data: TagUpdate, user_id: uuid.UUID
+) -> Tag:
     result = await db.execute(select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id))
     tag = result.scalar_one_or_none()
     if not tag:
@@ -54,7 +56,8 @@ async def update_tag(db: AsyncSession, tag_id: uuid.UUID, data: dict, user_id: u
             status_code=404,
             detail={"code": "TAG_NOT_FOUND", "message": "Tag not found"},
         )
-    for key, value in data.items():
+    # exclude_unset alone, matching the other modules' PATCH semantics.
+    for key, value in data.model_dump(exclude_unset=True).items():
         setattr(tag, key, value)
     return tag
 

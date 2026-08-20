@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 
 from app.shared.tag.models import Tag
 from app.timer.models import Block, BlockInterval
-from app.timer.schemas import BlockCreate, BlockUpdate
+from app.timer.schemas import BlockCreate, BlockUpdate, TagSummary
 
 
 def compute_duration(block: Block) -> timedelta:
@@ -135,7 +135,7 @@ async def get_blocks_in_range(
 
 async def get_summary_by_tag(
     db: AsyncSession, user_id: uuid.UUID, from_dt: datetime, to_dt: datetime
-) -> list[dict]:
+) -> list[TagSummary]:
     """Aggregate total duration per tag for focus blocks in the given range.
 
     Breaks are excluded — "4h 10m focus" must not include break time.
@@ -145,36 +145,31 @@ async def get_summary_by_tag(
     ]
 
     tag_ids = {b.tag_id for b in blocks if b.tag_id is not None}
-    tag_map: dict[uuid.UUID, str] = {}
-    tag_colors: dict[uuid.UUID, str] = {}
+    tags: dict[uuid.UUID, Tag] = {}
     if tag_ids:
-        tags = await db.execute(select(Tag).where(Tag.id.in_(tag_ids)))
-        for t in tags.scalars().all():
-            tag_map[t.id] = t.name
-            tag_colors[t.id] = t.color
+        result = await db.execute(select(Tag).where(Tag.id.in_(tag_ids)))
+        tags = {t.id: t for t in result.scalars().all()}
 
-    tag_totals: dict[str, dict] = {}
+    totals: dict[uuid.UUID | None, TagSummary] = {}
 
     for block in blocks:
-        tag_id = block.tag_id
-        tag_name = tag_map.get(tag_id) if tag_id else None
-        dur = compute_duration(block)
-        key = str(tag_id) if tag_id else "__untagged__"
-
-        if key not in tag_totals:
-            tag_totals[key] = {
-                "tag_id": str(tag_id) if tag_id else None,
+        row = totals.get(block.tag_id)
+        if row is None:
+            tag = tags.get(block.tag_id) if block.tag_id else None
+            row = TagSummary(
+                tag_id=block.tag_id,
                 # "Untagged", not "Unlabeled": a label placeholder and a tag
                 # placeholder must not share one string across the stack.
-                "tag_name": tag_name or "Untagged",
-                "tag_color": tag_colors.get(tag_id) if tag_id else None,
-                "total_seconds": 0.0,
-                "block_count": 0,
-            }
-        tag_totals[key]["total_seconds"] += dur.total_seconds()
-        tag_totals[key]["block_count"] += 1
+                tag_name=tag.name if tag else "Untagged",
+                tag_color=tag.color if tag else None,
+                total_seconds=0.0,
+                block_count=0,
+            )
+            totals[block.tag_id] = row
+        row.total_seconds += compute_duration(block).total_seconds()
+        row.block_count += 1
 
-    return list(tag_totals.values())
+    return list(totals.values())
 
 
 async def update_block(

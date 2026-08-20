@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, Query
 from app.core.db import DBSession
 from app.shared.user.api import get_current_user_dependency
 from app.shared.user.schemas import UserResponse
-from app.timer.schemas import BlockCreate, BlockResponse, BlockUpdate
+from app.timer.schemas import BlockCreate, BlockResponse, BlockUpdate, TagSummary
 from app.timer.service import (
     create_block,
     delete_block,
@@ -37,7 +37,7 @@ from app.timer.service import (
 router = APIRouter(prefix="/blocks", tags=["blocks"])
 
 
-@router.get("/recent-labels")
+@router.get("/recent-labels", response_model=list[str])
 async def recent_labels(
     db: DBSession,
     current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
@@ -58,7 +58,7 @@ async def list_blocks(
     return [BlockResponse.model_validate(b) for b in blocks]
 
 
-@router.get("/summary")
+@router.get("/summary", response_model=list[TagSummary])
 async def summary(
     db: DBSession,
     from_: datetime = Query(alias="from"),  # noqa: B008

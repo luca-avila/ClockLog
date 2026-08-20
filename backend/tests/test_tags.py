@@ -20,7 +20,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
 from app.main import app
-from app.shared.tag.schemas import TagCreate
+from app.shared.tag.schemas import TagCreate, TagUpdate
 from app.shared.tag.service import (
     create_tag,
     delete_tag,
@@ -70,7 +70,7 @@ class TestTagService:
         tag = await create_tag(db_session, TagCreate(name="Old", color="#000000"), user.id)
         await db_session.commit()
 
-        updated = await update_tag(db_session, tag.id, {"name": "New"}, user.id)
+        updated = await update_tag(db_session, tag.id, TagUpdate(name="New"), user.id)
         assert updated.name == "New"
 
     @pytest.mark.asyncio
@@ -82,7 +82,7 @@ class TestTagService:
         tag = await create_tag(db_session, TagCreate(name="Blue", color="#0000FF"), user.id)
         await db_session.commit()
 
-        updated = await update_tag(db_session, tag.id, {"color": "#00FF00"}, user.id)
+        updated = await update_tag(db_session, tag.id, TagUpdate(color="#00FF00"), user.id)
         assert updated.color == "#00FF00"
 
     @pytest.mark.asyncio

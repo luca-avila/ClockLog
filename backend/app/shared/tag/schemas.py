@@ -40,3 +40,10 @@ class TagResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class TagDeleteResponse(BaseModel):
+    """Rows that became untagged. Surfaced to the user — invariant 10 means
+    deleting a tag never deletes what carried it."""
+
+    affected: int

@@ -27,6 +27,7 @@ export interface BlockData {
   intervals: { id: string; started_at: string; ended_at: string | null }[];
 }
 
+/** Mirrors backend TagSummary. */
 export interface TagSummary {
   tag_id: string | null;
   tag_name: string;

@@ -19,7 +19,7 @@ import uuid
 from fastapi import APIRouter, Depends
 
 from app.core.db import DBSession
-from app.shared.tag.schemas import TagCreate, TagResponse, TagUpdate
+from app.shared.tag.schemas import TagCreate, TagDeleteResponse, TagResponse, TagUpdate
 from app.shared.tag.service import create_tag, delete_tag, get_tags_for_user, update_tag
 from app.shared.user.api import get_current_user_dependency
 from app.shared.user.schemas import UserResponse
@@ -57,15 +57,14 @@ async def update(
     tag = await update_tag(
         db,
         tag_id,
-        # exclude_unset alone, matching the other modules' PATCH semantics.
-        data.model_dump(exclude_unset=True),
+        data,
         current_user.id,
     )
     await db.commit()
     return tag
 
 
-@router.delete("/{tag_id}")
+@router.delete("/{tag_id}", response_model=TagDeleteResponse)
 async def delete(
     db: DBSession,
     tag_id: uuid.UUID,
@@ -73,4 +72,4 @@ async def delete(
 ):
     affected = await delete_tag(db, tag_id, current_user.id)
     await db.commit()
-    return {"affected": affected}
+    return TagDeleteResponse(affected=affected)
