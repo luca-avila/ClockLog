@@ -201,4 +201,43 @@ describe("offline queue", () => {
     enqueueBlock(payload("a"), localStorage);
     expect(readQueue(localStorage)).toHaveLength(1);
   });
+
+  it("filters out a stored entry missing status/kind", () => {
+    const incomplete = {
+      id: "inc-1",
+      started_at: "2026-08-15T10:00:00.000Z",
+      ended_at: null,
+      label: null,
+      tag_id: null,
+    };
+    localStorage.setItem("tempo_block_queue", JSON.stringify([incomplete]));
+    expect(readQueue(localStorage)).toHaveLength(0);
+  });
+
+  it("filters out a stored entry with a bogus kind", () => {
+    const bogus = {
+      id: "bogus-1",
+      started_at: "2026-08-15T10:00:00.000Z",
+      ended_at: null,
+      status: "completed",
+      kind: "siesta",
+      label: null,
+      tag_id: null,
+    };
+    localStorage.setItem("tempo_block_queue", JSON.stringify([bogus]));
+    expect(readQueue(localStorage)).toHaveLength(0);
+  });
+
+  it("a fully-valid entry survives readQueue and flushQueue still POSTs it", async () => {
+    const p = payload("valid-1");
+    enqueueBlock(p, localStorage);
+    expect(readQueue(localStorage)).toHaveLength(1);
+
+    const post = vi.fn<(p: BlockPayload) => Promise<void>>().mockResolvedValue(undefined);
+    const deps = makeDeps(post);
+    await flushQueue(deps);
+    expect(post).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "valid-1" })
+    );
+  });
 });

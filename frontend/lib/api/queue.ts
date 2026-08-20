@@ -29,6 +29,20 @@ export interface BlockPayload {
 const QUEUE_KEY = "tempo_block_queue";
 const RETRY_MS = 30_000;
 
+function isBlockPayload(v: unknown): v is BlockPayload {
+  if (typeof v !== "object" || v === null) return false;
+  const p = v as Record<string, unknown>;
+  return (
+    typeof p.id === "string" && p.id.length > 0 &&
+    typeof p.started_at === "string" &&
+    (p.ended_at === null || typeof p.ended_at === "string") &&
+    (p.status === "completed" || p.status === "aborted") &&
+    (p.kind === "focus" || p.kind === "short_break" || p.kind === "long_break") &&
+    (p.label === null || typeof p.label === "string") &&
+    (p.tag_id === null || typeof p.tag_id === "string")
+  );
+}
+
 export interface FlushResult {
   synced: number;
   dropped: number;
@@ -68,10 +82,10 @@ export function readQueue(
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (p): p is BlockPayload =>
-        typeof p === "object" && p !== null && "id" in p && "started_at" in p
-    );
+    // Malformed entries are dropped silently here, as readQueue is called on
+    // every enqueue and every flush — firing onBlocksDropped from a read path
+    // would double-report. Only the flush path reports drops.
+    return parsed.filter(isBlockPayload);
   } catch {
     // Corrupt queue is worse than an empty one — reset rather than block sync.
     try {
