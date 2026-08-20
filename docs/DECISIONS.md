@@ -17,9 +17,9 @@
 # Decision log — closed
 
 Every gate from the retired build plan, with its consequence. The one
-standing decision point lives in `CLAUDE.md` § Decisions: phase 3
-(timer↔plan integration) requires renegotiating invariants 12 and 13 in
-writing before any code.
+standing decision point lives in `AGENTS.md` — the note under § Invariants →
+Module independence, and § Scope boundaries: phase 3 (timer↔plan integration)
+requires renegotiating invariants 12 and 13 in writing before any code.
 
 | Gate | Decision | Consequence |
 | --- | --- | --- |
