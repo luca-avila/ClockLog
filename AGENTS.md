@@ -39,8 +39,12 @@ Read these before proposing UI or data-model changes. They are the source of tru
 | File | Contents |
 | --- | --- |
 | `docs/wireframes.md` | Screen-by-screen layouts, one section per screen ID. **Canonical where the two docs disagree.** |
-| `docs/ux-research.md` | Problem definition, UX rationale, user flows, edge cases, MVP scope |
+| `docs/ux-research.md` | Problem definition, UX rationale, user flows, edge cases, MVP scope. Its wireframe section was deleted — `wireframes.md` is the only set of layouts |
 | `DECISIONS.md` | Closed decision log — every resolved gate and its consequences |
+| `docs/architecture.md` | How the shipped system works: module boundaries and their enforcement, data model, the instants-vs-dates split, the timer engine and offline queue |
+| `docs/api.md` | Endpoint reference with examples, PATCH semantics, and the full error-code table |
+| `docs/operations.md` | Runbook: dev setup, first run, migrations, deploy, backup/restore, troubleshooting |
+| `docs/README.md` | Index of the above, with each document's status |
 
 **Precedence: `wireframes.md` wins.** It is the newer document and reflects the current direction. `ux-research.md` remains the reasoning of record for *why*, but where it describes a different product — most notably the Plan as an undated weekly template — it is stale and `wireframes.md` governs.
 
@@ -158,7 +162,7 @@ frontend/
     plan/            # PlanWeekScreen, PlanDayScreen, WeekView, DayView, EntrySheet, EmptyWeek
   lib/               # api client, timer engine, date helpers, alerts
   __tests__/
-docs/                # wireframes.md, ux-research.md
+docs/                # architecture.md, api.md, operations.md, wireframes.md, ux-research.md
 infra/backup/        # nightly pg_dump container
 scripts/ci.sh        # run the full CI suite locally
 .github/workflows/   # CI
