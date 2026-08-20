@@ -202,12 +202,20 @@ export const browserClock: ClockDeps = {
 
 // ─── Interval helpers ──────────────────────────────────────────────
 
-/** Deep-copy intervals and close the last open one. Pure — never mutates input. */
-function closeLastInterval(intervals: Interval[], at: number): Interval[] {
+/** Deep-copy intervals and close the last open one. Returns both the
+ *  copied intervals and the block's real end instant. Pure — never mutates input. */
+function closeBlock(
+  intervals: Interval[],
+  at: number
+): { intervals: Interval[]; endedAt: number } {
   const copy = intervals.map((iv) => ({ ...iv }));
   const last = copy[copy.length - 1];
-  if (last && last.endedAt === undefined) last.endedAt = at;
-  return copy;
+  // `start` always seeds one interval, so `last` is present; when it is
+  // already closed (paused, or ended by an earlier tick) its own end is the
+  // block's real end, not `at`.
+  if (!last) return { intervals: copy, endedAt: at };
+  if (last.endedAt === undefined) last.endedAt = at;
+  return { intervals: copy, endedAt: last.endedAt };
 }
 
 // ─── State machine ─────────────────────────────────────────────────
@@ -222,7 +230,7 @@ export type TimerEvent =
   | { kind: "tick" };
 
 export type TimerEffect =
-  | { type: "save"; state: TimerState }
+  | { type: "save"; state: TimerState; endedAt: number }
   | { type: "alert"; blockType: BlockType; nextBreak?: BlockType }
   | { type: "showLabelSheet" }
   | { type: "setCycle"; completed: number; pendingBreak: boolean };
@@ -282,7 +290,7 @@ export function transition(
         state: {
           ...state,
           phase: "paused",
-          intervals: closeLastInterval(state.intervals, now),
+          intervals: closeBlock(state.intervals, now).intervals,
         },
         effects: [],
       };
@@ -302,18 +310,15 @@ export function transition(
 
     case "stop": {
       if (!state) return { state: null, effects: [] };
-      const intervals =
-        state.phase === "running"
-          ? closeLastInterval(state.intervals, now)
-          : state.intervals.map((iv) => ({ ...iv }));
+      const closed = closeBlock(state.intervals, now);
       const aborted: TimerState = {
         ...state,
         phase: "ended",
         blockStatus: "aborted",
-        intervals,
+        intervals: closed.intervals,
       };
       const effects: TimerEffect[] = [
-        { type: "save", state: aborted },
+        { type: "save", state: aborted, endedAt: closed.endedAt },
       ];
       if (state.type === "focus") {
         const nextCompleted = state.focusBlocksCompleted + 1;
@@ -333,16 +338,18 @@ export function transition(
 
     case "labelSave": {
       if (!state) return { state: null, effects: [] };
+      const closed = closeBlock(state.intervals, now);
       const finalState: TimerState = {
         ...state,
         label: event.label || null,
         tagId: event.tagId,
+        intervals: closed.intervals,
       };
       const nextCompleted = state.focusBlocksCompleted + 1;
       return {
         state: null,
         effects: [
-          { type: "save", state: finalState },
+          { type: "save", state: finalState, endedAt: closed.endedAt },
           {
             type: "setCycle",
             completed: nextCompleted,
@@ -394,7 +401,7 @@ export function transition(
           state: {
             ...state,
             phase: "ended",
-            intervals: closeLastInterval(state.intervals, now),
+            intervals: closeBlock(state.intervals, now).intervals,
           },
           effects: [
             { type: "showLabelSheet" },
@@ -406,6 +413,7 @@ export function transition(
       // Break done → close the last interval, save, and go idle.
       // The recorded end must be the block's real end rather than a
       // default computed downstream in stateToPayload.
+      const closed = closeBlock(state.intervals, now);
       return {
         state: null,
         effects: [
@@ -413,8 +421,9 @@ export function transition(
             type: "save",
             state: {
               ...state,
-              intervals: closeLastInterval(state.intervals, now),
+              intervals: closed.intervals,
             },
+            endedAt: closed.endedAt,
           },
           { type: "alert", blockType: state.type },
         ],

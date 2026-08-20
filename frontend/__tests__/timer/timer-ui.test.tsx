@@ -191,7 +191,8 @@ describe("reload while the label sheet is open (SCR-14)", () => {
     await act(async () => {});
     expect(saveBlock).toHaveBeenCalledTimes(1);
     expect(saveBlock).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "test-ended", blockStatus: "completed", label: "test label" })
+      expect.objectContaining({ id: "test-ended", blockStatus: "completed", label: "test label" }),
+      expect.any(Number)
     );
   });
 

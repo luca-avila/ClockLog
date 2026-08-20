@@ -17,17 +17,11 @@
 import type { TimerState } from "@/lib/timer/engine";
 import { enqueueAndSync, type BlockPayload, type FlushResult } from "./queue";
 
-function stateToPayload(state: TimerState): BlockPayload {
-  const lastInterval = state.intervals[state.intervals.length - 1];
-  const endedAt =
-    lastInterval?.endedAt !== undefined
-      ? new Date(lastInterval.endedAt).toISOString()
-      : new Date().toISOString();
-
+function stateToPayload(state: TimerState, endedAt: number): BlockPayload {
   return {
     id: state.id,
     started_at: new Date(state.startedAt).toISOString(),
-    ended_at: endedAt,
+    ended_at: new Date(endedAt).toISOString(),
     status: state.blockStatus,
     kind: state.type,
     label: state.label ?? null,
@@ -35,10 +29,10 @@ function stateToPayload(state: TimerState): BlockPayload {
   };
 }
 
-export async function saveBlock(state: TimerState): Promise<FlushResult> {
+export async function saveBlock(state: TimerState, endedAt: number): Promise<FlushResult> {
   // Always queues first: an offline or expired-session save is deferred,
   // never dropped, and never interrupts the running timer by rejecting.
   // The result is returned (not discarded) so callers can see drops —
   // invariant 9 makes silent data loss unacceptable.
-  return enqueueAndSync(stateToPayload(state));
+  return enqueueAndSync(stateToPayload(state, endedAt));
 }

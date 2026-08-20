@@ -227,7 +227,7 @@ export default function TimerScreen() {
     if (batch.length === 0) return;
     for (const effect of batch) {
       if (effect.type === "save") {
-        saveBlock(effect.state).catch(() => {
+        saveBlock(effect.state, effect.endedAt).catch(() => {
           /* queued for retry; the UI moves on regardless */
         });
       } else if (effect.type === "alert") {

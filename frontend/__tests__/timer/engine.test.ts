@@ -552,7 +552,7 @@ describe("transition — stop", () => {
     clock.advance(5000);
     const stopped = transition(started.state, { kind: "stop" }, clock, settings, 0, false);
     const saveEffect = stopped.effects.find(
-      (e): e is { type: "save"; state: TimerState } => e.type === "save"
+      (e): e is { type: "save"; state: TimerState; endedAt: number } => e.type === "save"
     )!;
     const last = saveEffect.state.intervals[saveEffect.state.intervals.length - 1];
     expect(last.endedAt).toBe(1_005_000);
@@ -574,6 +574,44 @@ describe("transition — stop", () => {
     expect(stopped.effects).toContainEqual(expect.objectContaining({ type: "save" }));
     const cycleEffects = stopped.effects.filter((e) => e.type === "setCycle");
     expect(cycleEffects).toHaveLength(0);
+  });
+
+  it("endedAt equals now when stopping while running", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(5000);
+    const stopped = transition(started.state, { kind: "stop" }, clock, settings, 0, false);
+    const saveEffect = stopped.effects.find(
+      (e): e is { type: "save"; state: TimerState; endedAt: number } => e.type === "save"
+    )!;
+    expect(saveEffect.endedAt).toBe(1_005_000);
+  });
+
+  it("endedAt equals the pause instant when stopping while paused", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(3000);
+    const paused = transition(started.state, { kind: "pause" }, clock, settings, 0, false);
+    clock.advance(7000);
+    const stopped = transition(paused.state, { kind: "stop" }, clock, settings, 0, false);
+    const saveEffect = stopped.effects.find(
+      (e): e is { type: "save"; state: TimerState; endedAt: number } => e.type === "save"
+    )!;
+    expect(saveEffect.endedAt).toBe(1_003_000);
   });
 });
 
@@ -666,6 +704,24 @@ describe("transition — tick", () => {
     expect(result.effects).toContainEqual({ type: "alert", blockType: "short_break" });
   });
 
+  it("endedAt equals the tick instant on break completion", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "short_break", label: null, tagId: null },
+      clock,
+      settings,
+      4,
+      true
+    );
+    clock.advance(5 * 60 * 1000 + 1);
+    const result = transition(started.state, { kind: "tick" }, clock, settings, 4, true);
+    const saveEffect = result.effects.find(
+      (e): e is { type: "save"; state: TimerState; endedAt: number } => e.type === "save"
+    )!;
+    expect(saveEffect.endedAt).toBe(1_000_000 + 5 * 60 * 1000 + 1);
+  });
+
   it("does nothing on tick when paused", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
@@ -728,7 +784,7 @@ describe("transition — labelSave", () => {
     expect(result.state).toBeNull();
     expect(result.effects).toHaveLength(2);
     expect(result.effects[0].type).toBe("save");
-    const saveEffect = result.effects[0] as { type: "save"; state: TimerState };
+    const saveEffect = result.effects[0] as { type: "save"; state: TimerState; endedAt: number };
     expect(saveEffect.state.label).toBe("my task");
     expect(saveEffect.state.tagId).toBe("tag-1");
     expect(result.effects[1]).toEqual({
@@ -759,9 +815,42 @@ describe("transition — labelSave", () => {
       false
     );
     const saveEffect = result.effects.find(
-      (e): e is { type: "save"; state: TimerState } => e.type === "save"
+      (e): e is { type: "save"; state: TimerState; endedAt: number } => e.type === "save"
     )!;
     expect(saveEffect.state.label).toBeNull();
+  });
+
+  it("endedAt equals the tick instant on labelSave", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(25 * 60 * 1000 + 1);
+    const ended = transition(started.state, { kind: "tick" }, clock, settings, 0, false);
+    const tickInstant = 1_000_000 + 25 * 60 * 1000 + 1;
+
+    // The label sheet sits open for ten minutes before the user names the block.
+    clock.advance(10 * 60 * 1000);
+
+    const result = transition(
+      ended.state,
+      { kind: "labelSave", label: "my task", tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    const saveEffect = result.effects[0] as { type: "save"; state: TimerState; endedAt: number };
+    expect(saveEffect.endedAt).toBe(tickInstant);
+
+    // The saved intervals must agree with the effect's endedAt.
+    const last = saveEffect.state.intervals[saveEffect.state.intervals.length - 1];
+    expect(last.endedAt).toBe(tickInstant);
   });
 });
 
