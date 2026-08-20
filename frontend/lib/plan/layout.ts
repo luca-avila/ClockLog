@@ -97,13 +97,11 @@ export function timelineLanes(entries: TimedOccurrence[]): LaidOutEntry[] {
   const clusters: { items: typeof timed; end: number }[] = [];
   for (const item of timed) {
     const last = clusters[clusters.length - 1];
-    if (last && last.end <= item.startMin) {
+    if (!last || last.end <= item.startMin) {
       clusters.push({ items: [item], end: item.endMin });
-    } else if (last) {
+    } else {
       last.items.push(item);
       last.end = Math.max(last.end, item.endMin);
-    } else {
-      clusters.push({ items: [item], end: item.endMin });
     }
   }
 
