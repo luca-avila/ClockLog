@@ -17,9 +17,10 @@
 import uuid
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.shared.models import Base
 from app.shared.tag.models import Tag
 from app.shared.tag.schemas import TagCreate, TagUpdate
 
@@ -66,10 +67,6 @@ async def delete_tag(db: AsyncSession, tag_id: uuid.UUID, user_id: uuid.UUID) ->
     """Delete a tag; return affected rows across whatever tables carry a
     tag_id. Counted via metadata, not feature-model imports — shared/ must
     stay loadable with either feature module deleted (invariant 11)."""
-    from sqlalchemy import func
-
-    from app.shared.models import Base
-
     result = await db.execute(select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id))
     tag = result.scalar_one_or_none()
     if not tag:

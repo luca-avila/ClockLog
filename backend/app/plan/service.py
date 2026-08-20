@@ -28,7 +28,7 @@ from app.plan.schemas import EntryCreate, EntryOccurrence, EntryUpdate
 from app.shared.tag.models import Tag
 
 
-def _validate_times(all_day: bool, start, end) -> None:
+def _validate_times(all_day: bool, start: time | None, end: time | None) -> None:
     if all_day and (start is not None or end is not None):
         raise HTTPException(
             status_code=422,
@@ -143,8 +143,6 @@ async def list_occurrences(
 
     occurrences: list[EntryOccurrence] = []
     for entry in all_entries:
-        if entry.date > to_date:
-            continue  # not started yet
         if entry.date >= from_date:
             occurrences.append(_occurrence_of(entry, entry.date, tag_colors))
         if entry.repeat_weekly:
@@ -159,7 +157,7 @@ async def list_occurrences(
     return occurrences
 
 
-def _occurrence_of(entry: Entry, d: date, tag_colors: dict) -> EntryOccurrence:
+def _occurrence_of(entry: Entry, d: date, tag_colors: dict[uuid.UUID, str]) -> EntryOccurrence:
     return EntryOccurrence(
         entry_id=entry.id,
         name=entry.name,

@@ -19,17 +19,17 @@ import uuid
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
+from app.core.security import create_access_token
 from app.main import app
+from app.shared.user.models import User
 from app.shared.user.schemas import UserCreate
 from app.shared.user.service import create_user
 
 
-async def _register_and_auth(db_session) -> dict:
+async def _register_and_auth(db_session) -> tuple[dict[str, str], User]:
     email = f"block-{uuid.uuid4()}@example.com"
     user = await create_user(db_session, UserCreate(email=email, password="secret12"))
     await db_session.commit()
-    from app.core.security import create_access_token
-
     token = create_access_token(data={"sub": user.email})
     return {"Authorization": f"Bearer {token}"}, user
 
