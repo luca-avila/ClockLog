@@ -276,3 +276,18 @@ Ramas desde el paso 3:
 - Borrar un tag con 14 blocks
 - Sesión expirada, 3 blocks esperando sync
 - Dos dispositivos a la vez
+
+---
+
+## Notas de layout
+
+- **El número del timer** es, por lejos, el elemento más grande de la app — legible desde
+  el otro lado de la habitación.
+- **Los colores de tag** son el único color saturado de la interfaz. Todo lo demás queda
+  neutro para que los datos resalten; los tags son el único elemento visual compartido
+  entre los dos módulos.
+- **El indicador de ciclo** (`● ● ○ ○`) aparece solo en el timer, nunca en el Plan.
+- **La densidad difiere por módulo a propósito.** El timer es escaso; la grilla del plan
+  es densa. Se usan en estados mentales distintos.
+- **Settings agrupa por módulo**, para que un usuario que solo planifica vea de un
+  vistazo que la sección Timer no le aplica.
