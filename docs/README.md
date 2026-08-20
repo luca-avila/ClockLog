@@ -10,7 +10,7 @@ before trusting a page.
 | [operations.md](operations.md) | Runbook | Current |
 | [wireframes.md](wireframes.md) | What to build (UI) | **Canonical for UI.** Screen IDs `SCR-01`…`SCR-40`; partly written in Spanish |
 | [ux-research.md](ux-research.md) | Why it was built this way — problem, users, risks, MVP boundary | **Partly stale** — see below |
-| [../DECISIONS.md](../DECISIONS.md) | Closed decision log | Current |
+| [DECISIONS.md](DECISIONS.md) | Closed decision log | Current |
 | [../AGENTS.md](../AGENTS.md) | Contributor / agent operating manual | Current |
 
 ## Precedence

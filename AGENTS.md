@@ -40,7 +40,7 @@ Read these before proposing UI or data-model changes. They are the source of tru
 | --- | --- |
 | `docs/wireframes.md` | Screen-by-screen layouts, one section per screen ID. **Canonical where the two docs disagree.** |
 | `docs/ux-research.md` | Problem definition, UX rationale, user flows, edge cases, MVP scope. Its wireframe section was deleted — `wireframes.md` is the only set of layouts |
-| `DECISIONS.md` | Closed decision log — every resolved gate and its consequences |
+| `docs/DECISIONS.md` | Closed decision log — every resolved gate and its consequences |
 | `docs/architecture.md` | How the shipped system works: module boundaries and their enforcement, data model, the instants-vs-dates split, the timer engine and offline queue |
 | `docs/api.md` | Endpoint reference with examples, PATCH semantics, and the full error-code table |
 | `docs/operations.md` | Runbook: dev setup, first run, migrations, deploy, backup/restore, troubleshooting |
@@ -64,7 +64,7 @@ Screens have stable IDs defined in `docs/wireframes.md`. Cite the screen ID in i
 
 If an issue names a screen ID, read that section before writing any UI. **If a request contradicts these documents, say so before implementing. Do not silently expand scope.**
 
-> The build plan (`docs/build-plan.md`) was retired once all 23 slices shipped. Its durable content lives here (invariants, conventions) and in `DECISIONS.md` (gate resolutions). History remains in git if ever needed.
+> The build plan (`docs/build-plan.md`) was retired once all 23 slices shipped. Its durable content lives here (invariants, conventions) and in `docs/DECISIONS.md` (gate resolutions). History remains in git if ever needed.
 
 ---
 
@@ -162,7 +162,7 @@ frontend/
     plan/            # PlanWeekScreen, PlanDayScreen, WeekView, DayView, EntrySheet, EmptyWeek
   lib/               # api client, timer engine, date helpers, alerts
   __tests__/
-docs/                # architecture.md, api.md, operations.md, wireframes.md, ux-research.md
+docs/                # architecture.md, api.md, operations.md, wireframes.md, ux-research.md, DECISIONS.md
 infra/backup/        # nightly pg_dump container
 scripts/ci.sh        # run the full CI suite locally
 .github/workflows/   # CI
@@ -248,7 +248,7 @@ Non-negotiable. Violating these causes bugs that are painful to diagnose after t
 ### Time and dates
 
 5. **All timestamps are UTC** in the database and over the wire. Convert only at render time, in the frontend. **The API speaks instants, never dates:** history endpoints take a `from`/`to` UTC range that the client computed from its own local day boundaries. The server never reasons about "days" and stores no timezone — otherwise day-bucketed aggregation would need one, and this invariant would be a lie.
-   > The plan API is the one deliberate exception: it takes **dates**, not instants. An entry is wall-clock calendar data — a 09:00 class is 09:00 whatever the offset — so `plan` stores a naive `date` + `time`. Invariant 5 governs blocks (recorded events), not entries. See `DECISIONS.md`. Do not "fix" the plan toward instants, and do not copy its date params into any history endpoint.
+   > The plan API is the one deliberate exception: it takes **dates**, not instants. An entry is wall-clock calendar data — a 09:00 class is 09:00 whatever the offset — so `plan` stores a naive `date` + `time`. Invariant 5 governs blocks (recorded events), not entries. See `docs/DECISIONS.md`. Do not "fix" the plan toward instants, and do not copy its date params into any history endpoint.
 6. **Store timestamps, never durations.** Duration is always derived. A stored duration cannot reconstruct a timeline.
 7. A block that crosses midnight belongs to the day it **started**.
 
@@ -434,7 +434,7 @@ The backend container applies migrations on boot (`alembic upgrade head && fasta
 - This app records time and describes weeks. **It is not a task manager.** Reject scope drift in that direction.
 - Any feature that only makes sense if the user uses both modules. If a proposed feature would break when one module is deleted, it is out of scope until the phase-3 integration is explicitly scheduled. Even then, the planner must stay fully usable with the timer deleted.
 
-All decision gates are closed; resolutions and consequences live in `DECISIONS.md`.
+All decision gates are closed; resolutions and consequences live in `docs/DECISIONS.md`.
 
 ---
 

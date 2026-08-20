@@ -56,7 +56,7 @@ export function formatClock(iso: string): string {
 }
 
 /** "1h 30m" / "45m" from seconds. week.ts has a minutes-based twin;
- *  the two are deliberately not shared (DECISIONS.md). */
+ *  the two are deliberately not shared (docs/DECISIONS.md). */
 export function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);

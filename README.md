@@ -78,7 +78,7 @@ cd frontend && npm run lint && npx tsc --noEmit
 | [docs/operations.md](docs/operations.md) | Deploying, migrations, backup and restore, troubleshooting |
 | [docs/wireframes.md](docs/wireframes.md) | Screen-by-screen layouts (canonical for UI) |
 | [docs/ux-research.md](docs/ux-research.md) | Original problem definition and UX rationale (partly stale — see [docs/README.md](docs/README.md)) |
-| [DECISIONS.md](DECISIONS.md) | Closed decision log |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Closed decision log |
 | [AGENTS.md](AGENTS.md) | Operating manual for contributors and coding agents |
 
 ## Stack

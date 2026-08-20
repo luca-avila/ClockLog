@@ -3,7 +3,7 @@
 How Tempo is put together, and why. For *what to build* see
 [`wireframes.md`](wireframes.md); for the rules a contributor must follow see
 [`../AGENTS.md`](../AGENTS.md); for closed design questions see
-[`../DECISIONS.md`](../DECISIONS.md).
+[`DECISIONS.md`](DECISIONS.md).
 
 ---
 
