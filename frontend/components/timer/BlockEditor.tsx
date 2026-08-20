@@ -67,16 +67,18 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
     // end on the next local day, which an untouched time input would
     // otherwise flatten back onto the start's day.
     const startDirty = start !== formatClock(originalStartIso);
-    const endDirty = originalEndIso !== null && end !== formatClock(originalEndIso);
     if (startDirty) payload.started_at = withLocalTime(originalStartIso, start);
-    if (endDirty) payload.ended_at = withLocalTime(originalEndIso, end);
-    if (startDirty || endDirty) {
-      const newStart = new Date(payload.started_at ?? originalStartIso);
-      const newEnd = new Date(payload.ended_at ?? originalEndIso ?? "");
-      if (originalEndIso && newEnd <= newStart) {
-        setError("End must be after start");
-        setBusy(false);
-        return;
+    if (originalEndIso !== null) {
+      const endDirty = end !== formatClock(originalEndIso);
+      if (endDirty) payload.ended_at = withLocalTime(originalEndIso, end);
+      if (startDirty || endDirty) {
+        const newStart = new Date(payload.started_at ?? originalStartIso);
+        const newEnd = new Date(payload.ended_at ?? originalEndIso);
+        if (newEnd <= newStart) {
+          setError("End must be after start");
+          setBusy(false);
+          return;
+        }
       }
     }
 
