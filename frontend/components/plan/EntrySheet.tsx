@@ -60,6 +60,8 @@ export default function EntrySheet({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const editId = mode.kind === "edit" ? mode.entryId : null;
+
   useEffect(() => {
     let cancelled = false;
     fetchTags()
@@ -67,26 +69,32 @@ export default function EntrySheet({
         if (!cancelled) setTags(t);
       })
       .catch(() => {});
-    if (mode.kind === "edit") {
-      // The stored row is the truth — an occurrence only identifies it.
-      fetchEntry(mode.entryId)
-        .then((e) => {
-          if (cancelled) return;
-          setEditing(e);
-          setName(e.name);
-          setDate(e.date);
-          setAllDay(e.all_day);
-          setStart(e.start_time ? hhmm(e.start_time) : "");
-          setEnd(e.end_time ? hhmm(e.end_time) : "");
-          setTagId(e.tag_id);
-          setRepeatWeekly(e.repeat_weekly);
-        })
-        .catch(() => setError("Could not load the entry"));
-    }
     return () => {
       cancelled = true;
     };
-  }, [mode]);
+  }, []);
+
+  useEffect(() => {
+    if (editId === null) return;
+    let cancelled = false;
+    // The stored row is the truth — an occurrence only identifies it.
+    fetchEntry(editId)
+      .then((e) => {
+        if (cancelled) return;
+        setEditing(e);
+        setName(e.name);
+        setDate(e.date);
+        setAllDay(e.all_day);
+        setStart(e.start_time ? hhmm(e.start_time) : "");
+        setEnd(e.end_time ? hhmm(e.end_time) : "");
+        setTagId(e.tag_id);
+        setRepeatWeekly(e.repeat_weekly);
+      })
+      .catch(() => setError("Could not load the entry"));
+    return () => {
+      cancelled = true;
+    };
+  }, [editId]);
 
   // Wall-clock note, not an error: the server accepts midnight spans (S-19).
   const spansMidnight = !allDay && start !== "" && end !== "" && end <= start;

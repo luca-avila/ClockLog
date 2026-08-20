@@ -220,6 +220,26 @@ describe("editing", () => {
     expect(String(replace.mock.calls[0][0])).toMatch(/^\/plan\?t=/);
   });
 
+  it("a re-render with an equal mode object does not refetch the entry", async () => {
+    const { container, root } = setup({ kind: "edit", entryId: "e1" });
+    await flush();
+    expect(api.fetchEntry).toHaveBeenCalledTimes(1);
+
+    // What the user would be doing when the parent re-renders.
+    setVal(container, "Name", "Gym — edited");
+
+    // readPlanView rebuilds `mode` on every parent render: same values, new
+    // object. Keying the effect on that identity refetched and clobbered the
+    // form under the user's cursor.
+    act(() =>
+      root.render(<EntrySheet mode={{ kind: "edit", entryId: "e1" }} returnTo="/plan" />)
+    );
+    await flush();
+
+    expect(api.fetchEntry).toHaveBeenCalledTimes(1);
+    expect((byLabel(container, "Name") as HTMLInputElement).value).toBe("Gym — edited");
+  });
+
   it("delete removes the stored entry and closes", async () => {
     const { container } = setup({ kind: "edit", entryId: "e1" });
     await flush();
