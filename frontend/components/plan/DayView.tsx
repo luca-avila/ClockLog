@@ -133,7 +133,12 @@ export default function DayView({ date, occurrences }: DayViewProps) {
                 }}
               >
                 <p className="text-xs font-medium text-neutral-700 truncate">{occ.name}</p>
-                <p className="text-[10px] text-neutral-400 tabular-nums">
+                <p className="flex items-center gap-1.5 text-[10px] text-neutral-400 tabular-nums">
+                  <span
+                    className={`inline-block w-1.5 h-1.5 rounded-full ${occ.tag_color ? "" : "bg-neutral-300"}`}
+                    style={occ.tag_color ? { backgroundColor: occ.tag_color } : undefined}
+                    aria-hidden
+                  />
                   {hhmm(occ.start_time)} – {hhmm(occ.end_time)}
                 </p>
               </Link>
