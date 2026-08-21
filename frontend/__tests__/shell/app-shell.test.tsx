@@ -72,6 +72,19 @@ describe("navigation destinations", () => {
     expect(active[0]).toContain('href="/history"');
     nav.pathname = "/";
   });
+
+  it("marks one sidebar item on /settings, not Tags as well", () => {
+    nav.pathname = "/settings";
+    const markup = renderToStaticMarkup(<Sidebar />);
+    const active = [...markup.matchAll(/<a[^>]*aria-current="page"[^>]*>/g)].map(
+      (m) => m[0]
+    );
+    // Tags is a jump into a section of Settings, not a destination of its own.
+    expect(active).toHaveLength(1);
+    expect(active[0]).toContain('href="/settings"');
+    expect(active[0]).not.toContain("#tags");
+    nav.pathname = "/";
+  });
 });
 
 describe("responsive shape (mobile-first)", () => {

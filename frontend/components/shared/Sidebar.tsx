@@ -40,10 +40,13 @@ export default function Sidebar() {
         Tempo
       </Link>
       {ITEMS.map((item) => {
-        const active =
-          item.href === "/"
+        // A hash href jumps to a section of another item's page, so it is never
+        // a destination of its own — otherwise /settings lights up twice.
+        const active = item.href.includes("#")
+          ? false
+          : item.href === "/"
             ? pathname === "/"
-            : pathname.startsWith(item.href.split("#")[0]);
+            : pathname.startsWith(item.href);
         return (
           <Link
             key={item.href}
