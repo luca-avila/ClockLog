@@ -360,12 +360,6 @@ export default function TimerScreen() {
       {machine.labelSheetOpen && <LabelSheet onSave={handleLabelSave} onSkip={handleLabelSkip} />}
 
       <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6 px-4">
-        <CycleIndicator
-          completed={pos.completed}
-          total={settings.blocksPerCycle}
-          isBreak={isBreak}
-        />
-
         {/* Ring */}
         <div className="relative">
           <svg className="w-72 h-72 -rotate-90" viewBox="0 0 100 100">
@@ -413,6 +407,12 @@ export default function TimerScreen() {
             {machine.timer.label}
           </div>
         ) : null}
+
+        <CycleIndicator
+          completed={pos.completed}
+          total={settings.blocksPerCycle}
+          isBreak={isBreak}
+        />
 
         {/* Break: Skip link */}
         {isBreak && !isPaused && (
