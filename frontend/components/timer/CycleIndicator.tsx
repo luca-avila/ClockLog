@@ -28,7 +28,13 @@ export default function CycleIndicator({
   isBreak,
 }: CycleIndicatorProps) {
   return (
-    <div className="flex gap-1.5 justify-center" aria-label={`Cycle: ${completed} of ${total} completed`}>
+    // role="img" because ARIA drops a name on a generic role; the dots are one
+    // graphic, not a group of separate items (cf. TagPicker's role="group").
+    <div
+      className="flex gap-1.5 justify-center"
+      role="img"
+      aria-label={`Cycle: ${completed} of ${total} completed`}
+    >
       {Array.from({ length: total }, (_, i) => (
         <span
           key={i}
