@@ -20,5 +20,8 @@ docs/UX research wireframes.zip
 .agents/
 skills-lock.json
 
+# agent-authored design plans — handed to an implementation agent, not shipped
+design-plans/
+
 # generated reports
 architecture-review-*.html
