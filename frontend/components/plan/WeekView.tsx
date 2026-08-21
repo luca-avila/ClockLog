@@ -92,14 +92,14 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
         </Link>
       </div>
 
-      <p className="text-xs text-neutral-400 mb-4">
-        {occurrences.length} {occurrences.length === 1 ? "entry" : "entries"} ·{" "}
-        {formatDuration(totalMinutes)}
-      </p>
-
       {occurrences.length === 0 ? (
         <EmptyWeek from={week.from} />
       ) : (
+        <>
+        <p className="text-xs text-neutral-400 mb-4">
+          {occurrences.length} {occurrences.length === 1 ? "entry" : "entries"} ·{" "}
+          {formatDuration(totalMinutes)}
+        </p>
         <div className="md:grid md:grid-cols-7 md:gap-3 md:divide-x md:divide-neutral-100">
         {days.map((d, i) => {
           const list = byDay.get(d)!;
@@ -159,6 +159,7 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
           );
         })}
         </div>
+        </>
       )}
 
       {occurrences.length > 0 && (
