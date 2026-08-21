@@ -429,7 +429,7 @@ export default function TimerScreen() {
           <div className="flex gap-3 items-center" data-testid="secondary-controls">
             <button
               onClick={() => dispatch(isPaused ? { kind: "resume" } : { kind: "pause" })}
-              className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
+              className={isPaused ? "px-10 py-3 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors" : "px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"}
             >
               {isPaused ? "RESUME" : "⏸ PAUSE"}
             </button>
