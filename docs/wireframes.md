@@ -148,7 +148,12 @@ Label `[debug JWT refresh]` · TAG ●Study ○Work ○Admin · Started 09:00 / 
 
 ### Desktop — Timer e History
 
-- **Timer:** sidebar + ring de 214px centrado, "debug JWT refresh", Pause/Stop.
+- **Timer:** sidebar + ring de 288px centrado, "debug JWT refresh", Pause/Stop. Mismo
+  tamaño que en mobile — el ring no cambia por breakpoint.
+  > Antes decía 214px. Esa medida venía del diseño con el número chico (30px); el
+  > número ahora usa la escala de idle (72px), y `60:00` a 72px no entra en un ring
+  > de 214px (diámetro interior 167px contra ~192px de texto). Manda la nota de
+  > layout — "el número del timer es, por lejos, el elemento más grande de la app".
 - **History:** lista del día a la izquierda + inspector de bloque a la derecha (sin navegar fuera).
 
 ---
