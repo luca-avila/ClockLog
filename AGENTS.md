@@ -306,12 +306,13 @@ Other conventions:
 
 - **Server Components by default**; `"use client"` only where interactivity requires it. The timer is necessarily a client component.
 - **Timer state lives in one place** (`lib/timer/engine.ts`). Do not duplicate elapsed-time calculation across components.
+- **Geist is the app typeface** (`Geist` / `Geist_Mono`, loaded in `app/layout.tsx` and mapped to `--font-sans` / `--font-mono` in `globals.css`). Do not set `font-family` on `body` — a direct rule there overrides the token for every screen.
 - **No `any`.** TypeScript runs in `strict` mode. If a type is hard to express, ask rather than escaping the type system.
 - **Tag colors are the only saturated color in the UI.** Everything else stays neutral. Tags are the single visual element shared across both modules.
 - The cycle indicator (`● ● ○ ○`) appears only on the timer, never in the Plan.
 - Density differs by module on purpose: the timer is sparse, the plan grid is dense. They are used in different mental states.
-- **Empty states are honest and literal** ("No blocks yet"), never fabricated encouragement. The Plan empty state must not mention the timer beyond the existing "Timers are optional." line.
-- Secondary actions during a running block (Pause, Stop, Skip) are deliberately low-contrast. During focus, the correct interaction is none.
+- **Empty states are honest and literal** ("No blocks yet"), never fabricated encouragement. The Plan empty state mentions the timer not at all — gate G-5 dropped the "Timers are optional." line, and invariant 13 stands unscoped (`docs/DECISIONS.md`).
+- Secondary actions **during a running block** (Pause, Stop, Skip) are deliberately low-contrast. During focus, the correct interaction is none. **Resume, in the paused state, is primary** — it carries the same filled treatment as START, because paused is not running and the correct interaction there is precisely to resume.
 
 ```bash
 cd frontend
