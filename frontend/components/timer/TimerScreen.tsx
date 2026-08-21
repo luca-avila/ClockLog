@@ -368,7 +368,7 @@ export default function TimerScreen() {
 
         {/* Ring */}
         <div className="relative">
-          <svg className="w-52 h-52 -rotate-90" viewBox="0 0 100 100">
+          <svg className="w-72 h-72 -rotate-90" viewBox="0 0 100 100">
             <circle
               cx="50" cy="50" r="42"
               fill="none"
@@ -387,9 +387,15 @@ export default function TimerScreen() {
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-3xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
-              {isPaused ? "PAUSED" : isEnded ? formatCountdown(targetDuration) : formatCountdown(currentElapsed)}
-            </div>
+            {isPaused ? (
+              <span className="text-3xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
+                PAUSED
+              </span>
+            ) : (
+              <span className="text-7xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
+                {isEnded ? formatCountdown(targetDuration) : formatCountdown(currentElapsed)}
+              </span>
+            )}
             {!isPaused && !isEnded && (
               <div className="text-[10px] text-neutral-400 mt-0.5">
                 of {formatCountdown(targetDuration)}
