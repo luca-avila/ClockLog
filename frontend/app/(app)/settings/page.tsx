@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { type TimerSettings } from "@/lib/timer/engine";
 import { updateSettings } from "@/lib/api/settings";
@@ -45,6 +45,16 @@ export default function SettingsPage() {
       setError("Could not save — try again");
     }
   }
+
+  // #tags does not exist while settings load, so the browser's own anchor
+  // scroll finds nothing and the sidebar's Tags link looks dead. Run it again
+  // once the sections are real.
+  useEffect(() => {
+    if (loading) return;
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    document.getElementById(id)?.scrollIntoView();
+  }, [loading]);
 
   if (loading) return <div className="p-8 text-sm text-neutral-400">Loading...</div>;
 
