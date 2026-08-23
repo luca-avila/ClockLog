@@ -3,8 +3,27 @@
 /* Light only. Theming is not built (AGENTS.md § Scope boundaries): a dark
    palette here repaints body while every component stays neutral-on-white. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #faf6ee;
+  --foreground: #2b2521;
+}
+
+/* Sepia paper: warm cream ground, brown ink.
+   The whole UI is authored in `neutral-*` + `white`, so the palette lives
+   here and nowhere else: overriding the scale repaints every screen without
+   touching a component. Chroma stays low — tag colors remain the only
+   saturated color in the app. */
+@theme {
+  --color-white: #fdfbf6;
+  --color-neutral-50: #f6f1e7;
+  --color-neutral-100: #efe7d9;
+  --color-neutral-200: #e2d8c6;
+  --color-neutral-300: #cfc3ad;
+  --color-neutral-400: #9c8f79;
+  --color-neutral-500: #7b6f5c;
+  --color-neutral-600: #5e5447;
+  --color-neutral-700: #493f35;
+  --color-neutral-800: #372f28;
+  --color-neutral-900: #2b2521;
 }
 
 @theme inline {
