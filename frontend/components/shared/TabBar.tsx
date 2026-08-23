@@ -32,7 +32,9 @@ export default function TabBar() {
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-10 bg-white border-t border-neutral-200">
       <div className="flex justify-around items-center h-14 max-w-lg mx-auto">
         {TABS.map((tab) => {
-          const active = pathname === tab.href;
+          // Sub-routes like /plan/day belong to Plan; / must stay exact.
+          const active =
+            tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
           return (
             <Link
               key={tab.href}

@@ -85,6 +85,17 @@ describe("navigation destinations", () => {
     expect(active[0]).not.toContain("#tags");
     nav.pathname = "/";
   });
+
+  it("highlights Plan on /plan/day, not nothing", () => {
+    nav.pathname = "/plan/day";
+    const markup = renderToStaticMarkup(<TabBar />);
+    const active = [...markup.matchAll(/<a[^>]*aria-current="page"[^>]*>/g)].map(
+      (m) => m[0]
+    );
+    expect(active).toHaveLength(1);
+    expect(active[0]).toContain('href="/plan"');
+    nav.pathname = "/";
+  });
 });
 
 describe("responsive shape (mobile-first)", () => {
