@@ -100,6 +100,9 @@ export default function HistoryPage() {
   const focusBlocks = blocks.filter((b) => b.kind === "focus");
   const focusSeconds = focusBlocks.reduce((sum, b) => sum + durationSeconds(b.intervals), 0);
 
+  // Map tag_id → color for the block list dots; no new fetches needed.
+  const tagColorMap = new Map(tags.map((t) => [t.id, t.color]));
+
   const selected = blocks.find((b) => b.id === selectedId) ?? null;
 
   function afterEditorDone() {
@@ -142,8 +145,10 @@ export default function HistoryPage() {
               </p>
               {summary.map((s) => (
                 <div key={s.tag_name} className="flex items-center gap-2 text-sm text-neutral-600">
+                  {/* Untagged falls back to the same neutral the block list uses,
+                      so a tag's dot reads identically in both places. */}
                   <span
-                    className="inline-block w-2 h-2 rounded-full bg-neutral-300"
+                    className="inline-block w-2 h-2 rounded-full bg-neutral-700"
                     style={s.tag_color ? { backgroundColor: s.tag_color } : undefined}
                   />
                   <span className="flex-1">{s.tag_name}</span>
@@ -162,6 +167,7 @@ export default function HistoryPage() {
                 const start = b.intervals[0]?.started_at || b.started_at;
                 const duration = durationSeconds(b.intervals);
                 const isFocus = b.kind === "focus";
+                const dotColor = isFocus && b.tag_id ? tagColorMap.get(b.tag_id) : undefined;
 
                 return (
                   <button
@@ -181,8 +187,10 @@ export default function HistoryPage() {
                           <span className="text-xs text-amber-500">⚠</span>
                         )}
                         <span className="text-sm text-neutral-700">
-                          {/* SCR-20: breaks render hollow */}
-                          {isFocus ? "● " : "○ "}
+                          {/* SCR-20: breaks render hollow; dot color reflects the block's tag */}
+                          <span style={dotColor ? { color: dotColor } : undefined}>
+                            {isFocus ? "● " : "○ "}
+                          </span>
                           {isFocus ? b.label || "Unlabeled" : KIND_LABEL[b.kind]}
                         </span>
                       </div>
