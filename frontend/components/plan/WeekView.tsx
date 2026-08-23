@@ -19,25 +19,27 @@
 import Link from "next/link";
 import type { EntryOccurrence } from "@/lib/api/plan";
 import EmptyWeek from "./EmptyWeek";
+import PlanHeader from "./PlanHeader";
 import { addDays, formatDuration, hhmm, minutesBetween, weekDays } from "@/lib/date/week";
 
 const DAY_NAMES = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 // [Ugly but honest] months/weekdays come from the runtime locale at render;
 // for now the labels are hard-coded English.
-
-function dayLabel(iso: string, index: number): string {
-  return `${DAY_NAMES[index]} ${iso.slice(8)}`;
-}
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function rangeLabel(from: string, to: string): string {
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const f = new Date(`${from}T00:00:00Z`);
   const t = new Date(`${to}T00:00:00Z`);
   const sameMonth = f.getUTCMonth() === t.getUTCMonth();
   return sameMonth
-    ? `${months[f.getUTCMonth()]} ${f.getUTCDate()} – ${t.getUTCDate()}`
-    : `${months[f.getUTCMonth()]} ${f.getUTCDate()} – ${months[t.getUTCMonth()]} ${t.getUTCDate()}`;
+    ? `${MONTHS[f.getUTCMonth()]} ${f.getUTCDate()} – ${t.getUTCDate()}`
+    : `${MONTHS[f.getUTCMonth()]} ${f.getUTCDate()} – ${MONTHS[t.getUTCMonth()]} ${t.getUTCDate()}`;
+}
+
+/** "03" -> "3": the day number carries the emphasis, not its padding. */
+function dayNumber(iso: string): string {
+  return String(Number(iso.slice(8)));
 }
 
 export interface WeekViewProps {
@@ -47,8 +49,12 @@ export interface WeekViewProps {
 }
 
 /**
- * SCR-30 week list. Pure mirror of the occurrences data — repeats are
+ * SCR-31 week list. Pure mirror of the occurrences data — repeats are
  * already expanded server-side; this component never derives them.
+ *
+ * One markup for both shapes: a stack of day cards on a phone, the same
+ * seven cards side by side from `lg` up. Rendering a mobile list and a
+ * desktop grid separately would put every entry in the DOM twice.
  */
 export default function WeekView({ week, occurrences, today }: WeekViewProps) {
   const days = weekDays(week.from);
@@ -66,109 +72,127 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
     });
   }
 
-  const totalMinutes = occurrences
-    .filter((o) => !o.all_day)
-    .reduce((sum, o) => sum + minutesBetween(o.start_time, o.end_time), 0);
+  function timedMinutes(list: EntryOccurrence[]): number {
+    return list
+      .filter((o) => !o.all_day)
+      .reduce((sum, o) => sum + minutesBetween(o.start_time, o.end_time), 0);
+  }
+
+  const totalMinutes = timedMinutes(occurrences);
+  const count = occurrences.length;
+  // An all-day-only week has entries but no hours; "0m planned" would read
+  // as a measurement rather than as the absence of one.
+  const meta =
+    count === 0
+      ? undefined
+      : `${count} ${count === 1 ? "entry" : "entries"}` +
+        (totalMinutes > 0 ? ` · ${formatDuration(totalMinutes)} planned` : "");
+
+  const todayInWeek = today !== undefined && today >= week.from && today <= week.to;
+  const dayTarget = todayInWeek ? today : week.from;
 
   return (
-    <div className="px-4 py-4 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-3">
-        <Link
-          href={`/plan?week=${addDays(week.from, -7)}`}
-          aria-label="Previous week"
-          className="px-3 py-1 text-neutral-400 hover:text-neutral-700"
-        >
-          ‹
-        </Link>
-        <h1 className="text-sm font-medium text-neutral-700">
-          {rangeLabel(week.from, week.to)}
-        </h1>
-        <Link
-          href={`/plan?week=${addDays(week.from, 7)}`}
-          aria-label="Next week"
-          className="px-3 py-1 text-neutral-400 hover:text-neutral-700"
-        >
-          ›
-        </Link>
-      </div>
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:py-10">
+      <PlanHeader
+        eyebrow="Weekly plan"
+        title={rangeLabel(week.from, week.to)}
+        meta={meta}
+        view="week"
+        weekHref="/plan"
+        dayHref={`/plan/day?date=${dayTarget}`}
+        prevHref={`/plan?week=${addDays(week.from, -7)}`}
+        nextHref={`/plan?week=${addDays(week.from, 7)}`}
+        prevLabel="Previous week"
+        nextLabel="Next week"
+        currentHref={todayInWeek ? undefined : "/plan"}
+        currentLabel="This week"
+        newHref={`/plan?new=1&date=${dayTarget}`}
+      />
 
-      {occurrences.length === 0 ? (
+      {count === 0 ? (
         <EmptyWeek from={week.from} />
       ) : (
-        <>
-        <p className="text-xs text-neutral-400 mb-4">
-          {occurrences.length} {occurrences.length === 1 ? "entry" : "entries"} ·{" "}
-          {formatDuration(totalMinutes)}
-        </p>
-        <div className="md:grid md:grid-cols-7 md:gap-3 md:divide-x md:divide-neutral-100">
-        {days.map((d, i) => {
-          const list = byDay.get(d)!;
-          const isToday = today === d;
-          return (
-            <section key={d} className="mb-5 md:mb-0">
-              <Link
-                href={`/plan/day?date=${d}`}
-                className={`flex items-baseline gap-2 border-b border-neutral-100 pb-1 mb-2 ${
-                  isToday ? "text-neutral-900" : "text-neutral-500"
-                } hover:text-neutral-900`}
+        <div className="grid gap-3 lg:grid-cols-7 lg:items-start lg:gap-2">
+          {days.map((d, i) => {
+            const list = byDay.get(d)!;
+            const isToday = today === d;
+            const minutes = timedMinutes(list);
+            return (
+              <section
+                key={d}
+                className={`flex flex-col overflow-hidden rounded-xl border bg-white ${
+                  isToday ? "border-neutral-400" : "border-neutral-200"
+                }`}
               >
-                <span className="text-xs uppercase tracking-widest">
-                  {dayLabel(d, i)}
-                </span>
-                {isToday && (
-                  <span className="text-[10px] text-neutral-400">· today</span>
-                )}
-              </Link>
-
-              <ul className="space-y-1.5">
-                {list.map((o) => (
-                  <li key={`${o.entry_id}-${o.date}`} className="text-sm">
-                    <Link
-                      href={`/plan?edit=${o.entry_id}`}
-                      className="flex items-center gap-2 text-neutral-600 hover:text-neutral-900"
-                    >
-                      {o.all_day ? (
-                        // All-day band: no time slot, ever.
-                        <span className="text-[10px] uppercase tracking-widest text-neutral-400">
-                          all day
-                        </span>
-                      ) : (
-                        <span className="text-xs tabular-nums text-neutral-400">
-                          {hhmm(o.start_time)}–{hhmm(o.end_time)}
-                        </span>
-                      )}
-                      <span
-                        className={`inline-block w-1.5 h-1.5 rounded-full ${o.tag_color ? "" : "bg-neutral-300"}`}
-                        style={o.tag_color ? { backgroundColor: o.tag_color } : undefined}
-                        aria-hidden
-                      />
-                      {o.name}
-                    </Link>
-                  </li>
-                ))}
-                <li>
-                  <Link
-                    href={`/plan?new=1&date=${d}`}
-                    className="text-xs text-neutral-300 hover:text-neutral-500"
+                <Link
+                  href={`/plan/day?date=${d}`}
+                  className="flex items-center gap-2 border-b border-neutral-100 px-3 py-2 transition-colors hover:bg-neutral-50"
+                >
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-neutral-400">
+                    {DAY_NAMES[i]}
+                  </span>
+                  {/* Today is a filled disc, not a color: the sepia palette
+                      keeps saturation for tags alone. */}
+                  <span
+                    className={
+                      isToday
+                        ? "grid h-6 w-6 place-items-center rounded-full bg-neutral-900 text-[11px] font-medium tabular-nums text-white"
+                        : "text-sm tabular-nums text-neutral-700"
+                    }
                   >
-                    + Add entry
-                  </Link>
-                </li>
-              </ul>
-            </section>
-          );
-        })}
-        </div>
-        </>
-      )}
+                    {dayNumber(d)}
+                  </span>
+                  {minutes > 0 && (
+                    <span className="ml-auto text-[11px] tabular-nums text-neutral-400">
+                      {formatDuration(minutes)}
+                    </span>
+                  )}
+                </Link>
 
-      {occurrences.length > 0 && (
-        <Link
-          href={`/plan?new=1&date=${days[0]}`}
-          className="mt-2 block text-center py-2.5 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-lg hover:border-neutral-400"
-        >
-          + NEW ENTRY
-        </Link>
+                <ul className="flex-1 divide-y divide-neutral-100">
+                  {list.map((o) => (
+                    <li key={`${o.entry_id}-${o.date}`}>
+                      <Link
+                        href={`/plan?edit=${o.entry_id}`}
+                        className="relative flex items-baseline gap-3 py-2.5 pl-5 pr-3 transition-colors hover:bg-neutral-50 lg:flex-col lg:gap-0.5"
+                      >
+                        {/* The tag reads as a spine down the entry rather
+                            than a 6px dot lost against the time. */}
+                        <span
+                          className={`absolute bottom-2.5 left-2 top-2.5 w-[3px] rounded-full ${
+                            o.tag_color ? "" : "bg-neutral-300"
+                          }`}
+                          style={o.tag_color ? { backgroundColor: o.tag_color } : undefined}
+                          aria-hidden
+                        />
+                        {o.all_day ? (
+                          // All-day band: no time slot, ever.
+                          <span className="w-[4.75rem] shrink-0 text-[10px] uppercase tracking-widest text-neutral-400 lg:order-2 lg:w-auto">
+                            all day
+                          </span>
+                        ) : (
+                          <span className="w-[4.75rem] shrink-0 text-xs tabular-nums text-neutral-500 lg:order-2 lg:w-auto">
+                            {hhmm(o.start_time)}–{hhmm(o.end_time)}
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1 truncate text-[15px] text-neutral-900 lg:order-1 lg:w-full lg:text-sm">
+                          {o.name}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+
+                <Link
+                  href={`/plan?new=1&date=${d}`}
+                  className="border-t border-neutral-100 px-3 py-2 text-xs text-neutral-400 transition-colors hover:bg-neutral-50 hover:text-neutral-700"
+                >
+                  + Add
+                </Link>
+              </section>
+            );
+          })}
+        </div>
       )}
     </div>
   );

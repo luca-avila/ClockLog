@@ -26,7 +26,7 @@ function Page() {
 
   return (
     <>
-      <PlanDayScreen date={view.date} tick={view.tick} />
+      <PlanDayScreen date={view.date} tick={view.tick} today={view.today} />
       {view.sheet && (
         <EntrySheet mode={view.sheet} returnTo={`/plan/day?date=${view.date}`} />
       )}

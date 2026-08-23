@@ -16,10 +16,41 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import DayView from "./DayView";
 import { useOccurrences } from "@/lib/plan/hooks";
 
-export default function PlanDayScreen({ date, tick }: { date: string; tick: string }) {
+export default function PlanDayScreen({
+  date,
+  tick,
+  today,
+}: {
+  date: string;
+  tick: string;
+  today: string;
+}) {
   const occurrences = useOccurrences(date, date, tick);
-  return <DayView date={date} occurrences={occurrences} />;
+  // Read off the clock on every tick, never accumulated (and null on the
+  // server, so the first client render matches the markup it hydrates).
+  const [clockMinutes, setClockMinutes] = useState<number | null>(null);
+  const isToday = date === today;
+
+  useEffect(() => {
+    if (!isToday) return;
+    const read = () => {
+      const d = new Date();
+      setClockMinutes(d.getHours() * 60 + d.getMinutes());
+    };
+    read();
+    const id = setInterval(read, 60_000);
+    return () => clearInterval(id);
+  }, [isToday]);
+
+  // Derived, not stored: stepping to another day drops the marker without
+  // waiting for an effect to clear it.
+  const nowMinutes = isToday ? clockMinutes : null;
+
+  return (
+    <DayView date={date} occurrences={occurrences} today={today} nowMinutes={nowMinutes} />
+  );
 }

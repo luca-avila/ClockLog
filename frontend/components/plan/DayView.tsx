@@ -18,14 +18,24 @@
 
 import Link from "next/link";
 import type { EntryOccurrence } from "@/lib/api/plan";
+import PlanHeader from "./PlanHeader";
 import { railFor, railPosition, timelineLanes } from "@/lib/plan/layout";
-import { addDays, hhmm } from "@/lib/date/week";
+import { addDays, formatDuration, hhmm, minutesBetween, weekBounds } from "@/lib/date/week";
 
 const HOUR = 60;
+/** One hour of rail, in pixels. Everything on the rail — labels, hour
+ *  lines, tap targets, the now marker — is placed from this one number. */
+const PX_PER_HOUR = 56;
+/** Below this height an entry has room for its name or its times, not both. */
+const TIME_LINE_MIN_PX = 44;
 
 export interface DayViewProps {
   date: string;
   occurrences: EntryOccurrence[];
+  /** The user's local today, so the header can offer the way back to it. */
+  today?: string;
+  /** Minute of day, for the now marker. Absent on any day but today. */
+  nowMinutes?: number | null;
 }
 
 /**
@@ -33,7 +43,7 @@ export interface DayViewProps {
  * (timelineLanes); tapping empty rail space navigates to the editor
  * (S-21) with the hour prefilled.
  */
-export default function DayView({ date, occurrences }: DayViewProps) {
+export default function DayView({ date, occurrences, today, nowMinutes }: DayViewProps) {
   const allDay = occurrences.filter((o) => o.all_day);
   const timed = occurrences.filter((o) => !o.all_day);
   const laid = timelineLanes(timed);
@@ -46,51 +56,68 @@ export default function DayView({ date, occurrences }: DayViewProps) {
     hours.push(h);
   }
 
-  const weekday = new Date(`${date}T00:00:00Z`);
+  // The rail is sized in pixels and everything on it is placed from the same
+  // geometry, so an hour line and an entry that start at 09:00 land on the
+  // same row however the rail was stretched.
+  const railHeight = (rail.minutes / HOUR) * PX_PER_HOUR;
+  const topPx = (minute: number) => ((minute - rail.startMin) / HOUR) * PX_PER_HOUR;
+
+  const day = new Date(`${date}T00:00:00Z`);
+  const totalMinutes = timed.reduce(
+    (sum, o) => sum + minutesBetween(o.start_time, o.end_time),
+    0
+  );
+  const count = occurrences.length;
+  const meta =
+    count === 0
+      ? "Nothing planned"
+      : `${count} ${count === 1 ? "entry" : "entries"}` +
+        (totalMinutes > 0 ? ` · ${formatDuration(totalMinutes)} planned` : "");
+
+  const showNow =
+    nowMinutes != null &&
+    nowMinutes >= rail.startMin &&
+    nowMinutes <= rail.startMin + rail.minutes;
 
   return (
-    <div className="px-4 py-4 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <Link
-          href={`/plan/day?date=${addDays(date, -1)}`}
-          aria-label="Previous day"
-          className="px-3 py-1 text-neutral-400 hover:text-neutral-700"
-        >
-          ‹
-        </Link>
-        <h1 className="text-sm font-medium text-neutral-700">
-          {weekday.toLocaleDateString("en-US", {
-            weekday: "long",
-            month: "short",
-            day: "numeric",
-            timeZone: "UTC",
-          })}
-        </h1>
-        <Link
-          href={`/plan/day?date=${addDays(date, 1)}`}
-          aria-label="Next day"
-          className="px-3 py-1 text-neutral-400 hover:text-neutral-700"
-        >
-          ›
-        </Link>
-      </div>
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 md:py-10">
+      <PlanHeader
+        eyebrow="Planned day"
+        title={day.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          timeZone: "UTC",
+        })}
+        meta={meta}
+        view="day"
+        weekHref={`/plan?week=${weekBounds(date).from}`}
+        dayHref={`/plan/day?date=${date}`}
+        prevHref={`/plan/day?date=${addDays(date, -1)}`}
+        nextHref={`/plan/day?date=${addDays(date, 1)}`}
+        prevLabel="Previous day"
+        nextLabel="Next day"
+        currentHref={today === undefined || today === date ? undefined : "/plan/day"}
+        currentLabel="Today"
+        newHref={`/plan?new=1&date=${date}`}
+      />
 
       {allDay.length > 0 && (
-        <ul className="mb-4 rounded-lg bg-neutral-50 border border-neutral-100 px-3 py-2 space-y-1">
+        <ul className="mb-4 flex flex-wrap gap-2">
           {allDay.map((o) => (
-            <li key={o.entry_id} className="text-sm">
+            <li key={o.entry_id}>
               <Link
                 href={`/plan/day?date=${date}&edit=${o.entry_id}`}
-                className="text-neutral-600 flex items-center gap-2"
+                className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white py-1.5 pl-2.5 pr-3.5 text-sm text-neutral-800 transition-colors hover:border-neutral-400"
               >
-                <span className="text-[10px] uppercase tracking-widest text-neutral-400">
-                  all day
-                </span>
                 <span
-                  className={`inline-block w-1.5 h-1.5 rounded-full ${o.tag_color ? "" : "bg-neutral-300"}`}
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${o.tag_color ? "" : "bg-neutral-300"}`}
                   style={o.tag_color ? { backgroundColor: o.tag_color } : undefined}
                   aria-hidden
                 />
+                <span className="text-[10px] uppercase tracking-widest text-neutral-400">
+                  all day
+                </span>
                 {o.name}
               </Link>
             </li>
@@ -98,61 +125,82 @@ export default function DayView({ date, occurrences }: DayViewProps) {
         </ul>
       )}
 
-      <div className="relative" data-testid="timeline">
-        {/* Hour rail: each empty hour is a tap-to-create target. Labels wrap
-            past midnight when a late entry extended the rail. */}
+      <div
+        className="relative overflow-hidden rounded-xl border border-neutral-200 bg-white"
+        style={{ height: `${railHeight}px` }}
+        data-testid="timeline"
+      >
+        {/* Hour lines and their labels. Each empty hour is a tap-to-create
+            target; labels wrap past midnight when a late entry extended
+            the rail. */}
         {hours.map((h) => (
-          <div key={h} className="flex h-16 border-t border-neutral-100">
-            <span className="w-10 shrink-0 -mt-1.5 text-[10px] text-neutral-300 tabular-nums">
-              {String(h % 24).padStart(2, "0")}
-            </span>
+          <div key={h} className="absolute inset-x-0" style={{ top: `${topPx(h * HOUR)}px` }}>
+            <div className="flex items-start">
+              <span className="w-12 shrink-0 -translate-y-1/2 pl-3 text-[11px] tabular-nums text-neutral-400">
+                {String(h % 24).padStart(2, "0")}
+              </span>
+              <span className="mt-0 h-px flex-1 bg-neutral-100" aria-hidden />
+            </div>
             <Link
               href={`/plan?new=1&date=${date}&hour=${h % 24}`}
-              className="flex-1"
+              className="absolute left-12 right-0 top-0"
+              style={{ height: `${PX_PER_HOUR}px` }}
               aria-label={`Add entry at ${String(h % 24).padStart(2, "0")}:00`}
             />
           </div>
         ))}
 
         {/* Timed entries, positioned on the rail */}
-        <div className="absolute inset-y-0 left-10 right-0">
+        <div className="absolute inset-y-0 left-12 right-1">
           {laid.map(({ occ, lane, lanes, startMin, endMin }) => {
             const pos = railPosition(startMin, endMin, rail);
             if (!pos) return null;
+            const heightPx = ((endMin - startMin) / HOUR) * PX_PER_HOUR;
             return (
               <Link
                 key={`${occ.entry_id}-${occ.date}`}
                 href={`/plan/day?date=${date}&edit=${occ.entry_id}`}
-                className="absolute rounded-md border border-neutral-200 bg-white px-2 py-1 overflow-hidden"
+                className="absolute overflow-hidden rounded-lg border border-neutral-200 bg-white pl-3 pr-2 py-1 transition-colors hover:border-neutral-400"
                 style={{
                   top: `${pos.topPct}%`,
                   height: `${pos.heightPct}%`,
-                  minHeight: "28px",
+                  minHeight: "24px",
                   left: `${(lane / lanes) * 100}%`,
                   width: `${(1 / lanes) * 100}%`,
                 }}
               >
-                <p className="text-xs font-medium text-neutral-700 truncate">{occ.name}</p>
-                <p className="flex items-center gap-1.5 text-[10px] text-neutral-400 tabular-nums">
-                  <span
-                    className={`inline-block w-1.5 h-1.5 rounded-full ${occ.tag_color ? "" : "bg-neutral-300"}`}
-                    style={occ.tag_color ? { backgroundColor: occ.tag_color } : undefined}
-                    aria-hidden
-                  />
-                  {hhmm(occ.start_time)} – {hhmm(occ.end_time)}
+                {/* Tag as a spine on the leading edge — legible at a glance
+                    where a dot inside the card was not. */}
+                <span
+                  className={`absolute bottom-1 left-1 top-1 w-[3px] rounded-full ${occ.tag_color ? "" : "bg-neutral-300"}`}
+                  style={occ.tag_color ? { backgroundColor: occ.tag_color } : undefined}
+                  aria-hidden
+                />
+                <p className="truncate text-[13px] font-medium leading-tight text-neutral-900">
+                  {occ.name}
                 </p>
+                {heightPx >= TIME_LINE_MIN_PX && (
+                  <p className="mt-0.5 text-[11px] tabular-nums leading-tight text-neutral-500">
+                    {hhmm(occ.start_time)} – {hhmm(occ.end_time)}
+                  </p>
+                )}
               </Link>
             );
           })}
         </div>
-      </div>
 
-      <Link
-        href={`/plan?new=1&date=${date}`}
-        className="mt-4 block text-center py-2.5 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-lg hover:border-neutral-400"
-      >
-        + NEW ENTRY
-      </Link>
+        {/* Now marker: only ever on today, and only inside the rail. */}
+        {showNow && (
+          <div
+            className="pointer-events-none absolute inset-x-0 flex items-center"
+            style={{ top: `${topPx(nowMinutes)}px` }}
+            aria-hidden
+          >
+            <span className="ml-11 h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-900" />
+            <span className="h-px flex-1 bg-neutral-900/40" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
