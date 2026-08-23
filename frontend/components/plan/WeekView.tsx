@@ -23,7 +23,7 @@ import { addDays, formatDuration, hhmm, minutesBetween, weekDays } from "@/lib/d
 
 const DAY_NAMES = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 // [Ugly but honest] months/weekdays come from the runtime locale at render;
-// for now hard-coded English matches the wireframe labels.
+// for now the labels are hard-coded English.
 
 function dayLabel(iso: string, index: number): string {
   return `${DAY_NAMES[index]} ${iso.slice(8)}`;

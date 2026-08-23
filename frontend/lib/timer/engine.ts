@@ -414,8 +414,8 @@ export function transition(
     }
 
     case "skipBreak": {
-      // A skipped break is not recorded (wireframes § Storyboard) —
-      // discard the state instead of saving it.
+      // A skipped break is not recorded — no time was spent, so discard
+      // the state instead of saving it.
       if (!state) {
         // Idle with pending break — just clear the cycle.
         return {

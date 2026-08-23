@@ -138,7 +138,7 @@ function initMachine(): Machine {
     pendingBreak: cycle.pendingBreak,
     // Only a focus block awaiting its label is ever persisted "ended" (G-2), so a
     // stored ended block means the sheet was open when the tab closed — reopen it
-    // rather than stranding a completed block (ux-research § success criteria 5).
+    // rather than stranding a completed block: an unlabelled block is a lost block.
     labelSheetOpen: timer?.phase === "ended" && timer.type === "focus",
     pending: [],
   };

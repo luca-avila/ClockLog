@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class EntryCreate(BaseModel):
     # extra="forbid": the contract has one date — a multi-day span cannot
-    # even be expressed (wireframes § Plan preamble).
+    # even be expressed (invariant 14).
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=200)

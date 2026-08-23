@@ -85,7 +85,7 @@ describe("EmptyWeek (SCR-33, G-5 resolved)", () => {
     expect(markup).toContain("Gym");
   });
 
-  it("no Copy last week — out of scope until it has a wireframe section", () => {
+  it("no Copy last week — out of scope until it is deliberately scheduled", () => {
     const markup = renderToStaticMarkup(<EmptyWeek from={WEEK.from} />);
     expect(markup).not.toMatch(/copy last week/i);
   });

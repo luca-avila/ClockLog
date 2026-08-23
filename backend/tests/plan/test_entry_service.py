@@ -131,7 +131,7 @@ class TestAllDayAndMultiDay:
         assert exc.value.detail["code"] == "ALL_DAY_HAS_TIMES"
 
     async def test_multi_day_span_cannot_be_expressed(self):
-        # A multi-day span is not supported (wireframes § Plan preamble).
+        # A multi-day span is not supported (invariant 14).
         # The contract only knows one date; smuggling an end date is rejected.
         with pytest.raises(ValidationError):
             EntryCreate(
