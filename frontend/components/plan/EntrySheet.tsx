@@ -139,6 +139,13 @@ export default function EntrySheet({
     }
   }
 
+  // The sheet had no way out but Save or Delete — leaving it needed the
+  // browser's back button. Cancel returns without a tick: nothing changed,
+  // so the screen behind has nothing to refetch.
+  function handleClose() {
+    router.replace(returnTo);
+  }
+
   async function handleDelete() {
     if (!editing || busy) return;
     setBusy(true);
@@ -151,18 +158,39 @@ export default function EntrySheet({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-20">
-      <div className="absolute inset-0 bg-black/30" aria-hidden />
-      <div className="absolute inset-x-0 bottom-0 md:inset-0 md:m-auto md:h-fit md:max-w-md bg-white rounded-t-2xl md:rounded-2xl p-5 shadow-xl">
-        <h2 className="text-sm font-medium text-neutral-700 mb-4">
-          {editing ? "Edit entry" : "New entry"}
-        </h2>
+  const LABEL =
+    "mb-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-neutral-400";
+  const FIELD =
+    "w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none transition-colors hover:border-neutral-300 focus:border-neutral-500";
 
-        <label
-          htmlFor="entry-name"
-          className="block text-[10px] uppercase tracking-widest text-neutral-400 mb-1"
-        >
+  return (
+    <div className="fixed inset-x-0 bottom-16 top-0 z-30 md:bottom-0">
+      <div
+        className="absolute inset-0 bg-black/30"
+        aria-hidden
+        onClick={handleClose}
+      />
+      <div className="absolute inset-x-0 bottom-0 max-h-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl md:inset-0 md:m-auto md:h-fit md:max-w-md md:rounded-2xl md:p-6">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-400">
+              Plan
+            </p>
+            <h2 className="text-xl font-light tracking-tight text-neutral-800">
+              {editing ? "Edit entry" : "New entry"}
+            </h2>
+          </div>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={handleClose}
+            className="-mr-1 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+          >
+            <span aria-hidden>&times;</span>
+          </button>
+        </div>
+
+        <label htmlFor="entry-name" className={`${LABEL} grid`}>
           Name
         </label>
         <input
@@ -171,15 +199,12 @@ export default function EntrySheet({
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full text-sm border-b border-neutral-200 focus:border-neutral-500 outline-none pb-1 mb-4"
+          className={`${FIELD} mb-4`}
         />
 
-        <div className="flex gap-3 mb-3">
-          <div className="flex-1">
-            <label
-              htmlFor="entry-day"
-              className="block text-[10px] uppercase tracking-widest text-neutral-400 mb-1"
-            >
+        <div className="mb-4 grid gap-3 sm:grid-cols-[1.4fr_1fr_1fr]">
+          <div>
+            <label htmlFor="entry-day" className={`${LABEL} grid`}>
               Day
             </label>
             <input
@@ -188,16 +213,13 @@ export default function EntrySheet({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full text-sm border-b border-neutral-200 focus:border-neutral-500 outline-none pb-1 bg-transparent"
+              className={FIELD}
             />
           </div>
           {!allDay && (
             <>
               <div>
-                <label
-                  htmlFor="entry-from"
-                  className="block text-[10px] uppercase tracking-widest text-neutral-400 mb-1"
-                >
+                <label htmlFor="entry-from" className={`${LABEL} grid`}>
                   From
                 </label>
                 <input
@@ -206,14 +228,11 @@ export default function EntrySheet({
                   type="time"
                   value={start}
                   onChange={(e) => setStart(e.target.value)}
-                  className="w-full text-sm border-b border-neutral-200 focus:border-neutral-500 outline-none pb-1 bg-transparent"
+                  className={`${FIELD} tabular-nums`}
                 />
               </div>
               <div>
-                <label
-                  htmlFor="entry-to"
-                  className="block text-[10px] uppercase tracking-widest text-neutral-400 mb-1"
-                >
+                <label htmlFor="entry-to" className={`${LABEL} grid`}>
                   To
                 </label>
                 <input
@@ -222,52 +241,54 @@ export default function EntrySheet({
                   type="time"
                   value={end}
                   onChange={(e) => setEnd(e.target.value)}
-                  className="w-full text-sm border-b border-neutral-200 focus:border-neutral-500 outline-none pb-1 bg-transparent"
+                  className={`${FIELD} tabular-nums`}
                 />
               </div>
             </>
           )}
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-neutral-600 mb-1">
-          <input
-            type="checkbox"
-            aria-label="All day"
-            checked={allDay}
-            onChange={(e) => setAllDay(e.target.checked)}
-          />
-          All day
-        </label>
         {spansMidnight && (
-          <p className="text-xs text-neutral-400">
+          <p className="mb-3 text-xs text-neutral-400">
             Ends after midnight — the entry stays on its day.
           </p>
         )}
 
-        <div className="mt-4">
-          <p className="text-[10px] uppercase tracking-widest text-neutral-400 mb-2">
-            Tag
-          </p>
+        {/* The two flags read as one pair of rows, so neither hides under a
+            field it does not belong to. */}
+        <div className="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
+          <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm text-neutral-700">
+            <input
+              type="checkbox"
+              aria-label="All day"
+              checked={allDay}
+              onChange={(e) => setAllDay(e.target.checked)}
+            />
+            All day
+          </label>
+          <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm text-neutral-700">
+            <input
+              type="checkbox"
+              aria-label="Repeat weekly"
+              checked={repeatWeekly}
+              onChange={(e) => setRepeatWeekly(e.target.checked)}
+            />
+            Repeat weekly
+          </label>
+        </div>
+
+        <div className="mt-5">
+          <p className={LABEL}>Tag</p>
           <TagPicker tags={tags} value={tagId} onChange={setTagId} />
         </div>
 
-        <label className="flex items-center gap-2 text-sm text-neutral-600 mt-4">
-          <input
-            type="checkbox"
-            aria-label="Repeat weekly"
-            checked={repeatWeekly}
-            onChange={(e) => setRepeatWeekly(e.target.checked)}
-          />
-          Repeat weekly
-        </label>
-
         {error && (
-          <p role="alert" className="text-xs text-red-500 mt-3">
+          <p role="alert" className="mt-4 text-xs text-red-500">
             {error}
           </p>
         )}
 
-        <div className="flex items-center gap-4 mt-6">
+        <div className="mt-6 flex items-center gap-4">
           <PrimaryButton
             type="button"
             aria-label="SAVE"
@@ -282,7 +303,7 @@ export default function EntrySheet({
               aria-label="Delete"
               onClick={handleDelete}
               disabled={busy}
-              className="text-xs text-neutral-400 hover:text-red-500 transition-colors"
+              className="ml-auto text-xs text-neutral-400 transition-colors hover:text-red-500"
             >
               Delete
             </button>
