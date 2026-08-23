@@ -5,13 +5,21 @@ trusting a page.
 
 | Document | Kind | Status |
 | --- | --- | --- |
-| [architecture.md](architecture.md) | How the system works | Current — written against the shipped code |
-| [api.md](api.md) | Endpoint reference | Current — verified against the running OpenAPI schema |
-| [operations.md](operations.md) | Runbook | Current |
+| [architecture.md](architecture.md) | How the system works | Current, **except** § 3 (data model), § 5 (browser state) and § 7 (request lifecycle), which describe G-6 ahead of the code |
+| [api.md](api.md) | Endpoint reference | Current, **except** § Auth, which describes G-6 ahead of the code |
+| [operations.md](operations.md) | Runbook | Current, **except** § First run and § Email delivery, which describe G-6 ahead of the code |
 | [DECISIONS.md](DECISIONS.md) | Closed decision log | Current |
-| [../AGENTS.md](../AGENTS.md) | Contributor / agent operating manual | Current |
+| [plans/multi-user-auth.md](plans/multi-user-auth.md) | Implementation plan for G-6 | **Transient** — delete it when the change lands |
+| [../AGENTS.md](../AGENTS.md) | Contributor / agent operating manual | Current; § Scope boundaries marks G-6 as in progress |
 
-Everything here describes the app as built. There is no separate design spec — the code
+**One change is in flight.** Decision G-6 retires the single-user model in favour of open
+registration with verified email addresses and password recovery. The decision is closed
+and the docs above have been written forward to describe the target, each ahead-of-code
+section flagged inline. Until `plans/multi-user-auth.md` is done, the running code still
+seals registration after the first account — trust the flags, and trust the code over
+any unflagged disagreement.
+
+Everything else here describes the app as built. There is no separate design spec — the code
 is the source of truth for what each screen does, and `AGENTS.md` carries the invariants
 and conventions that constrain it.
 
@@ -27,3 +35,4 @@ table in `AGENTS.md` defines them.
 - **"What should this screen look like?"** → the shipped screen under `frontend/`, and
   the frontend conventions in `AGENTS.md`
 - **"Why is it like this?"** → `DECISIONS.md`
+- **"What is being built right now, and in what order?"** → `plans/multi-user-auth.md`

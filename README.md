@@ -1,6 +1,6 @@
 # Tempo
 
-A self-hosted, single-user Pomodoro timer and weekly planner.
+A Pomodoro timer and weekly planner. Self-hostable, and open to sign-ups.
 
 Tempo is two loosely coupled tools that share a vocabulary but not a codepath:
 
@@ -26,14 +26,13 @@ docker compose up -d
 
 # 2. Frontend (runs on the host for hot reload)
 cd frontend && npm install && npm run dev
-
-# 3. Create the single account — there is no sign-up screen (see below)
-curl -X POST http://localhost:8000/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"you@example.com","password":"at-least-8-chars"}'
 ```
 
-Then open <http://localhost:3000> and sign in.
+Then open <http://localhost:3000> and create an account from the sign-up screen.
+
+In development `RESEND_API_KEY` is unset, so no mail is sent — the verification link is
+written to the backend log instead. Fish it out with `docker compose logs backend`, open
+it, and you are signed in.
 
 No `.env` is needed for development — `docker-compose.yml` hard-codes dev values.
 `.env` is production-only.
@@ -48,11 +47,17 @@ No `.env` is needed for development — `docker-compose.yml` hard-codes dev valu
 Postgres is not published to the host by default; uncomment the `ports` block under `db`
 in `docker-compose.yml` if you need a direct client.
 
-### Registration is single-use
+### Accounts
 
-`POST /auth/register` closes permanently once one account exists, and the login page
-offers no sign-up link — this is a single-user, self-hosted app, so the first request to
-that endpoint is the install step. See [docs/operations.md](docs/operations.md#first-run).
+Registration is open: anyone who can reach the instance can sign up. An address must be
+verified before its account can sign in, and a forgotten password is recovered by email
+— both go through [Resend](https://resend.com), configured in `.env` for production and
+deliberately left unconfigured in development.
+
+There is no switch to close registration. If you are hosting this for yourself alone,
+restrict it at nginx; the application does not carry an instance-policy flag. See
+[docs/operations.md](docs/operations.md#first-run) and
+[docs/DECISIONS.md](docs/DECISIONS.md) § G-6.
 
 ---
 

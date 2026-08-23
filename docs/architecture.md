@@ -69,19 +69,38 @@ frontend deletability is not proven the way the backend's is. Recorded in
 
 ## 3. Data model
 
-All tables are owned by the single `user` row and cascade on user delete.
+> **Ahead of the code.** `email_verified_at`, `password_changed_at`, and `email_token`
+> are part of the open-registration change (DECISIONS.md § G-6), not yet implemented.
+
+Every table is owned by a `user` row and cascades on user delete. There is no table
+without a `user_id`, and no query anywhere reads across users.
 
 ```
 user ──┬── tag ──┬── block.tag_id      (SET NULL)
        │         └── entry.tag_id      (SET NULL)
        ├── user_setting  (1:1)
        ├── block ── block_interval     (CASCADE)
-       └── entry
+       ├── entry
+       └── email_token                 (CASCADE)
 ```
 
 ### `user`
 `id` (UUID pk) · `email` (unique, indexed) · `hashed_password` (bcrypt) ·
-`created_at` (tz-aware).
+`email_verified_at` (tz-aware, nullable — `NULL` means the account cannot sign in) ·
+`password_changed_at` (tz-aware, NOT NULL) · `created_at` (tz-aware).
+
+`password_changed_at` is the session-revocation mechanism, not bookkeeping: every issued
+token carries it, and moving it invalidates all of them at once.
+
+### `email_token`
+`id` · `user_id` · `token_hash` (SHA-256 hex, unique, indexed) · `purpose`
+(`verify` | `reset`) · `expires_at` · `used_at` (nullable) · `created_at`.
+
+The raw token exists only in the email. What is stored is its digest, so a leaked
+backup is not a set of working account-takeover links — the same reasoning that keeps
+passwords hashed. Tokens are single-use (`used_at`) and short-lived: 24 h to verify,
+1 h to reset. Issuing a new token of a purpose invalidates the account's outstanding
+ones of that purpose, so a resent link cannot be raced by an older one.
 
 ### `tag`
 `id` · `user_id` · `name` (≤100) · `color` (`#RRGGBB`) · `created_at`.
@@ -211,10 +230,20 @@ clock must start when the label sheet is dismissed**, never at 00:00.
 | `tempo_cycle` | `{ completed, pendingBreak }` cycle position |
 | `tempo_block_queue` | blocks waiting to sync |
 | `tempo_has_completed_block` | first-block flag, used by the alert logic |
+| `tempo_last_user` | id of the account that last signed in on this browser |
 
 `deserializeState` validates the persisted shape field by field and returns `null` on
 anything corrupt or stale, so a bad value can never produce a `TimerState` whose
 `elapsed()` is `NaN`. The caller clears the key.
+
+**One browser, several accounts.** `localStorage` belongs to the origin, not to the
+session, so everything above outlives a sign-out. Signing out clears `token` and every
+`tempo_*` key — by prefix, so no shared code needs to know the timer's key names and the
+sweep survives either module being deleted. Signing **in** repeats the sweep whenever
+the new user id differs from `tempo_last_user`, which is the guard that actually holds:
+an expired session leaves state behind without anyone pressing sign out. If the offline
+queue is non-empty, both paths are data loss, so the user is warned and offered a sync
+first rather than having blocks vanish.
 
 ### The offline queue
 
@@ -270,20 +299,39 @@ render a time the user never entered. Overlapping entries get side-by-side lanes
    `X-Request-ID` on every response, and logs one JSON line per unhandled exception with
    the traceback. The client gets `{"code": "INTERNAL_ERROR", ...}` and never a
    traceback.
-3. **Auth dependency** — `HTTPBearer` → `decode_access_token` → user lookup. Bad or
-   expired token yields 401 `INVALID_TOKEN`. Tokens are HS256 and last 7 days.
+3. **Auth dependency** — `HTTPBearer` → `decode_access_token` → user lookup by id →
+   password-generation check. Bad or expired token yields 401 `INVALID_TOKEN`; a token
+   whose `pwd` claim no longer matches the account's `password_changed_at` yields 401
+   `TOKEN_REVOKED`. Tokens are HS256 and last 7 days. The subject is the user id, not
+   the email, so identity does not ride on a mutable field.
 4. **Router** stays thin: parse, delegate to `service.py`, commit, serialize.
 5. **HTTPException handler** normalizes everything to
    `{"code": ..., "message": ...}` — a `detail` dict with its own `code` passes through,
    anything else becomes `{"code": "ERROR"}`.
 
 Rate limiting (`core/ratelimit.py`) is an in-memory sliding window keyed by
-`path:client_ip`, applied to `/auth/register` and `/auth/login`. Keyed per endpoint so
-register attempts cannot lock out login; `X-Forwarded-For` is trusted because nginx is
-always the socket peer. In-memory by design — one VPS, one process; Redis would be a
-dependency for no benefit.
+`path:client_ip`, applied to every `/auth` endpoint. Keyed per endpoint so register
+attempts cannot lock out login; `X-Forwarded-For` is trusted because nginx is always the
+socket peer. In-memory by design — one VPS, one process; Redis would be a dependency for
+no benefit. The three endpoints that send mail (`register`, `resend-verification`,
+`forgot-password`) carry a second, tighter key on the **email address**, because an
+attacker rotating IPs to mailbomb one victim is the abuse that per-IP limiting does not
+see.
 
 Authentication is hand-rolled on purpose: bcrypt + python-jose, no auth framework.
+
+**Outbound email** (`core/email.py`) is one authenticated `httpx` POST to Resend, fired
+from a FastAPI `BackgroundTask` so a slow provider never delays a response. A send
+failure is logged and swallowed — registration has already succeeded, and the recovery
+path is the resend endpoint, not a 500. With `RESEND_API_KEY` empty the sender logs the
+link instead of transmitting it, which is how development and CI run: no test may reach
+the network, and `conftest.py` asserts the key is unset.
+
+**Tenancy.** Two rules keep accounts apart beyond the per-user `WHERE` clause on every
+query. A `tag_id` supplied by a client is verified to belong to the caller before it is
+stored on a block or an entry, and any query that resolves tags for display filters by
+`user_id` — otherwise a foreign id, once stored, would surface another account's tag
+name and color in a summary.
 
 ---
 
@@ -333,6 +381,11 @@ No task manager features. No recurrence engine. No week/month history views, cha
 manual block entry, or export. No `is_premium` conditionals — anything sold would be a
 separate module in a separate private repo, never a flag threaded through core. No auth
 framework, and no dependency added without asking.
+
+Multi-user does not mean multi-tenant features: no sharing, no teams, no visibility of
+one account from another, no admin surface, and no per-user quotas (an accepted risk,
+decision G-6). There is no instance switch to close registration either — a private
+deployment is fenced at nginx, not with a flag in application code.
 
 Phase 3 (timer↔plan integration) requires renegotiating invariants 12 and 13 **in
 writing, up front** — not one feature at a time.

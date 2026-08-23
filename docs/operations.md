@@ -26,25 +26,70 @@ need `psql` from outside.
 
 ### First run
 
-There is no sign-up screen. The single account is created once, through the API:
+> **Ahead of the code.** This section and § Email delivery describe open registration
+> (DECISIONS.md § G-6), not yet implemented.
+
+Registration is open — sign up from the app at <http://localhost:3000>. An address must
+be verified before it can sign in.
+
+**In development no mail is sent.** `RESEND_API_KEY` is unset, so the sender writes the
+verification link to the log instead:
 
 ```bash
-curl -X POST http://localhost:8000/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"you@example.com","password":"at-least-8-chars"}'
+docker compose logs backend | grep -i 'verification link'
 ```
 
-Afterwards the endpoint returns `409 REGISTRATION_CLOSED` forever, which is the
-intended steady state — that is what keeps a public VPS from handing out accounts.
+Open that URL and you are verified and signed in. The same applies to password-reset
+links. This is also how CI runs: no test may touch the network, and `conftest.py`
+asserts the key is unset before the suite starts.
 
-**Lost the password?** There is no reset flow. Hash a new one and update the row:
+**Lost a password?** Use the app's own recovery flow — that is what it is for. The
+manual override still exists for the case where mail delivery itself is broken:
 
 ```bash
 docker compose exec backend python -c "
 from app.core.security import get_password_hash; print(get_password_hash('new-password'))"
 docker compose exec db psql -U tempo -d tempo \
-  -c "UPDATE \"user\" SET hashed_password='<paste-hash>' WHERE email='you@example.com';"
+  -c "UPDATE \"user\" SET hashed_password='<paste-hash>', password_changed_at=now() \
+      WHERE email='you@example.com';"
 ```
+
+Move `password_changed_at` in the same statement — it is what invalidates the account's
+outstanding tokens. Skipping it leaves every old session valid, which defeats the point
+if you are resetting because a token leaked.
+
+**Verifying an address by hand**, if a provider is bouncing mail:
+
+```bash
+docker compose exec db psql -U tempo -d tempo \
+  -c "UPDATE \"user\" SET email_verified_at=now() WHERE email='them@example.com';"
+```
+
+### Email delivery
+
+Transactional mail goes through [Resend](https://resend.com) as a single authenticated
+`httpx` POST — there is no SDK and no queue. Production needs three variables:
+
+| Variable | Notes |
+| --- | --- |
+| `RESEND_API_KEY` | From the Resend dashboard. Leave **empty** in dev and CI |
+| `EMAIL_FROM` | Must be an address on a domain verified in Resend, e.g. `Tempo <no-reply@example.com>` |
+| `APP_BASE_URL` | Origin the links point at — the **frontend** origin, not the API |
+
+Set up before the first real sign-up: verify the sending domain in Resend and publish
+its SPF and DKIM records. Skipping this does not fail loudly — mail is simply delivered
+to spam, and the symptom reaching you is "I never got the email".
+
+Sends happen in a background task and failures are logged, never surfaced as a 500: a
+registration that succeeded is not rolled back because a provider was slow. That makes
+the log the only place a delivery problem shows up.
+
+```bash
+docker compose logs backend | grep -i 'email send failed'
+```
+
+The user-facing recovery for any lost mail is `resend-verification` or
+`forgot-password` — both rate-limited per IP and per address.
 
 ---
 
@@ -125,7 +170,9 @@ and capped JSON-file logging (10 MB × 3).
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Rotating `SECRET_KEY` invalidates every issued token — the user simply signs in again.
+Rotating `SECRET_KEY` invalidates every issued token on every account — everyone signs
+in again. It is the blunt instrument; revoking one account's sessions is a password
+change, which moves `password_changed_at`.
 
 ### Environment variables
 
@@ -134,7 +181,11 @@ Rotating `SECRET_KEY` invalidates every issued token — the user simply signs i
 | `DATABASE_URL` | backend | `postgresql+asyncpg://…` |
 | `SECRET_KEY` | backend | JWT signing key; generate as above |
 | `CORS_ORIGINS` | backend | Comma-separated allowlist. Credentials are off, so this is an explicit allow |
-| `LOGIN_RATE_LIMIT` / `LOGIN_RATE_WINDOW_SECONDS` | backend | Per-IP sliding window on the auth endpoints (defaults 10 / 60) |
+| `LOGIN_RATE_LIMIT` / `LOGIN_RATE_WINDOW_SECONDS` | backend | Per-IP sliding window on the credential endpoints (defaults 10 / 60) |
+| `AUTH_EMAIL_RATE_LIMIT` / `AUTH_EMAIL_RATE_WINDOW_SECONDS` | backend | Tighter window on endpoints that send mail, keyed per IP **and** per address (defaults 3 / 3600) |
+| `RESEND_API_KEY` | backend | Empty disables sending and logs the link instead |
+| `EMAIL_FROM` | backend | Verified sender address |
+| `APP_BASE_URL` | backend | Frontend origin the emailed links point at |
 | `TEST_DATABASE_URL` | backend (dev/CI) | Must end in `_test` |
 | `NEXT_PUBLIC_API_URL` | frontend | **Baked in at build time** |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | db | |
@@ -246,3 +297,9 @@ Liveness: `curl -fsS http://localhost:8000/health`.
   self-rotating.
 - **Logs:** capped in prod at 10 MB × 3 per service by the overlay's logging block.
 - **Certificates:** certbot on the host; verify renewal with `certbot renew --dry-run`.
+- **Disk growth is now other people's data.** Accounts are unmetered by decision (G-6),
+  so blocks and entries accumulate at a rate you do not control. Watch the volume rather
+  than assume it; the same goes for the `backups` volume, whose dumps now contain
+  third-party records and should be treated accordingly wherever they are copied.
+- **Email reputation:** if sign-ups stop completing, check Resend's dashboard for
+  bounces and complaints before looking at the app.

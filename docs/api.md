@@ -4,8 +4,14 @@ Base URL: `http://localhost:8000` in development. Interactive docs at `/docs`
 (OpenAPI JSON at `/openapi.json`) — this page is the prose version, with the parts the
 schema cannot tell you.
 
-**Every endpoint except `/health`, `/auth/register`, and `/auth/login` requires**
-`Authorization: Bearer <token>`.
+> **Ahead of the code.** The `/auth` section below describes open registration with
+> verified addresses and password recovery, decided in
+> [DECISIONS.md](DECISIONS.md) § G-6 and not yet implemented. Everything outside
+> `/auth` is current. Implementation steps: `plans/multi-user-auth.md`.
+
+**Every endpoint requires `Authorization: Bearer <token>`** except `/health` and the
+unauthenticated half of `/auth`: `register`, `verify-email`, `resend-verification`,
+`login`, `forgot-password`, `reset-password`.
 
 All routers mount at the app root:
 
@@ -56,20 +62,51 @@ No auth. → `200 {"status": "ok"}`
 
 ## Auth
 
-### `POST /auth/register` → `201`
+Registration is open. The flow is: register → receive a link by email → verify → sign
+in. **No token is issued before the address is verified.**
 
-Creates the single account, then closes permanently.
+### `POST /auth/register` → `201`
 
 ```json
 { "email": "you@example.com", "password": "at-least-8-chars" }
 ```
 
-Response: `{ "id", "email", "created_at" }`.
+Response: `{ "id", "email", "created_at", "email_verified": false }`. Creates the
+account and mails a verification link; it does **not** return a token, because the
+account cannot sign in yet.
 
-- `409 REGISTRATION_CLOSED` — an account already exists. This is the normal response
-  after install, not a bug.
-- `409 EMAIL_EXISTS`, `429 RATE_LIMITED`, `422` on a bad email or a password under 8
-  characters.
+- `409 EMAIL_EXISTS` — the address is already registered. Deliberately not disguised:
+  the sign-up form has to be able to say so. The rate limit is what keeps it from being
+  a bulk enumeration oracle.
+- `429 RATE_LIMITED`, `422` on a bad email, a password under 8 characters, or one over
+  72 bytes (bcrypt truncates past that, so it is rejected rather than silently cut).
+
+### `POST /auth/verify-email` → `200`
+
+```json
+{ "token": "<from the emailed link>" }
+```
+
+→ `{ "access_token": "<jwt>", "token_type": "bearer" }`. Verifying signs you in, so the
+link lands the user in the app rather than back at a form. The token is single-use and
+expires 24 hours after it was issued.
+
+- `400 INVALID_VERIFICATION_TOKEN` — unknown, already used, or expired. One code for
+  all three: which one it was is not the client's business, and the recovery is the same
+  (request a new link).
+
+### `POST /auth/resend-verification` → `204`
+
+```json
+{ "email": "you@example.com" }
+```
+
+Always `204`, whether or not the address exists or is already verified — the endpoint
+reveals nothing. Any previously issued verification token for that account stops
+working.
+
+- `429 RATE_LIMITED` — limited per IP **and** per email address, under the tighter
+  `AUTH_EMAIL_RATE_LIMIT` window.
 
 ### `POST /auth/login` → `200`
 
@@ -77,24 +114,58 @@ Response: `{ "id", "email", "created_at" }`.
 { "email": "you@example.com", "password": "…" }
 ```
 
-→ `{ "access_token": "<jwt>", "token_type": "bearer" }`. HS256, valid 7 days.
+→ `{ "access_token": "<jwt>", "token_type": "bearer" }`. HS256, valid 7 days. The
+subject is the **user id**, and a `pwd` claim pins the token to the account's current
+password generation.
 
 - `401 INVALID_CREDENTIALS` — same response whether the email is unknown or the
-  password is wrong.
+  password is wrong, and it takes the same time either way: an unknown email is still
+  checked against a dummy hash so the response cannot be used to probe for accounts.
+- `403 EMAIL_NOT_VERIFIED` — the credentials are correct but the address is
+  unconfirmed. Branch on this to offer "resend the link"; the body carries no token.
 - `429 RATE_LIMITED` — per-IP sliding window (`LOGIN_RATE_LIMIT` per
-  `LOGIN_RATE_WINDOW_SECONDS`), with a `Retry-After` header. Register and login are
-  limited under separate keys, so failed registrations cannot lock you out of login.
+  `LOGIN_RATE_WINDOW_SECONDS`), with a `Retry-After` header. Every auth endpoint is
+  limited under its own key, so failed registrations cannot lock you out of login.
+
+### `POST /auth/forgot-password` → `204`
+
+```json
+{ "email": "you@example.com" }
+```
+
+Always `204`. If the address has an account, a reset link valid for **1 hour** is
+mailed and any earlier reset link for that account stops working.
+
+- `429 RATE_LIMITED` — per IP and per email, tighter window.
+
+### `POST /auth/reset-password` → `204`
+
+```json
+{ "token": "<from the emailed link>", "password": "the-new-one" }
+```
+
+Sets the password, consumes the token, and **revokes every session on the account** —
+including whoever prompted the reset. The client must send the user back to sign in.
+An unverified address is marked verified here, since receiving the mail proves the same
+thing.
+
+- `400 INVALID_RESET_TOKEN` — unknown, already used, or expired.
+- `422` on a password failing the same rules as registration.
 
 ### `GET /auth/me` → `200`
 
-`{ "id", "email", "created_at" }`. `401 INVALID_TOKEN` if the token is bad, expired, or
-missing a subject; `401 USER_NOT_FOUND` if it names a user that no longer exists.
+`{ "id", "email", "created_at", "email_verified" }`. `401 INVALID_TOKEN` if the token is
+bad, expired, or malformed; `401 USER_NOT_FOUND` if it names a user that no longer
+exists; `401 TOKEN_REVOKED` if the password changed after the token was issued.
 
 ---
 
 ## Tags
 
 Shared by both modules — the timer and the plan use the same tag table (decision G-4).
+Tags are per-account. A `tag_id` written onto a block or an entry must belong to the
+caller; one that does not is `404 TAG_NOT_FOUND`, the same answer as a tag that does not
+exist, so the endpoint cannot be used to probe another account's ids.
 
 ### `GET /tags` → `200`
 
@@ -312,14 +383,17 @@ Deletes the entry and therefore all its occurrences. `404 ENTRY_NOT_FOUND`.
 
 | Code | Status | Meaning |
 | --- | --- | --- |
-| `REGISTRATION_CLOSED` | 409 | The single account already exists |
 | `EMAIL_EXISTS` | 409 | Email already registered |
 | `INVALID_CREDENTIALS` | 401 | Wrong email or password |
+| `EMAIL_NOT_VERIFIED` | 403 | Correct credentials, unconfirmed address |
+| `INVALID_VERIFICATION_TOKEN` | 400 | Verification link unknown, used, or expired |
+| `INVALID_RESET_TOKEN` | 400 | Reset link unknown, used, or expired |
 | `INVALID_TOKEN` | 401 | Missing, malformed, expired, or subject-less token |
+| `TOKEN_REVOKED` | 401 | Password changed after this token was issued |
 | `USER_NOT_FOUND` | 401 | Token names a user that no longer exists |
 | `RATE_LIMITED` | 429 | Too many auth attempts; see `Retry-After` |
 | `TAG_EXISTS` | 409 | Duplicate tag name for this user |
-| `TAG_NOT_FOUND` | 404 | |
+| `TAG_NOT_FOUND` | 404 | Also returned when a block or entry is written with a `tag_id` that is not the caller's |
 | `BLOCK_NOT_FOUND` | 404 | |
 | `BLOCK_OWNED_BY_OTHER` | 403 | Client-generated id collides with another user's block |
 | `NO_INTERVALS` | 400 | Time edit on a block with no interval rows |
