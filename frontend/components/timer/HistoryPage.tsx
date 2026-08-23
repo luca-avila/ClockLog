@@ -32,8 +32,9 @@ function formatLabel(date: Date) {
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
 
-  if (date.toDateString() === today.toDateString()) return "Today";
-  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  const stamp = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (date.toDateString() === today.toDateString()) return `Today, ${stamp}`;
+  if (date.toDateString() === yesterday.toDateString()) return `Yesterday, ${stamp}`;
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
