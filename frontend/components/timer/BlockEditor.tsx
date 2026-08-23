@@ -106,8 +106,23 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
   }
 
   return (
-    <div className="p-5">
-      <h2 className="text-sm font-medium text-neutral-700 mb-4">Edit block</h2>
+    <div className="p-5 sm:p-6">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-neutral-400">
+            Inspector
+          </p>
+          <h2 className="mt-1 text-lg font-medium text-neutral-800">Edit block</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onDone}
+          aria-label="Close editor"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+        >
+          <span aria-hidden>&times;</span>
+        </button>
+      </div>
 
       <label
         htmlFor="block-label"
@@ -124,8 +139,8 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
         className="w-full text-sm border-b border-neutral-200 focus:border-neutral-500 outline-none pb-1 mb-4"
       />
 
-      <div className="flex gap-3 mb-3">
-        <div>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="min-w-0">
           <label
             htmlFor="block-start"
             className="block text-[10px] uppercase tracking-widest text-neutral-400 mb-1"
@@ -141,7 +156,7 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
             className="w-full text-sm border-b border-neutral-200 focus:border-neutral-500 outline-none pb-1 bg-transparent"
           />
         </div>
-        <div>
+        <div className="min-w-0">
           <label
             htmlFor="block-end"
             className="block text-[10px] uppercase tracking-widest text-neutral-400 mb-1"
@@ -157,11 +172,11 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
             className="w-full text-sm border-b border-neutral-200 focus:border-neutral-500 outline-none pb-1 bg-transparent"
           />
         </div>
-        <div>
+        <div className="col-span-2 rounded-lg bg-neutral-50 px-3 py-2 sm:col-span-1">
           <span className="block text-[10px] uppercase tracking-widest text-neutral-400 mb-1">
             Duration
           </span>
-          <span className="text-sm text-neutral-400 tabular-nums pb-1 block">
+          <span className="text-sm text-neutral-600 tabular-nums pb-1 block">
             {formatDuration(durationSeconds(block.intervals))}
           </span>
         </div>

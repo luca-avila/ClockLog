@@ -31,19 +31,12 @@ function isSameDay(a: Date, b: Date) {
   return a.toDateString() === b.toDateString();
 }
 
-function formatLabel(date: Date) {
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+function formatDayHeading(date: Date) {
+  return date.toLocaleDateString("en-US", { weekday: "long" });
+}
 
-  const stamp = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  if (isSameDay(date, today)) return `Today, ${stamp}`;
-  if (isSameDay(date, yesterday)) return `Yesterday, ${stamp}`;
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    weekday: "short",
-  });
+function formatDayNumber(date: Date) {
+  return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
 }
 
 const KIND_LABEL: Record<BlockData["kind"], string> = {
@@ -126,6 +119,7 @@ export default function HistoryPage() {
   // the "Xh Ym focus" line.
   const focusBlocks = blocks.filter((b) => b.kind === "focus");
   const focusSeconds = focusBlocks.reduce((sum, b) => sum + durationSeconds(b.intervals), 0);
+  const abortedCount = blocks.filter((b) => b.status === "aborted").length;
   const breakSeconds = blocks
     .filter((b) => b.kind !== "focus")
     .reduce((sum, b) => sum + durationSeconds(b.intervals), 0);
@@ -148,116 +142,143 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto py-6 px-4 md:max-w-4xl md:py-10">
-      {/* Day navigation. Arrows are real 40px targets, not bare glyphs. */}
-      <div className="flex items-center gap-2 mb-8">
-        <button
-          onClick={() => shiftDay(-1)}
-          aria-label="Previous day"
-          className="w-10 h-10 shrink-0 grid place-items-center rounded-full text-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 transition-colors"
-        >
-          ‹
-        </button>
-        <h2 className="flex-1 text-center text-base font-medium text-neutral-900">
-          {formatLabel(date)}
-        </h2>
-        <button
-          onClick={() => shiftDay(1)}
-          aria-label="Next day"
-          className="w-10 h-10 shrink-0 grid place-items-center rounded-full text-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 transition-colors"
-        >
-          ›
-        </button>
-      </div>
-
-      {!onToday && (
-        <div className="-mt-6 mb-6 text-center">
-          <button
-            onClick={goToday}
-            className="text-xs text-neutral-500 hover:text-neutral-800 underline underline-offset-4"
-          >
-            Back to today
-          </button>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="text-sm text-neutral-500 text-center py-8">Loading...</div>
-      ) : blocks.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="text-4xl mb-4 text-neutral-300">▤</div>
-          <p className="text-sm text-neutral-600">No blocks yet</p>
-          <p className="text-xs text-neutral-500 mt-1">
-            Your finished blocks will show up here.
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
+      <header className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-400">
+            Time recorded
+          </p>
+          <h1 className="text-3xl font-light tracking-tight text-neutral-800 sm:text-4xl">History</h1>
+          <p className="mt-2 text-sm text-neutral-500">
+            {formatDayHeading(date)} <span className="text-neutral-300">/</span>{" "}
+            {formatDayNumber(date)}
           </p>
         </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={() => shiftDay(-1)}
+            aria-label="Previous day"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-neutral-200 text-lg text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-800"
+          >
+            <span aria-hidden>&lsaquo;</span>
+          </button>
+          {!onToday && (
+            <button
+              onClick={goToday}
+              className="h-10 rounded-full border border-neutral-200 px-4 text-xs font-medium text-neutral-600 transition-colors hover:border-neutral-400 hover:text-neutral-900"
+            >
+              Today
+            </button>
+          )}
+          <button
+            onClick={() => shiftDay(1)}
+            aria-label="Next day"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-neutral-200 text-lg text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-800"
+          >
+            <span aria-hidden>&rsaquo;</span>
+          </button>
+        </div>
+      </header>
+
+      {loading ? (
+        <div className="space-y-4" aria-label="Loading history">
+          <div className="h-40 animate-pulse rounded-2xl bg-neutral-100" />
+          <div className="h-20 animate-pulse rounded-2xl bg-neutral-100" />
+          <div className="h-16 animate-pulse rounded-2xl bg-neutral-100" />
+        </div>
+      ) : blocks.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-neutral-300 px-6 py-20 text-center">
+          <p className="text-sm font-medium text-neutral-600">No blocks yet</p>
+          <p className="mt-2 text-sm text-neutral-400">Your finished blocks will show up here.</p>
+        </div>
       ) : (
-        <div className="md:flex md:gap-10 md:items-start">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
           <div className="flex-1 min-w-0">
-            {/* The day's headline number. It used to be the faintest text on
-                the screen; it is the reason the screen exists. */}
-            <p className="text-4xl font-semibold tabular-nums text-neutral-900 leading-none">
-              {formatDuration(focusSeconds)}
-            </p>
-            <p className="mt-2 text-sm text-neutral-600">
-              focus across {focusBlocks.length} block{focusBlocks.length !== 1 ? "s" : ""}
-              {breakSeconds > 0 && ` · ${formatDuration(breakSeconds)} break`}
-            </p>
-
-            {summaryTotal > 0 && (
-              <>
-                {/* Proportional bar: the split by tag, readable before any
-                    number is. Tag color is the only saturated ink here. */}
-                <div
-                  className="mt-5 flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-neutral-100"
-                  role="img"
-                  aria-label="Focus time by tag"
-                >
-                  {ranked.map((s) => (
-                    <span
-                      key={s.tag_id ?? "untagged"}
-                      className={s.tag_color ? "" : "bg-neutral-300"}
-                      style={{
-                        width: `${(s.total_seconds / summaryTotal) * 100}%`,
-                        ...(s.tag_color ? { backgroundColor: s.tag_color } : {}),
-                      }}
-                    />
-                  ))}
+            <section className="rounded-2xl border border-neutral-200 bg-white p-5 sm:p-6" aria-labelledby="focus-time-heading">
+              <div className="flex flex-wrap items-end justify-between gap-5">
+                <div>
+                  <p id="focus-time-heading" className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+                    Focus time
+                  </p>
+                  <p className="mt-2 text-4xl font-light leading-none tabular-nums text-neutral-900">
+                    {formatDuration(focusSeconds)}
+                  </p>
+                  <p className="mt-2 text-sm text-neutral-500">
+                    {focusBlocks.length} block{focusBlocks.length !== 1 ? "s" : ""}
+                    {breakSeconds > 0 && ` · ${formatDuration(breakSeconds)} break`}
+                  </p>
                 </div>
+                <dl className="flex gap-5 text-right">
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-widest text-neutral-400">Entries</dt>
+                    <dd className="mt-1 text-lg tabular-nums text-neutral-700">{blocks.length}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] uppercase tracking-widest text-neutral-400">Stopped early</dt>
+                    <dd className="mt-1 text-lg tabular-nums text-neutral-700">{abortedCount}</dd>
+                  </div>
+                </dl>
+              </div>
 
-                <ul className="mt-4 space-y-2">
-                  {ranked.map((s) => (
-                    <li
-                      key={s.tag_id ?? "untagged"}
-                      className="flex items-center gap-2.5 text-sm text-neutral-800"
-                    >
-                      {/* Untagged falls back to the same neutral the block list
-                          uses, so a tag's dot reads identically in both places. */}
+              {summaryTotal > 0 && (
+                <>
+                  {/* Proportional bar: the split by tag, readable before any
+                      number is. Tag color is the only saturated ink here. */}
+                  <div
+                    className="mt-6 flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-neutral-100"
+                    role="img"
+                    aria-label="Focus time by tag"
+                  >
+                    {ranked.map((s) => (
                       <span
-                        className="inline-block w-2.5 h-2.5 shrink-0 rounded-full bg-neutral-300"
-                        style={s.tag_color ? { backgroundColor: s.tag_color } : undefined}
-                        aria-hidden
+                        key={s.tag_id ?? "untagged"}
+                        className={s.tag_color ? "" : "bg-neutral-300"}
+                        style={{
+                          width: `${(s.total_seconds / summaryTotal) * 100}%`,
+                          ...(s.tag_color ? { backgroundColor: s.tag_color } : {}),
+                        }}
                       />
-                      <span className="flex-1 truncate">{s.tag_name}</span>
-                      <span className="text-neutral-500 tabular-nums text-xs">
-                        {Math.round((s.total_seconds / summaryTotal) * 100)}%
-                      </span>
-                      <span className="w-16 text-right text-neutral-700 tabular-nums">
-                        {formatDuration(s.total_seconds)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+                    ))}
+                  </div>
 
-            <h3 className="mt-9 mb-3 text-[10px] uppercase tracking-widest text-neutral-500">
-              Timeline
-            </h3>
+                  <ul className="mt-4 space-y-2">
+                    {ranked.map((s) => (
+                      <li
+                        key={s.tag_id ?? "untagged"}
+                        className="flex items-center gap-2.5 text-sm text-neutral-800"
+                      >
+                        {/* Untagged falls back to the same neutral the block list
+                            uses, so a tag's dot reads identically in both places. */}
+                        <span
+                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-neutral-300"
+                          style={s.tag_color ? { backgroundColor: s.tag_color } : undefined}
+                          aria-hidden
+                        />
+                        <span className="flex-1 truncate">{s.tag_name}</span>
+                        <span className="text-xs tabular-nums text-neutral-500">
+                          {Math.round((s.total_seconds / summaryTotal) * 100)}%
+                        </span>
+                        <span className="w-16 text-right tabular-nums text-neutral-700">
+                          {formatDuration(s.total_seconds)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+
+            <div className="mt-8 mb-3 flex items-baseline justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-medium text-neutral-700">Timeline</h3>
+                <p className="mt-1 text-xs text-neutral-400">Select a block to inspect or edit it.</p>
+              </div>
+              <span className="text-xs tabular-nums text-neutral-400">{blocks.length} entries</span>
+            </div>
 
             {/* Block list, hung off a continuous rail so the day reads as a
                 sequence instead of a stack of similar rows. */}
-            <ol className="relative">
+            <ol className="relative space-y-2">
               {blocks.map((b, i) => {
                 const start = blockStart(b);
                 const duration = durationSeconds(b.intervals);
@@ -284,9 +305,11 @@ export default function HistoryPage() {
                     <button
                       onClick={() => setSelectedId(b.id)}
                       aria-label={`Edit block: ${name}`}
-                      aria-current={isSelected || undefined}
-                      className={`group relative flex w-full items-center gap-3 rounded-xl py-2.5 pl-2 pr-3 text-left transition-colors ${
-                        isSelected ? "bg-neutral-100" : "hover:bg-neutral-50"
+                      aria-pressed={isSelected}
+                      className={`group relative flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors sm:p-3.5 ${
+                        isSelected
+                          ? "border-neutral-400 bg-neutral-100"
+                          : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
                       }`}
                     >
                       <span className="w-10 shrink-0 text-xs text-neutral-500 tabular-nums">
@@ -342,29 +365,36 @@ export default function HistoryPage() {
             </ol>
           </div>
 
-          {/* Desktop inspector (SCR-21 ## Desktop): edit without navigating away */}
-          {selected && (
-            <aside className="hidden md:block md:w-80 shrink-0 sticky top-6 rounded-2xl border border-neutral-200 bg-white shadow-sm">
-              <BlockEditor
-                key={selected.id}
-                block={selected}
-                tags={tags}
-                onDone={afterEditorDone}
-              />
-            </aside>
-          )}
+          {/* Desktop inspector (SCR-21): edit without navigating away. */}
+          <aside className="hidden lg:sticky lg:top-6 lg:block">
+            <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+              {selected ? (
+                <BlockEditor
+                  key={selected.id}
+                  block={selected}
+                  tags={tags}
+                  onDone={afterEditorDone}
+                />
+              ) : (
+                <div className="px-5 py-8">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">Inspector</p>
+                  <p className="mt-3 text-sm leading-6 text-neutral-500">Select a block to see its details and make an edit.</p>
+                </div>
+              )}
+            </div>
+          </aside>
         </div>
       )}
 
       {/* Mobile: the editor is a bottom sheet, same pattern as the plan's EntrySheet */}
       {selected && (
-        <div className="md:hidden fixed inset-0 z-20">
+        <div className="fixed inset-x-0 bottom-16 top-0 z-20 md:hidden">
           <div
             className="absolute inset-0 bg-black/30"
             aria-hidden
             onClick={afterEditorDone}
           />
-          <div className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white shadow-xl">
+          <div className="absolute inset-x-0 bottom-0 max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-t-2xl bg-white shadow-xl">
             <BlockEditor
               key={selected.id}
               block={selected}
