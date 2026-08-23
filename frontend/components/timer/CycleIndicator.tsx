@@ -38,12 +38,14 @@ export default function CycleIndicator({
       {Array.from({ length: total }, (_, i) => (
         <span
           key={i}
-          className={`block w-2 h-2 rounded-full transition-colors ${
-            i < completed && !isBreak
-              ? "bg-neutral-900"
-              : isBreak
-                ? "bg-emerald-500"
-                : "bg-neutral-200"
+          className={`block h-2 w-2 rounded-full transition-colors ${
+            i < completed
+              ? // Dimmed during a break: the row reads "resting", without
+                // spending a saturated color that belongs to tags.
+                isBreak
+                ? "bg-neutral-400"
+                : "bg-neutral-900"
+              : "bg-neutral-200"
           }`}
         />
       ))}

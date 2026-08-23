@@ -128,6 +128,64 @@ function alertBlockEnd(
   markBlockCompleted();
 }
 
+
+// ─── Presentation helpers ───────────────────────────────────────────
+
+const TYPE_NAME: Record<BlockType, string> = {
+  focus: "Focus",
+  short_break: "Short break",
+  long_break: "Long break",
+};
+
+/**
+ * The countdown dial (SCR-11 / SCR-13). A break dots its track instead of
+ * tinting it: tag colors stay the only saturated ink in the app.
+ */
+function Dial({
+  fraction,
+  muted,
+  children,
+}: {
+  fraction: number;
+  muted: boolean;
+  children: React.ReactNode;
+}) {
+  const radius = 46;
+  const circumference = 2 * Math.PI * radius;
+
+  return (
+    <div className="relative aspect-square w-full max-w-[16rem] sm:max-w-[18rem]">
+      <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden>
+        <circle
+          cx="50"
+          cy="50"
+          r={radius}
+          fill="none"
+          strokeWidth="2.5"
+          className="stroke-neutral-200"
+          strokeDasharray={muted ? "0.5 4" : undefined}
+          strokeLinecap="round"
+        />
+        <circle
+          cx="50"
+          cy="50"
+          r={radius}
+          fill="none"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          className={`transition-[stroke-dashoffset] duration-500 ease-linear ${
+            muted ? "stroke-neutral-400" : "stroke-neutral-800"
+          }`}
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - Math.min(Math.max(fraction, 0), 1))}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        {children}
+      </div>
+    </div>
+  );
+}
 // ─── Reducer ────────────────────────────────────────────────────────
 
 interface Machine {
@@ -276,200 +334,231 @@ export default function TimerScreen() {
 
   const breakType = nextBreakType(machine.completed, settings.blocksPerCycle);
 
-  // Same wrapper as both painted states, so nothing reflows when they arrive.
-  if (!hydrated) {
-    return <div className="flex flex-col items-center justify-center min-h-[80vh] px-4" />;
-  }
 
-  // IDLE
-  if (!machine.timer) {
-    return (
-      <>
-        <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8 px-4">
-          <CycleIndicator
-            completed={pos.completed}
-            total={settings.blocksPerCycle}
-            isBreak={machine.pendingBreak}
-          />
+  // ─── Presentation (SCR-11 / SCR-13) ─────────────────────────────
+  // The dial is painted in every state, idle included: starting a block
+  // changes the fill, never the layout, so nothing on screen jumps at the
+  // one moment the user is watching it.
 
-          <div className="text-7xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
-            {machine.pendingBreak
-              ? formatCountdown(nextDuration(breakType, settings) * 1000)
-              : formatCountdown(settings.focusDuration * 60 * 1000)}
-          </div>
+  const isBreakNow = machine.timer
+    ? machine.timer.type !== "focus"
+    : machine.pendingBreak;
+  const currentType: BlockType = machine.timer
+    ? machine.timer.type
+    : machine.pendingBreak
+      ? breakType
+      : "focus";
+  const isPaused = machine.timer?.phase === "paused";
+  const isEnded = machine.timer?.phase === "ended";
+  const isRunning = machine.timer?.phase === "running";
 
-          <div className="text-sm uppercase tracking-widest text-neutral-400">
-            {machine.pendingBreak
-              ? breakType === "long_break"
-                ? "Long break"
-                : "Short break"
-              : "Focus"}
-          </div>
+  const idleDuration = nextDuration(currentType, settings) * 1000;
+  const dialTotal = machine.timer ? targetDuration : idleDuration;
+  const dialValue = machine.timer
+    ? isEnded
+      ? targetDuration
+      : currentElapsed
+    : idleDuration;
+  const fraction = machine.timer && dialTotal > 0 ? currentElapsed / dialTotal : 0;
 
-          {machine.pendingBreak ? (
-            <div className="flex flex-col items-center gap-4">
-              <p className="text-sm text-neutral-400">Step away from the screen</p>
-              <div className="flex gap-4">
-                <PrimaryButton
-                  onClick={() =>
-                    dispatch({ kind: "start", type: breakType, label: null, tagId: null })
-                  }
-                >
-                  START
-                </PrimaryButton>
-                <button
-                  onClick={() => dispatch({ kind: "skipBreak" })}
-                  className="px-10 py-2.5 text-sm font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
-                >
-                  Skip break
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <input
-                type="text"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="What are you working on? (optional)"
-                className="w-64 text-center text-sm text-neutral-500 placeholder:text-neutral-300 border-b border-neutral-200 pb-1 outline-none focus:border-neutral-400 transition-colors"
-              />
+  // Same wrapper as every painted state, so nothing reflows when they arrive.
+  const shell = (children: React.ReactNode) => (
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">{children}</div>
+  );
 
-              <PrimaryButton
-                onClick={() =>
-                  dispatch({
-                    kind: "start",
-                    type: "focus",
-                    label: label || null,
-                    tagId: null,
-                  })
-                }
-              >
-                START
-              </PrimaryButton>
-
-              {label && (
-                <button
-                  onClick={() =>
-                    dispatch({
-                      kind: "start",
-                      type: "focus",
-                      label,
-                      tagId: null,
-                    })
-                  }
-                  className="text-sm text-neutral-400 hover:text-neutral-600 transition-colors"
-                >
-                  ● Last: &quot;{label}&quot; ↺
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </>
-    );
-  }
-
-  // RUNNING, PAUSED, or ENDED
-  const fraction = targetDuration > 0 ? currentElapsed / targetDuration : 0;
-  const circumference = 2 * Math.PI * 42;
-  const isBreak = machine.timer.type !== "focus";
-  const isPaused = machine.timer.phase === "paused";
-  const isEnded = machine.timer.phase === "ended";
+  if (!hydrated) return shell(null);
 
   return (
     <>
       {machine.labelSheetOpen && <LabelSheet onSave={handleLabelSave} onSkip={handleLabelSkip} />}
 
-      <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6 px-4">
-        {/* Ring */}
-        <div className="relative">
-          <svg className="w-72 h-72 -rotate-90" viewBox="0 0 100 100">
-            <circle
-              cx="50" cy="50" r="42"
-              fill="none"
-              stroke={isBreak ? "#a7f3d0" : "#e5e5e5"}
-              strokeWidth="6"
-            />
-            <circle
-              cx="50" cy="50" r="42"
-              fill="none"
-              stroke={isBreak ? "#059669" : "#171717"}
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={circumference * (1 - Math.min(fraction, 1))}
-              className="transition-[stroke-dashoffset] duration-500 ease-linear"
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            {isPaused ? (
-              <span className="text-3xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
-                PAUSED
-              </span>
-            ) : (
-              <span className="text-7xl font-light tabular-nums tracking-tight text-neutral-700 select-none">
-                {isEnded ? formatCountdown(targetDuration) : formatCountdown(currentElapsed)}
-              </span>
-            )}
-            {!isPaused && !isEnded && (
-              <div className="text-[10px] text-neutral-400 mt-0.5">
-                of {formatCountdown(targetDuration)}
+      {shell(
+        <>
+          <header className="mb-8">
+            <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-400">
+              Now
+            </p>
+            <h1 className="text-3xl font-light tracking-tight text-neutral-800 sm:text-4xl">
+              Timer
+            </h1>
+            <p className="mt-2 text-sm text-neutral-500">
+              {machine.timer
+                ? isPaused
+                  ? "Paused — the clock is stopped."
+                  : isBreakNow
+                    ? "Step away from the screen."
+                    : "In a block. Recording time."
+                : machine.pendingBreak
+                  ? "Block done. Start the break when you actually step away."
+                  : "Nothing running."}
+            </p>
+          </header>
+
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+            <section className="rounded-2xl border border-neutral-200 bg-white px-5 py-8 sm:px-8 sm:py-10">
+              <div className="flex flex-col items-center gap-6">
+                <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-400">
+                  {isPaused ? "PAUSED" : TYPE_NAME[currentType]}
+                </span>
+
+                <Dial fraction={fraction} muted={isBreakNow}>
+                  <span className="text-6xl font-light tabular-nums tracking-tight text-neutral-900 select-none sm:text-7xl">
+                    {formatCountdown(dialValue)}
+                  </span>
+                  <span className="mt-2 text-xs tabular-nums text-neutral-400">
+                    {machine.timer && !isPaused && !isEnded
+                      ? `of ${formatCountdown(targetDuration)}`
+                      : machine.timer
+                        ? `${Math.round(Math.min(fraction, 1) * 100)}% elapsed`
+                        : "ready"}
+                  </span>
+                </Dial>
+
+                {/* What is being recorded. Blank in a break: a break has no label. */}
+                {machine.timer && !isBreakNow && machine.timer.label && (
+                  <p className="flex max-w-full items-center gap-2 text-sm text-neutral-600">
+                    <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-neutral-700" aria-hidden />
+                    <span className="truncate">{machine.timer.label}</span>
+                  </p>
+                )}
+
+                {!machine.timer && !machine.pendingBreak && (
+                  <div className="flex w-full max-w-sm flex-col items-center gap-3">
+                    <input
+                      type="text"
+                      value={label}
+                      onChange={(e) => setLabel(e.target.value)}
+                      placeholder="What are you working on? (optional)"
+                      aria-label="Block label"
+                      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-center text-sm text-neutral-700 outline-none transition-colors placeholder:text-neutral-400 focus:border-neutral-400"
+                    />
+                  </div>
+                )}
+
+                <div className="mt-1 flex flex-col items-center gap-3">
+                  {!machine.timer ? (
+                    <>
+                      <PrimaryButton
+                        onClick={() =>
+                          dispatch({
+                            kind: "start",
+                            type: currentType,
+                            label: machine.pendingBreak ? null : label || null,
+                            tagId: null,
+                          })
+                        }
+                      >
+                        START
+                      </PrimaryButton>
+                      {machine.pendingBreak && (
+                        <button
+                          onClick={() => dispatch({ kind: "skipBreak" })}
+                          className="text-xs text-neutral-400 transition-colors hover:text-neutral-600"
+                        >
+                          Skip break
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3" data-testid="secondary-controls">
+                        {isPaused ? (
+                          <PrimaryButton onClick={() => dispatch({ kind: "resume" })}>
+                            RESUME
+                          </PrimaryButton>
+                        ) : (
+                          <button
+                            onClick={() => dispatch({ kind: "pause" })}
+                            className="rounded-lg px-6 py-2.5 text-xs font-medium text-neutral-400 transition-colors hover:text-neutral-600"
+                          >
+                            ⏸ PAUSE
+                          </button>
+                        )}
+                        <button
+                          onClick={() => dispatch({ kind: "stop" })}
+                          className="rounded-lg px-6 py-2.5 text-xs font-medium text-neutral-400 transition-colors hover:text-neutral-600"
+                        >
+                          ⏹ STOP
+                        </button>
+                      </div>
+                      {isBreakNow && isRunning && (
+                        <button
+                          onClick={() => dispatch({ kind: "skipBreak" })}
+                          className="text-xs text-neutral-400 transition-colors hover:text-neutral-600"
+                        >
+                          Skip break
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
-            )}
+            </section>
+
+            {/* Where the cycle lives now: off the stage, next to it. */}
+            <aside className="rounded-2xl border border-neutral-200 bg-white p-5">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+                Cycle
+              </p>
+              <div className="mt-3 flex justify-start">
+                <CycleIndicator
+                  completed={pos.completed}
+                  total={settings.blocksPerCycle}
+                  isBreak={isBreakNow}
+                />
+              </div>
+              <p className="mt-3 text-sm text-neutral-500">
+                {pos.completed} of {settings.blocksPerCycle} blocks in this cycle
+              </p>
+
+              <dl className="mt-5 space-y-2.5 border-t border-neutral-100 pt-4 text-sm">
+                {(
+                  [
+                    ["focus", settings.focusDuration],
+                    ["short_break", settings.shortBreakDuration],
+                    ["long_break", settings.longBreakDuration],
+                  ] as const
+                ).map(([type, minutes]) => (
+                  <div key={type} className="flex items-baseline justify-between gap-3">
+                    <dt
+                      className={
+                        type === currentType ? "text-neutral-900" : "text-neutral-500"
+                      }
+                    >
+                      {TYPE_NAME[type]}
+                    </dt>
+                    <dd className="tabular-nums text-neutral-600">{minutes} min</dd>
+                  </div>
+                ))}
+              </dl>
+
+              <p className="mt-4 border-t border-neutral-100 pt-4 text-xs text-neutral-400">
+                Up next:{" "}
+                <span className="text-neutral-600">
+                  {machine.timer
+                    ? isBreakNow
+                      ? TYPE_NAME.focus
+                      : TYPE_NAME[nextBreakType(machine.completed, settings.blocksPerCycle)]
+                    : machine.pendingBreak
+                      ? TYPE_NAME[breakType]
+                      : TYPE_NAME.focus}
+                </span>
+              </p>
+
+              {label && !machine.timer && !machine.pendingBreak && (
+                <button
+                  onClick={() =>
+                    dispatch({ kind: "start", type: "focus", label, tagId: null })
+                  }
+                  className="mt-4 w-full truncate rounded-xl border border-neutral-200 px-3 py-2 text-left text-xs text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-800"
+                >
+                  ↺ Start again: &quot;{label}&quot;
+                </button>
+              )}
+            </aside>
           </div>
-        </div>
-
-        {/* Label or break message */}
-        {isBreak ? (
-          <p className="text-sm text-neutral-400">{machine.timer.type === "long_break" ? "Long break" : "Short break"}</p>
-        ) : machine.timer.label ? (
-          <div className="text-sm text-neutral-500 flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-neutral-700" />
-            {machine.timer.label}
-          </div>
-        ) : null}
-
-        <CycleIndicator
-          completed={pos.completed}
-          total={settings.blocksPerCycle}
-          isBreak={isBreak}
-        />
-
-        {/* Break: Skip link */}
-        {isBreak && !isPaused && (
-          <button
-            onClick={() => dispatch({ kind: "skipBreak" })}
-            className="text-xs text-neutral-300 hover:text-neutral-500 transition-colors mt-2"
-          >
-            Skip break
-          </button>
-        )}
-
-        {/* Controls */}
-        <div className="mt-2">
-          <div className="flex gap-3 items-center" data-testid="secondary-controls">
-            {isPaused ? (
-              <PrimaryButton onClick={() => dispatch({ kind: "resume" })}>
-                RESUME
-              </PrimaryButton>
-            ) : (
-              <button
-                onClick={() => dispatch({ kind: "pause" })}
-                className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
-              >
-                ⏸ PAUSE
-              </button>
-            )}
-            <button
-              onClick={() => dispatch({ kind: "stop" })}
-              className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
-            >
-              ⏹ STOP
-            </button>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
     </>
   );
 }
