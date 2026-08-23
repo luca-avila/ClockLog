@@ -34,21 +34,17 @@ Solo-maintained. Single VPS, Docker Compose, nginx reverse proxy, certbot for TL
 
 ### Reference documents
 
-Read these before proposing UI or data-model changes. They are the source of truth for *what to build*; this file is the operating manual for *how to build it*.
+These describe the shipped system. The code is the source of truth for *what the app does*; this file is the operating manual for *how to build on it*.
 
 | File | Contents |
 | --- | --- |
-| `docs/wireframes.md` | Screen-by-screen layouts, one section per screen ID. **Canonical where the two docs disagree.** |
-| `docs/ux-research.md` | Problem definition, UX rationale, user flows, edge cases, MVP scope. Its wireframe section was deleted — `wireframes.md` is the only set of layouts |
-| `docs/DECISIONS.md` | Closed decision log — every resolved gate and its consequences |
 | `docs/architecture.md` | How the shipped system works: module boundaries and their enforcement, data model, the instants-vs-dates split, the timer engine and offline queue |
 | `docs/api.md` | Endpoint reference with examples, PATCH semantics, and the full error-code table |
 | `docs/operations.md` | Runbook: dev setup, first run, migrations, deploy, backup/restore, troubleshooting |
+| `docs/DECISIONS.md` | Closed decision log — every resolved gate and its consequences |
 | `docs/README.md` | Index of the above, with each document's status |
 
-**Precedence: `wireframes.md` wins.** It is the newer document and reflects the current direction. `ux-research.md` remains the reasoning of record for *why*, but where it describes a different product — most notably the Plan as an undated weekly template — it is stale and `wireframes.md` governs.
-
-Screens have stable IDs defined in `docs/wireframes.md`. Cite the screen ID in issues, commits, and component docstrings.
+Screens keep stable IDs — the table below is their definition. Cite the screen ID in issues, commits, and component docstrings.
 
 | ID | Screen |
 | --- | --- |
@@ -62,9 +58,7 @@ Screens have stable IDs defined in `docs/wireframes.md`. Cite the screen ID in i
 | `SCR-33` | Plan — New entry sheet and Empty week |
 | `SCR-40` | Settings |
 
-If an issue names a screen ID, read that section before writing any UI. **If a request contradicts these documents, say so before implementing. Do not silently expand scope.**
-
-> The build plan (`docs/build-plan.md`) was retired once all 23 slices shipped. Its durable content lives here (invariants, conventions) and in `docs/DECISIONS.md` (gate resolutions). History remains in git if ever needed.
+**If a request contradicts an invariant or the scope boundaries below, say so before implementing. Do not silently expand scope.**
 
 ---
 
@@ -162,7 +156,7 @@ frontend/
     plan/            # PlanWeekScreen, PlanDayScreen, WeekView, DayView, EntrySheet, EmptyWeek
   lib/               # api client, timer engine, date helpers, alerts
   __tests__/
-docs/                # architecture.md, api.md, operations.md, wireframes.md, ux-research.md, DECISIONS.md
+docs/                # architecture.md, api.md, operations.md, DECISIONS.md
 infra/backup/        # nightly pg_dump container
 scripts/ci.sh        # run the full CI suite locally
 .github/workflows/   # CI
@@ -265,7 +259,7 @@ Non-negotiable. Violating these causes bugs that are painful to diagnose after t
 13. **The Plan module never uses Pomodoro vocabulary** — no "block," "focus," "cycle," or "pomodoro" in any string, component name, or column name under `plan/`. Its unit is an **entry**. A planner-only user must never encounter the timer's concepts.
 14. **The plan is a dated weekly calendar.** An entry belongs to a **date**, not a weekday. Weekly repetition exists as a simple `repeat_weekly` flag on the entry — not a recurrence engine, and never iCal RRULE semantics. All-day entries are supported on a single date; multi-day spans are not.
 
-> **On 11–13 and the future timer integration.** The wireframes sketch a `☑ Use focus timer for this` checkbox and a `⏱ Start a timer` action inside plan entries. That is the *ideal* end state, explicitly **not the MVP**: the planner's first version is an isolated weekly calendar with zero timer coupling. Invariants 11–13 hold in full until that integration is deliberately scheduled — at which point 12 and 13 must be renegotiated **in writing first**, not eroded a feature at a time. Do not add the checkbox, the launch action, or any plan→timer reference before then.
+> **On 11–13 and the future timer integration.** The original design sketched a `☑ Use focus timer for this` checkbox and a `⏱ Start a timer` action inside plan entries. That is the *ideal* end state, explicitly **not the MVP**: the planner's first version is an isolated weekly calendar with zero timer coupling. Invariants 11–13 hold in full until that integration is deliberately scheduled — at which point 12 and 13 must be renegotiated **in writing first**, not eroded a feature at a time. Do not add the checkbox, the launch action, or any plan→timer reference before then.
 
 ### Architecture
 
@@ -295,12 +289,10 @@ CI runs `ruff check .` and `ruff format --check app tests` — both must be clea
 
 ### Frontend
 
-**Mobile-first.** Every screen in `docs/wireframes.md` is drawn at phone width, and that is the primary target. Author the mobile layout first and add desktop layouts at breakpoints (`md:`/`lg:`). Desktop is a first-class second target, not an afterthought — each screen's desktop treatment is described in the `## Desktop` sections of the wireframes.
+**Mobile-first.** Phone width is the primary target: author the mobile layout first and add desktop layouts at breakpoints (`md:`/`lg:`). Desktop is a first-class second target, not an afterthought — match the desktop treatment the shipped screens already use.
 
 - **Mobile:** a bottom tab bar — `⏱ Timer · ▤ History · ▦ Plan`. Settings is reached from the header gear, not the tab bar.
 - **Desktop:** a persistent left sidebar carrying the same three destinations plus tags and Settings. History gains a two-pane layout (day list + block inspector) so editing a block never navigates away.
-
-*(This reverses an earlier desktop-first instruction. `wireframes.md` is canonical; prose in `ux-research.md` that says "persistent sidebar, not a bottom tab bar" is stale.)*
 
 Other conventions:
 

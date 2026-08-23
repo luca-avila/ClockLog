@@ -65,7 +65,7 @@ Other non-negotiables (full text in `../AGENTS.md`):
 - **The in-progress block persists to `localStorage`** and must survive a refresh.
 - **No `any`.** `strict` is on.
 - Server Components by default; `"use client"` only where interactivity requires it.
-- Mobile-first; desktop at `md:`/`lg:` breakpoints. See the `## Desktop` sections of `../docs/wireframes.md`.
+- Mobile-first; desktop at `md:`/`lg:` breakpoints — a bottom tab bar on phones, the sidebar from `md:` up.
 - Tag colors are the only saturated color in the UI.
 - Every new `.ts`/`.tsx` file gets the AGPL-3.0 header — copy it from `lib/api/client.ts`. **Under `components/plan/` and `lib/plan/`, copy it from `components/plan/DayView.tsx` instead:** the standard first line contains the word "Pomodoro", which invariant 13 bans anywhere under `plan/`, comments included.
 

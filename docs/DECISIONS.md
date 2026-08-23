@@ -16,8 +16,8 @@
 
 # Decision log — closed
 
-Every gate from the retired build plan, with its consequence. The one
-standing decision point lives in `AGENTS.md` — the note under § Invariants →
+Every design gate that was opened during the build, with its
+consequence. The one standing decision point lives in `AGENTS.md` — the note under § Invariants →
 Module independence, and § Scope boundaries: phase 3 (timer↔plan integration)
 requires renegotiating invariants 12 and 13 in writing before any code.
 
@@ -29,7 +29,7 @@ requires renegotiating invariants 12 and 13 in writing before any code.
 | **G-4** — planner tags (2026-08-15) | Shared. The plan uses the timer's `tag` table; `tag/` stays in `shared/`. | Tags are the single visual element shared across both modules; deleting a tag untaggs blocks **and** entries (`SET NULL`, invariant 10); the delete warning counts affected rows across both. |
 | **G-5** — SCR-33 empty-state copy (2026-08-15) | "Timers are optional." dropped. | Invariant 13 stands unscoped: Plan screens carry no timer vocabulary at all, including the word *timer*. |
 
-Supporting decisions recorded when the plan was retired:
+Supporting decisions, recorded once both modules shipped:
 
 - **Plan API speaks dates, not instants.** An entry is wall-clock calendar
   data — a 09:00 class is 09:00 whatever the offset — so `plan` stores a
@@ -41,7 +41,7 @@ Supporting decisions recorded when the plan was retired:
   feature routers tolerantly, `shared/` counts tag usage via table
   metadata (never feature imports), and `tests/test_deletability.py`
   proves either module deletable. Known gap, deliberate: frontend routes
-  still hard-import timer components — full frontend deletability needs
-  its own slice if ever needed.
+  still hard-import timer components — full frontend deletability would
+  need its own change if ever wanted.
 - **RRULE/recurrence engine: never.** `repeat_weekly` is a plain flag;
   occurrences expand at read time (server-side) and nowhere else.

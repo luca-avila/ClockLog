@@ -1,7 +1,6 @@
 # Architecture
 
-How Tempo is put together, and why. For *what to build* see
-[`wireframes.md`](wireframes.md); for the rules a contributor must follow see
+How Tempo is put together, and why. For the rules a contributor must follow see
 [`../AGENTS.md`](../AGENTS.md); for closed design questions see
 [`DECISIONS.md`](DECISIONS.md).
 
@@ -64,7 +63,7 @@ Two consequences worth knowing before you touch shared code:
 
 **Known, deliberate gap:** frontend *routes* still hard-import timer components, so
 frontend deletability is not proven the way the backend's is. Recorded in
-`DECISIONS.md`; it would need its own slice.
+`DECISIONS.md`; closing it would be its own change.
 
 ---
 

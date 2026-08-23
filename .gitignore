@@ -13,9 +13,6 @@ Thumbs.db
 .env.*
 !.env.example
 
-# archives
-docs/UX research wireframes.zip
-
 # agent tooling (local only)
 .agents/
 skills-lock.json
