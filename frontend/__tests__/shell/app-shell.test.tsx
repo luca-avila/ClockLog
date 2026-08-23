@@ -117,7 +117,7 @@ describe("responsive shape (mobile-first)", () => {
 });
 
 describe("module independence of the shell", () => {
-  const files = ["TabBar.tsx", "Sidebar.tsx", "AppShell.tsx"];
+  const files = ["TabBar.tsx", "Sidebar.tsx", "AppShell.tsx", "PrimaryButton.tsx"];
 
   it("imports nothing from components/timer or components/plan", () => {
     // Mirrors the ESLint no-restricted-imports rule extended to

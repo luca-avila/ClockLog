@@ -44,6 +44,7 @@ import {
 } from "@/lib/alerts";
 import CycleIndicator from "./CycleIndicator";
 import LabelSheet from "./LabelSheet";
+import PrimaryButton from "@/components/shared/PrimaryButton";
 
 const STORAGE_KEY = "tempo_clock";
 const CYCLE_KEY = "tempo_cycle";
@@ -286,17 +287,16 @@ export default function TimerScreen() {
             <div className="flex flex-col items-center gap-4">
               <p className="text-sm text-neutral-400">Step away from the screen</p>
               <div className="flex gap-4">
-                <button
+                <PrimaryButton
                   onClick={() =>
                     dispatch({ kind: "start", type: breakType, label: null, tagId: null })
                   }
-                  className="px-10 py-3 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors"
                 >
                   START
-                </button>
+                </PrimaryButton>
                 <button
                   onClick={() => dispatch({ kind: "skipBreak" })}
-                  className="px-10 py-3 text-sm font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
+                  className="px-10 py-2.5 text-sm font-medium text-neutral-400 hover:text-neutral-600 transition-colors"
                 >
                   Skip break
                 </button>
@@ -312,7 +312,7 @@ export default function TimerScreen() {
                 className="w-64 text-center text-sm text-neutral-500 placeholder:text-neutral-300 border-b border-neutral-200 pb-1 outline-none focus:border-neutral-400 transition-colors"
               />
 
-              <button
+              <PrimaryButton
                 onClick={() =>
                   dispatch({
                     kind: "start",
@@ -321,10 +321,9 @@ export default function TimerScreen() {
                     tagId: null,
                   })
                 }
-                className="px-12 py-3 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors"
               >
                 START
-              </button>
+              </PrimaryButton>
 
               {label && (
                 <button
@@ -427,12 +426,18 @@ export default function TimerScreen() {
         {/* Controls */}
         <div className="mt-2">
           <div className="flex gap-3 items-center" data-testid="secondary-controls">
-            <button
-              onClick={() => dispatch(isPaused ? { kind: "resume" } : { kind: "pause" })}
-              className={isPaused ? "px-10 py-3 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors" : "px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"}
-            >
-              {isPaused ? "RESUME" : "⏸ PAUSE"}
-            </button>
+            {isPaused ? (
+              <PrimaryButton onClick={() => dispatch({ kind: "resume" })}>
+                RESUME
+              </PrimaryButton>
+            ) : (
+              <button
+                onClick={() => dispatch({ kind: "pause" })}
+                className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"
+              >
+                ⏸ PAUSE
+              </button>
+            )}
             <button
               onClick={() => dispatch({ kind: "stop" })}
               className="px-6 py-2 text-xs font-medium text-neutral-400 hover:text-neutral-500 transition-colors"

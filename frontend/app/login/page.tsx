@@ -19,6 +19,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api/client";
+import PrimaryButton from "@/components/shared/PrimaryButton";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -101,13 +102,9 @@ export default function LoginPage() {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="px-12 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-50"
-        >
-          {busy ? "Signing in…" : "SIGN IN"}
-        </button>
+        <PrimaryButton type="submit" disabled={busy}>
+          SIGN IN
+        </PrimaryButton>
       </form>
     </div>
   );

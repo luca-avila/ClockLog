@@ -21,6 +21,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import TagPicker from "@/components/shared/TagPicker";
+import PrimaryButton from "@/components/shared/PrimaryButton";
 import {
   createEntry,
   deleteEntry,
@@ -267,15 +268,14 @@ export default function EntrySheet({
         )}
 
         <div className="flex items-center gap-4 mt-6">
-          <button
+          <PrimaryButton
             type="button"
             aria-label="SAVE"
             onClick={handleSave}
             disabled={busy}
-            className="px-10 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 disabled:opacity-50"
           >
             SAVE
-          </button>
+          </PrimaryButton>
           {editing && (
             <button
               type="button"

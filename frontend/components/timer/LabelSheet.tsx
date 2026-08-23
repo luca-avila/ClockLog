@@ -19,6 +19,7 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api/client";
 import TagPicker from "@/components/shared/TagPicker";
+import PrimaryButton from "@/components/shared/PrimaryButton";
 import { fetchTags, type Tag } from "@/lib/api/tags";
 
 interface LabelSheetProps {
@@ -92,12 +93,7 @@ export default function LabelSheet({ onSave, onSkip }: LabelSheetProps) {
           </div>
 
           <div className="flex gap-4 mt-2">
-            <button
-              onClick={handleSave}
-              className="px-10 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors"
-            >
-              SAVE
-            </button>
+            <PrimaryButton onClick={handleSave}>SAVE</PrimaryButton>
             <button
               onClick={onSkip}
               className="px-10 py-2.5 text-sm font-medium text-neutral-400 hover:text-neutral-600 transition-colors"

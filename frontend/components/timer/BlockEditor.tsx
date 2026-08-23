@@ -18,6 +18,7 @@
 
 import { useState } from "react";
 import TagPicker from "@/components/shared/TagPicker";
+import PrimaryButton from "@/components/shared/PrimaryButton";
 import {
   type BlockData,
   type BlockPatch,
@@ -194,15 +195,14 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
       )}
 
       <div className="flex items-center gap-4 mt-6">
-        <button
+        <PrimaryButton
           type="button"
           aria-label="SAVE"
           onClick={handleSave}
           disabled={busy}
-          className="px-10 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 disabled:opacity-50"
         >
           SAVE
-        </button>
+        </PrimaryButton>
         <button
           type="button"
           aria-label="Delete block"
