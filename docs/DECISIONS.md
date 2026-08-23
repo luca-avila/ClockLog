@@ -28,6 +28,7 @@ requires renegotiating invariants 12 and 13 in writing before any code.
 | **G-3** — settings storage (2026-08-05) | Server-side. | One `user_setting` row per user; settings travel with the account. |
 | **G-4** — planner tags (2026-08-15) | Shared. The plan uses the timer's `tag` table; `tag/` stays in `shared/`. | Tags are the single visual element shared across both modules; deleting a tag untaggs blocks **and** entries (`SET NULL`, invariant 10); the delete warning counts affected rows across both. |
 | **G-5** — SCR-33 empty-state copy (2026-08-15) | "Timers are optional." dropped. | Invariant 13 stands unscoped: Plan screens carry no timer vocabulary at all, including the word *timer*. |
+| **G-6** — single-user vs. open registration (2026-08-23) | **Open registration.** Tempo becomes a multi-tenant hosted app: anyone may sign up, email addresses are verified, and passwords are recoverable. | `POST /auth/register` no longer closes; `REGISTRATION_CLOSED` is retired. Email verification is a hard gate on login. The JWT subject becomes the user id and carries a password-generation claim, so a password reset revokes every live session. Outbound email (Resend) becomes an operational dependency of sign-up. Cross-tenant checks that were inert under one user become load-bearing. See § G-6 in detail below. |
 
 Supporting decisions, recorded once both modules shipped:
 
@@ -45,3 +46,51 @@ Supporting decisions, recorded once both modules shipped:
   need its own change if ever wanted.
 - **RRULE/recurrence engine: never.** `repeat_weekly` is a plain flag;
   occurrences expand at read time (server-side) and nowhere else.
+
+
+---
+
+## G-6 in detail — the single-user assumption, retired
+
+Tempo shipped as a self-hosted app for exactly one person: `POST /auth/register`
+sealed itself after the first account, and that closed door was the whole
+security model for sign-up. The app is now distributed, so the door stays open
+and everything the closed door was standing in for has to be built.
+
+**What was decided, and what follows from it.**
+
+- **Anyone may register.** There is no instance-level switch to close
+  registration again. A self-hoster who wants a private instance restricts it at
+  nginx, not in application code — no `allow_registration` flag, no
+  `is_premium`-shaped conditional threaded through auth (invariant 15's reasoning
+  applies here too).
+- **An unverified account cannot sign in.** `POST /auth/login` returns
+  `403 EMAIL_NOT_VERIFIED` until the address is confirmed. The alternative — let
+  people in and nag them — leaves accounts that can never be recovered, because
+  password reset is only as trustworthy as the address it mails. Verification is
+  therefore a gate, not a reminder.
+- **Passwords are recoverable, so sessions must be revocable.** A reset flow that
+  cannot evict whoever stole the password is theatre. The JWT's `sub` moves from
+  the email to the user id and gains a `pwd` claim pinned to the account's
+  `password_changed_at`; changing the password moves that timestamp and every
+  outstanding token stops validating.
+- **Email is sent through Resend, over plain `httpx`.** No SDK. The call is one
+  authenticated POST, and this codebase already hand-rolls auth rather than take a
+  framework for the same reason.
+- **No per-user quotas.** Storage and row counts are unbounded per account. This
+  is a deliberate accepted risk, revisited only if abuse actually happens — not
+  pre-solved.
+
+**What this decision does *not* license.** Multi-user does not mean multi-tenant
+features. There is no sharing, no team, no visibility of one account's data from
+another, and no admin surface — there is still no path in the app that reads
+across users. Invariants 11–14 are untouched: this changes who the rows belong
+to, not how the two modules relate.
+
+**The debts it calls in.** Three cross-tenant gaps were harmless under a single
+account and are not harmless now: `tag_id` is accepted on blocks and entries
+without checking that the tag belongs to the caller; the history summary loads
+tags by id with no `user_id` filter; and the browser's `localStorage` is shared by
+every account that signs in on that browser, including an offline queue that
+would flush one user's blocks under another's token. Fixing these is part of the
+change, not a follow-up — see `docs/plans/multi-user-auth.md`.
