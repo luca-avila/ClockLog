@@ -293,6 +293,7 @@ CI runs `ruff check .` and `ruff format --check app tests` — both must be clea
 
 - **Mobile:** a bottom tab bar — `⏱ Timer · ▤ History · ▦ Plan`. Settings is reached from the header gear, not the tab bar.
 - **Desktop:** a persistent left sidebar carrying the same three destinations plus tags and Settings. History gains a two-pane layout (day list + block inspector) so editing a block never navigates away.
+- **A `fixed` overlay must clear the mobile tab bar.** The tab bar is an opaque 56px band at `bottom-0`, so anything pinned to the bottom uses `bottom-16 md:bottom-4` and a `z-index` above it, or it is painted underneath on the primary target. Two slots, and they do not share: **app-wide** messages take the centered one (`QueueSync`), **page-scoped** messages the right (`/settings`). A screen shows at most one page-scoped message at a time.
 
 Other conventions:
 
@@ -304,6 +305,7 @@ Other conventions:
 - The cycle indicator (`● ● ○ ○`) appears only on the timer, never in the Plan.
 - Density differs by module on purpose: the timer is sparse, the plan grid is dense. They are used in different mental states.
 - **Empty states are honest and literal** ("No blocks yet"), never fabricated encouragement. The Plan empty state mentions the timer not at all — gate G-5 dropped the "Timers are optional." line, and invariant 13 stands unscoped (`docs/DECISIONS.md`).
+- **One filled button, one size.** `components/shared/PrimaryButton` is the only filled `bg-neutral-900` treatment in the app, and every action that commits something — START, RESUME, SAVE, SIGN IN — routes through it. It takes no `className`: a per-call-site override is how seven divergent copies of it happened the first time. It lives in `shared/` because both feature modules need it and neither may import the other (invariant 11), so its name, props, and copy stay free of Pomodoro vocabulary (invariant 13).
 - Secondary actions **during a running block** (Pause, Stop, Skip) are deliberately low-contrast. During focus, the correct interaction is none. **Resume, in the paused state, is primary** — it carries the same filled treatment as START, because paused is not running and the correct interaction there is precisely to resume.
 
 ```bash
