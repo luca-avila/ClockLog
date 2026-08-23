@@ -48,6 +48,13 @@ const KIND_LABEL: Record<BlockData["kind"], string> = {
   long_break: "long break",
 };
 
+// Render-time fallback: a block with no label but a tag shows the tag name.
+// `label` stays null, so renaming the tag updates the display and the user
+// can still overwrite the label independently.
+export function focusName(label: string | null, tagName: string | undefined) {
+  return label || tagName || "Unlabeled";
+}
+
 export default function HistoryPage() {
   const [date, setDate] = useState(() => new Date());
   const [blocks, setBlocks] = useState<BlockData[]>([]);
@@ -100,8 +107,8 @@ export default function HistoryPage() {
   const focusBlocks = blocks.filter((b) => b.kind === "focus");
   const focusSeconds = focusBlocks.reduce((sum, b) => sum + durationSeconds(b.intervals), 0);
 
-  // Map tag_id → color for the block list dots; no new fetches needed.
-  const tagColorMap = new Map(tags.map((t) => [t.id, t.color]));
+  // Map tag_id → Tag for dot color and name fallback; no new fetches needed.
+  const tagById = new Map(tags.map((t) => [t.id, t]));
 
   const selected = blocks.find((b) => b.id === selectedId) ?? null;
 
@@ -167,13 +174,15 @@ export default function HistoryPage() {
                 const start = b.intervals[0]?.started_at || b.started_at;
                 const duration = durationSeconds(b.intervals);
                 const isFocus = b.kind === "focus";
-                const dotColor = isFocus && b.tag_id ? tagColorMap.get(b.tag_id) : undefined;
+                const tag = isFocus && b.tag_id ? tagById.get(b.tag_id) : undefined;
+                const dotColor = tag?.color;
+                const name = isFocus ? focusName(b.label, tag?.name) : KIND_LABEL[b.kind];
 
                 return (
                   <button
                     key={b.id}
                     onClick={() => setSelectedId(b.id)}
-                    aria-label={`Edit block: ${isFocus ? b.label || "Unlabeled" : KIND_LABEL[b.kind]}`}
+                    aria-label={`Edit block: ${name}`}
                     className={`flex items-start gap-3 w-full text-left rounded-lg px-2 -mx-2 py-1 transition-colors ${
                       selectedId === b.id ? "bg-neutral-100" : "hover:bg-neutral-50"
                     }`}
@@ -191,7 +200,7 @@ export default function HistoryPage() {
                           <span style={dotColor ? { color: dotColor } : undefined}>
                             {isFocus ? "● " : "○ "}
                           </span>
-                          {isFocus ? b.label || "Unlabeled" : KIND_LABEL[b.kind]}
+                          {name}
                         </span>
                       </div>
                       {b.status === "aborted" && (

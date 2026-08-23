@@ -119,6 +119,7 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
         id="block-label"
         type="text"
         value={label}
+        placeholder={tagId ? tags.find((t) => t.id === tagId)?.name ?? "" : ""}
         onChange={(e) => setLabel(e.target.value)}
         className="w-full text-sm border-b border-neutral-200 focus:border-neutral-500 outline-none pb-1 mb-4"
       />
