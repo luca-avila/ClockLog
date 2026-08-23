@@ -16,7 +16,13 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useState, useEffect, useCallback, useReducer } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useReducer,
+  useSyncExternalStore,
+} from "react";
 import {
   type TimerState,
   type BlockType,
@@ -45,6 +51,12 @@ import {
 import CycleIndicator from "./CycleIndicator";
 import LabelSheet from "./LabelSheet";
 import PrimaryButton from "@/components/shared/PrimaryButton";
+
+// The hydration gate below never changes after mount, so it has nothing to
+// subscribe to. useSyncExternalStore is still the right tool: it is the one
+// hook that can return a different value on the server than on the client
+// without React treating the difference as a mismatch.
+const subscribeNever = () => () => {};
 
 const STORAGE_KEY = "tempo_clock";
 const CYCLE_KEY = "tempo_cycle";
@@ -181,6 +193,12 @@ export default function TimerScreen() {
   const { settings } = useSettings();
   const [label, setLabel] = useState(() => machine.timer?.label ?? "");
   const [now, setNow] = useState(() => Date.now());
+  // initMachine reads localStorage, which the server cannot: rendering the
+  // restored machine during hydration makes the server's default disagree
+  // with it. Hold the first paint so the restored state is the only one
+  // ever painted — a wrong countdown must never flash on the largest
+  // element in the app.
+  const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
 
   useEffect(() => {
     try {
@@ -257,6 +275,11 @@ export default function TimerScreen() {
   const pos = cyclePosition(machine.completed, settings.blocksPerCycle);
 
   const breakType = nextBreakType(machine.completed, settings.blocksPerCycle);
+
+  // Same wrapper as both painted states, so nothing reflows when they arrive.
+  if (!hydrated) {
+    return <div className="flex flex-col items-center justify-center min-h-[80vh] px-4" />;
+  }
 
   // IDLE
   if (!machine.timer) {

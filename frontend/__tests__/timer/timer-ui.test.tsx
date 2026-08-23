@@ -16,6 +16,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import { act } from "react";
 import type { TimerState } from "@/lib/timer/engine";
 
@@ -86,6 +87,35 @@ function clickButton(el: HTMLElement, text: string) {
   if (!target) throw new Error(`button with text "${text}" not found`);
   act(() => target.click());
 }
+
+describe("hydration", () => {
+  // initMachine reads localStorage, which the server cannot. Painting the
+  // restored machine during hydration made the server's default disagree with
+  // it, and React regenerated the tree. The server must paint no timer state
+  // at all — not the default, which is just as wrong as the restored one.
+  it("the server render paints no countdown, no cycle, and no controls", () => {
+    localStorage.setItem(
+      CYCLE_KEY,
+      JSON.stringify({ completed: 2, pendingBreak: true })
+    );
+    const markup = renderToStaticMarkup(<TimerScreen />);
+    expect(markup).not.toContain("25:00");
+    expect(markup).not.toContain("05:00");
+    expect(markup).not.toContain("START");
+    expect(markup).not.toContain("bg-emerald-500");
+    expect(markup).not.toContain("aria-label");
+  });
+
+  it("the client paints the restored state once mounted", () => {
+    localStorage.setItem(
+      CYCLE_KEY,
+      JSON.stringify({ completed: 2, pendingBreak: true })
+    );
+    const { container } = render();
+    expect(container.textContent).toContain("Short break");
+    expect(container.textContent).toContain("START");
+  });
+});
 
 describe("idle screen (SCR-10)", () => {
   it("renders START and the default focus duration", () => {
