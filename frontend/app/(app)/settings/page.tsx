@@ -134,14 +134,17 @@ export default function SettingsPage() {
         </button>
       </section>
 
-      {saved && (
-        <div className="fixed bottom-4 right-4 text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
-          Saved
-        </div>
-      )}
-      {error && (
-        <div role="alert" className="fixed bottom-4 left-1/2 -translate-x-1/2 text-xs text-red-600 bg-red-50 px-3 py-1.5 rounded-full">
-          {error}
+      {(error || saved) && (
+        <div className="fixed bottom-16 md:bottom-4 right-4 z-40">
+          {error ? (
+            <div role="alert" className="text-xs text-red-600 bg-red-50 px-3 py-1.5 rounded-full">
+              {error}
+            </div>
+          ) : (
+            <div className="text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
+              Saved
+            </div>
+          )}
         </div>
       )}
     </div>
