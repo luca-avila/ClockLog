@@ -1,0 +1,14 @@
+<!--
+  Tempo — a Pomodoro timer and weekly planner
+  Copyright (C) 2024  Luca
+  Licensed under the GNU Affero General Public License, version 3 or later.
+  See <https://www.gnu.org/licenses/>.
+
+  The LogoMark ring, redrawn at 32 units. currentColor is useless here —
+  a favicon inherits nothing — so the ink is the palette's #2b2521, fixed.
+  Stroke is 4/32 of the box (2px at 16×16) and the gap clears ~3.5px there,
+  so the ring stays a ring at tab size instead of filling in.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <path d="M25.526 10.5A11 11 0 1 1 16 5" fill="none" stroke="#2b2521" stroke-width="4" stroke-linecap="round"/>
+</svg>
