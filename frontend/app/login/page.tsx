@@ -19,6 +19,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api/client";
+import Logo from "@/components/Logo";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 
 export default function LoginPage() {
@@ -68,7 +69,9 @@ export default function LoginPage() {
 
   return (
     <div className="max-w-xs mx-auto min-h-[80vh] flex flex-col justify-center px-4">
-      <h1 className="text-lg font-medium text-neutral-800 mb-2 text-center">Tempo</h1>
+      <h1 className="text-xl text-neutral-800 mb-2 text-center">
+        <Logo />
+      </h1>
       <p className="text-sm text-neutral-400 mb-8 text-center">Sign in to continue</p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">

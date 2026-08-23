@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import Link from "next/link";
+import Logo from "@/components/Logo";
 import Sidebar from "./Sidebar";
 import TabBar from "./TabBar";
 import QueueSync from "./QueueSync";
@@ -28,8 +29,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <header className="md:hidden flex items-center justify-between px-5 py-3 border-b border-neutral-100">
-          <Link href="/" className="text-lg font-light tracking-tight text-neutral-800">
-            Tempo
+          <Link href="/" className="text-lg text-neutral-800">
+            <Logo />
           </Link>
           {/* Settings is reached from the gear, never a fourth tab */}
           <Link

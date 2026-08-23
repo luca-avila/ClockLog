@@ -18,6 +18,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Logo from "@/components/Logo";
 import NavIcon, { type NavIconName } from "./NavIcon";
 
 interface Item {
@@ -81,9 +82,10 @@ export default function Sidebar() {
     // Sticky and full height: history and plan pages are long, and a rail
     // that scrolls away takes the navigation with it.
     <aside className="sticky top-0 hidden md:flex h-dvh w-56 shrink-0 flex-col border-r border-neutral-200 px-3 py-5">
-      <Link href="/" className="mb-7 flex items-center gap-2.5 px-3">
-        <span className="h-2 w-2 rounded-full bg-neutral-800" aria-hidden />
-        <span className="text-lg font-light tracking-tight text-neutral-800">Tempo</span>
+      {/* The dot that used to stand in for a mark is gone: the wordmark's
+          own ring is the mark, and two circles in a row read as a bullet. */}
+      <Link href="/" className="mb-7 block px-3 text-lg text-neutral-800">
+        <Logo />
       </Link>
 
       <nav className="flex flex-col gap-1">{PRIMARY.map(renderItem)}</nav>
