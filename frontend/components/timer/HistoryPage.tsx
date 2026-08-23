@@ -99,7 +99,6 @@ export default function HistoryPage() {
   // the "Xh Ym focus" line.
   const focusBlocks = blocks.filter((b) => b.kind === "focus");
   const focusSeconds = focusBlocks.reduce((sum, b) => sum + durationSeconds(b.intervals), 0);
-  const totalMinutes = focusSeconds / 60;
 
   const selected = blocks.find((b) => b.id === selectedId) ?? null;
 
@@ -138,7 +137,7 @@ export default function HistoryPage() {
             {/* Summary header */}
             <div className="mb-4">
               <p className="text-xs text-neutral-400 mb-3">
-                {Math.floor(totalMinutes / 60)}h {Math.floor(totalMinutes % 60)}m focus ·{" "}
+                {formatDuration(focusSeconds)} focus ·{" "}
                 {focusBlocks.length} block{focusBlocks.length !== 1 ? "s" : ""}
               </p>
               {summary.map((s) => (
