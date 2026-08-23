@@ -18,53 +18,79 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import NavIcon, { type NavIconName } from "./NavIcon";
 
-const ITEMS = [
-  { href: "/", label: "Timer", icon: "⏱" },
-  { href: "/history", label: "History", icon: "▤" },
-  { href: "/plan", label: "Plan", icon: "▦" },
-  // Tags live under Settings' Data section (SCR-40).
-  { href: "/settings#tags", label: "Tags", icon: "●" },
-  { href: "/settings", label: "Settings", icon: "⚙" },
-] as const;
+interface Item {
+  href: string;
+  label: string;
+  icon: NavIconName;
+}
+
+// The three destinations the tab bar also carries (SCR-01).
+const PRIMARY: readonly Item[] = [
+  { href: "/", label: "Timer", icon: "timer" },
+  { href: "/history", label: "History", icon: "history" },
+  { href: "/plan", label: "Plan", icon: "plan" },
+];
+
+// Tags live under Settings' Data section (SCR-40), so this tier is about
+// the app rather than about time — it sits at the foot of the rail.
+const SECONDARY: readonly Item[] = [
+  { href: "/settings#tags", label: "Tags", icon: "tags" },
+  { href: "/settings", label: "Settings", icon: "settings" },
+];
 
 export default function Sidebar() {
   const pathname = usePathname();
 
-  return (
-    <aside className="hidden md:flex flex-col gap-1 w-56 shrink-0 border-r border-neutral-200 p-4">
+  function isActive(href: string): boolean {
+    // A hash href jumps to a section of another item's page, so it is never
+    // a destination of its own — otherwise /settings lights up twice.
+    if (href.includes("#")) return false;
+    return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  }
+
+  function renderItem(item: Item) {
+    const active = isActive(item.href);
+    return (
       <Link
-        href="/"
-        className="text-lg font-light tracking-tight text-neutral-800 mb-6 px-3"
+        key={item.href}
+        href={item.href}
+        aria-current={active ? "page" : undefined}
+        className={`group flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition-colors ${
+          // The border is on both states, transparent when idle: an active
+          // item must not be 2px taller than the one above it.
+          active
+            ? "border-neutral-200 bg-white font-medium text-neutral-900"
+            : "border-transparent text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
+        }`}
       >
-        Tempo
+        <span
+          className={`shrink-0 transition-colors ${
+            active ? "text-neutral-700" : "text-neutral-400 group-hover:text-neutral-600"
+          }`}
+        >
+          <NavIcon name={item.icon} />
+        </span>
+        {item.label}
       </Link>
-      {ITEMS.map((item) => {
-        // A hash href jumps to a section of another item's page, so it is never
-        // a destination of its own — otherwise /settings lights up twice.
-        const active = item.href.includes("#")
-          ? false
-          : item.href === "/"
-            ? pathname === "/"
-            : pathname.startsWith(item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? "page" : undefined}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-              active
-                ? "bg-neutral-100 text-neutral-900 font-medium"
-                : "text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50"
-            }`}
-          >
-            <span className="w-4 text-center" aria-hidden>
-              {item.icon}
-            </span>
-            {item.label}
-          </Link>
-        );
-      })}
+    );
+  }
+
+  return (
+    // Sticky and full height: history and plan pages are long, and a rail
+    // that scrolls away takes the navigation with it.
+    <aside className="sticky top-0 hidden md:flex h-dvh w-56 shrink-0 flex-col border-r border-neutral-200 px-3 py-5">
+      <Link href="/" className="mb-7 flex items-center gap-2.5 px-3">
+        <span className="h-2 w-2 rounded-full bg-neutral-800" aria-hidden />
+        <span className="text-lg font-light tracking-tight text-neutral-800">Tempo</span>
+      </Link>
+
+      <nav className="flex flex-col gap-1">{PRIMARY.map(renderItem)}</nav>
+
+      <div className="mt-auto flex flex-col gap-1 border-t border-neutral-200 pt-3">
+        {SECONDARY.map(renderItem)}
+      </div>
     </aside>
   );
 }

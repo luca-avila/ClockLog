@@ -18,12 +18,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import NavIcon, { type NavIconName } from "./NavIcon";
 
-const TABS = [
-  { href: "/", label: "Timer", icon: "⏱" },
-  { href: "/history", label: "History", icon: "▤" },
-  { href: "/plan", label: "Plan", icon: "▦" },
-] as const;
+const TABS: readonly { href: string; label: string; icon: NavIconName }[] = [
+  { href: "/", label: "Timer", icon: "timer" },
+  { href: "/history", label: "History", icon: "history" },
+  { href: "/plan", label: "Plan", icon: "plan" },
+];
 
 export default function TabBar() {
   const pathname = usePathname();
@@ -46,9 +47,7 @@ export default function TabBar() {
                   : "text-neutral-400 hover:text-neutral-600"
               }`}
             >
-              <span className="text-base leading-none" aria-hidden>
-                {tab.icon}
-              </span>
+              <NavIcon name={tab.icon} />
               {tab.label}
             </Link>
           );
