@@ -343,6 +343,8 @@ by the Free Software Foundation, either version 3 of the License, or
 ClockLog — a timer and weekly planner
 ```
 
+**Exception:** `frontend/components/plan/EmptyWeek.tsx` uses `// ClockLog — a weekly planner screen` because `__tests__/plan/empty-week.test.tsx` scans that specific source file for the regex `timer|block|focus|cycle|pomodoro`, and the word "timer" in the standard header would trip it.
+
 Everything after that first line is identical. Copy the header from `backend/app/plan/models.py` when adding a file there.
 
 Contributions require a signed CLA — the dual-licensing option depends on it, so **do not merge external PRs without one.**
