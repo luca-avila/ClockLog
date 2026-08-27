@@ -16,9 +16,14 @@ Thumbs.db
 # agent tooling (local only)
 .agents/
 skills-lock.json
+loop/
+.claude/
+.opencode/
+opencode.json
 
 # agent-authored design plans — handed to an implementation agent, not shipped
 design-plans/
+docs/plans/
 
 # generated reports
 architecture-review-*.html
