@@ -1,4 +1,4 @@
-// Tempo — a Pomodoro timer and weekly planner
+// ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
 // This program is free software: you can redistribute it and/or modify
@@ -28,7 +28,7 @@ requires renegotiating invariants 12 and 13 in writing before any code.
 | **G-3** — settings storage (2026-08-05) | Server-side. | One `user_setting` row per user; settings travel with the account. |
 | **G-4** — planner tags (2026-08-15) | Shared. The plan uses the timer's `tag` table; `tag/` stays in `shared/`. | Tags are the single visual element shared across both modules; deleting a tag untaggs blocks **and** entries (`SET NULL`, invariant 10); the delete warning counts affected rows across both. |
 | **G-5** — SCR-33 empty-state copy (2026-08-15) | "Timers are optional." dropped. | Invariant 13 stands unscoped: Plan screens carry no timer vocabulary at all, including the word *timer*. |
-| **G-6** — single-user vs. open registration (2026-08-23) | **Open registration.** Tempo becomes a multi-tenant hosted app: anyone may sign up, email addresses are verified, and passwords are recoverable. | `POST /auth/register` no longer closes; `REGISTRATION_CLOSED` is retired. Email verification is a hard gate on login. The JWT subject becomes the user id and carries a password-generation claim, so a password reset revokes every live session. Outbound email (Resend) becomes an operational dependency of sign-up. Cross-tenant checks that were inert under one user become load-bearing. See § G-6 in detail below. |
+| **G-6** — single-user vs. open registration (2026-08-23) | **Open registration.** ClockLog becomes a multi-tenant hosted app: anyone may sign up, email addresses are verified, and passwords are recoverable. | `POST /auth/register` no longer closes; `REGISTRATION_CLOSED` is retired. Email verification is a hard gate on login. The JWT subject becomes the user id and carries a password-generation claim, so a password reset revokes every live session. Outbound email (Resend) becomes an operational dependency of sign-up. Cross-tenant checks that were inert under one user become load-bearing. See § G-6 in detail below. |
 
 Supporting decisions, recorded once both modules shipped:
 
@@ -52,7 +52,7 @@ Supporting decisions, recorded once both modules shipped:
 
 ## G-6 in detail — the single-user assumption, retired
 
-Tempo shipped as a self-hosted app for exactly one person: `POST /auth/register`
+ClockLog shipped as a self-hosted app for exactly one person: `POST /auth/register`
 sealed itself after the first account, and that closed door was the whole
 security model for sign-up. The app is now distributed, so the door stays open
 and everything the closed door was standing in for has to be built.

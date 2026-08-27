@@ -1,4 +1,4 @@
-// Tempo — a Pomodoro timer and weekly planner
+// ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
 // This program is free software: you can redistribute it and/or modify
@@ -196,7 +196,7 @@ describe("offline queue", () => {
   });
 
   it("survives corrupt storage by resetting", () => {
-    localStorage.setItem("tempo_block_queue", "not json{{{");
+    localStorage.setItem("clocklog_block_queue", "not json{{{");
     expect(readQueue(localStorage)).toEqual([]);
     enqueueBlock(payload("a"), localStorage);
     expect(readQueue(localStorage)).toHaveLength(1);
@@ -210,7 +210,7 @@ describe("offline queue", () => {
       label: null,
       tag_id: null,
     };
-    localStorage.setItem("tempo_block_queue", JSON.stringify([incomplete]));
+    localStorage.setItem("clocklog_block_queue", JSON.stringify([incomplete]));
     expect(readQueue(localStorage)).toHaveLength(0);
   });
 
@@ -224,7 +224,7 @@ describe("offline queue", () => {
       label: null,
       tag_id: null,
     };
-    localStorage.setItem("tempo_block_queue", JSON.stringify([bogus]));
+    localStorage.setItem("clocklog_block_queue", JSON.stringify([bogus]));
     expect(readQueue(localStorage)).toHaveLength(0);
   });
 

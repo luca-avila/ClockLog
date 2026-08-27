@@ -13,7 +13,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 <!-- Everything below the END marker is hand-written and survives `next dev`.
      Do not add content inside the block above — it gets regenerated. -->
 
-# Tempo frontend
+# ClockLog frontend
 
 The root `../AGENTS.md` governs. This file covers only what is specific to `frontend/`.
 

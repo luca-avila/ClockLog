@@ -15,8 +15,8 @@ jobs:
       - name: Start services
         run: docker compose up -d --build
         env:
-          DATABASE_URL: postgresql+asyncpg://tempo:tempo@db:5432/tempo
-          TEST_DATABASE_URL: postgresql+asyncpg://tempo:tempo@db:5432/tempo_test
+          DATABASE_URL: postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog
+          TEST_DATABASE_URL: postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog_test
 
       - name: Wait for backend
         run: |

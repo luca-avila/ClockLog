@@ -1,8 +1,8 @@
-# Tempo
+# ClockLog
 
 A Pomodoro timer and weekly planner. Self-hostable, and open to sign-ups.
 
-Tempo is two loosely coupled tools that share a vocabulary but not a codepath:
+ClockLog is two loosely coupled tools that share a vocabulary but not a codepath:
 
 - **Timer + History** — a Pomodoro timer where every block gets a label, producing a
   queryable history of how time was actually spent.

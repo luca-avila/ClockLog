@@ -1,5 +1,5 @@
 #!/bin/sh
-# Tempo — CI check: the canonical commands from CLAUDE.md § Commands.
+# ClockLog — CI check: the canonical commands from CLAUDE.md § Commands.
 # test_deletability.py runs as part of the backend suite, so invariant 11's
 # deletability proof is a check, not a manual experiment.
 set -eu

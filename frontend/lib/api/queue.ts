@@ -1,4 +1,4 @@
-// Tempo — a Pomodoro timer and weekly planner
+// ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
 // This program is free software: you can redistribute it and/or modify
@@ -26,7 +26,7 @@ export interface BlockPayload {
   tag_id: string | null;
 }
 
-const QUEUE_KEY = "tempo_block_queue";
+const QUEUE_KEY = "clocklog_block_queue";
 const RETRY_MS = 30_000;
 
 function isBlockPayload(v: unknown): v is BlockPayload {

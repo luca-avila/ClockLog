@@ -1,6 +1,6 @@
 # Operations runbook
 
-Everything you do to Tempo after the code is written: run it, migrate it, deploy it,
+Everything you do to ClockLog after the code is written: run it, migrate it, deploy it,
 back it up, and diagnose it. One VPS, one user, Docker Compose.
 
 ---
@@ -49,7 +49,7 @@ manual override still exists for the case where mail delivery itself is broken:
 ```bash
 docker compose exec backend python -c "
 from app.core.security import get_password_hash; print(get_password_hash('new-password'))"
-docker compose exec db psql -U tempo -d tempo \
+docker compose exec db psql -U clocklog -d clocklog \
   -c "UPDATE \"user\" SET hashed_password='<paste-hash>', password_changed_at=now() \
       WHERE email='you@example.com';"
 ```
@@ -61,7 +61,7 @@ if you are resetting because a token leaked.
 **Verifying an address by hand**, if a provider is bouncing mail:
 
 ```bash
-docker compose exec db psql -U tempo -d tempo \
+docker compose exec db psql -U clocklog -d clocklog \
   -c "UPDATE \"user\" SET email_verified_at=now() WHERE email='them@example.com';"
 ```
 
@@ -73,7 +73,7 @@ Transactional mail goes through [Resend](https://resend.com) as a single authent
 | Variable | Notes |
 | --- | --- |
 | `RESEND_API_KEY` | From the Resend dashboard. Leave **empty** in dev and CI |
-| `EMAIL_FROM` | Must be an address on a domain verified in Resend, e.g. `Tempo <no-reply@example.com>` |
+| `EMAIL_FROM` | Must be an address on a domain verified in Resend, e.g. `ClockLog <no-reply@example.com>` |
 | `APP_BASE_URL` | Origin the links point at — the **frontend** origin, not the API |
 
 Set up before the first real sign-up: verify the sending domain in Resend and publish
@@ -132,9 +132,9 @@ eslint, `tsc --noEmit`.
 
 ### Test database safety
 
-Backend tests `DELETE FROM` every table. They run against a **separate `tempo_test`
+Backend tests `DELETE FROM` every table. They run against a **separate `clocklog_test`
 database**, never the dev one. `TEST_DATABASE_URL` is set in `docker-compose.yml`; if
-unset it is derived from `DATABASE_URL` by swapping in `tempo_test`.
+unset it is derived from `DATABASE_URL` by swapping in `clocklog_test`.
 
 `tests/conftest.py` raises unless the resolved URL ends in `_test`. **That assertion is
 the safety mechanism, not a formality — do not weaken it to make a test run.**
@@ -244,7 +244,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml stop backend
 
 # 2. Restore into the existing database (custom format, --clean drops first)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backup \
-  sh -c 'pg_restore --clean --if-exists -d "$PGDATABASE" /backups/tempo-<stamp>.dump'
+  sh -c 'pg_restore --clean --if-exists -d "$PGDATABASE" /backups/clocklog-<stamp>.dump'
 
 # 3. Bring the backend back (it will run `alembic upgrade head` on boot)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml start backend
@@ -285,7 +285,7 @@ Liveness: `curl -fsS http://localhost:8000/health`.
 | `test_plan_contains_no_timer_vocabulary` fails on a file you only added a header to | The standard license header contains "Pomodoro". Use the `plan/` variant — see AGENTS.md § License headers. |
 | Timer under-reports elapsed time in a background tab | A counter is accumulating instead of deriving from `startedAt`. Fix at the engine, not the component. |
 | "N blocks could not be saved" toast | The offline queue dropped payloads the server rejected with a 4xx. Check the backend logs for the rejection reason — this is real data loss, not a cosmetic warning. |
-| Blocks stop syncing but the timer runs fine | By design: saves are queued write-behind. Check `localStorage.tempo_block_queue` and whether the session expired (401 pauses the flush). |
+| Blocks stop syncing but the timer runs fine | By design: saves are queued write-behind. Check `localStorage.clocklog_block_queue` and whether the session expired (401 pauses the flush). |
 
 ---
 

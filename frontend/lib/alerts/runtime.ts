@@ -1,4 +1,4 @@
-// Tempo — a Pomodoro timer and weekly planner
+// ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
 // This program is free software: you can redistribute it and/or modify
@@ -21,9 +21,9 @@ import {
   type NotificationPermissionState,
 } from "./plan";
 
-const COMPLETED_KEY = "tempo_has_completed_block";
+const COMPLETED_KEY = "clocklog_has_completed_block";
 const TITLE_FLASH_MS = 5000;
-const DEFAULT_TITLE = "Tempo";
+const DEFAULT_TITLE = "ClockLog";
 
 export interface AlertDeps {
   getPermission: () => NotificationPermissionState;

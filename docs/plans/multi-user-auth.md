@@ -11,7 +11,7 @@ do not resolve it in the code.
 
 ## What is being built
 
-Tempo stops being a single-account app. Anyone may register; an address is verified
+ClockLog stops being a single-account app. Anyone may register; an address is verified
 before its account can sign in; a forgotten password is recovered by email; and a
 password change revokes every live session on that account.
 
@@ -67,7 +67,7 @@ Add to `Settings`:
 | Field | Default | Notes |
 | --- | --- | --- |
 | `resend_api_key` | `""` | Empty means "log the link, send nothing" |
-| `email_from` | `"Tempo <no-reply@localhost>"` | |
+| `email_from` | `"ClockLog <no-reply@localhost>"` | |
 | `app_base_url` | `"http://localhost:3000"` | Frontend origin; links are built from it |
 | `auth_email_rate_limit` | `3` | |
 | `auth_email_rate_window_seconds` | `3600` | |
@@ -250,15 +250,15 @@ These are the defects that only bite once there are two accounts. Do not defer t
 `frontend/app/(app)/settings/page.tsx`, `frontend/app/login/page.tsx`
 
 `localStorage` belongs to the origin, not the session. Today sign-out removes `token`
-and leaves `tempo_clock`, `tempo_cycle`, `tempo_block_queue` and
-`tempo_has_completed_block` behind. The sharp edge is the offline queue: it will flush
+and leaves `clocklog_clock`, `clocklog_cycle`, `clocklog_block_queue` and
+`clocklog_has_completed_block` behind. The sharp edge is the offline queue: it will flush
 one account's blocks under the next account's token.
 
 - Add `clearSession()` to `frontend/lib/api/client.ts`: remove `token` and **every key
-  beginning with `tempo_`**, by prefix. Do not enumerate the timer's key names —
+  beginning with `clocklog_`**, by prefix. Do not enumerate the timer's key names —
   shared code must not know them (invariant 11) and the sweep has to survive either
   module being deleted.
-- **The real guard is at sign-in, not sign-out.** Store `tempo_last_user` (the user id
+- **The real guard is at sign-in, not sign-out.** Store `clocklog_last_user` (the user id
   from `GET /auth/me`) on successful login. On the next successful login, if the id
   differs from the stored one, call `clearSession()` *before* writing the new token. An
   expired session leaves state behind with nobody pressing sign out, so sign-out
@@ -319,7 +319,7 @@ New backend coverage, in rough priority order:
    `conftest.py` that `RESEND_API_KEY` is empty before the suite runs — the same
    posture as the `*_test` database assertion, and for the same reason.
 
-Frontend (Vitest): `clearSession()` clears `token` and every `tempo_*` key and nothing
+Frontend (Vitest): `clearSession()` clears `token` and every `clocklog_*` key and nothing
 else; the differing-user sign-in path clears before storing; a non-empty queue prompts
 instead of silently clearing. Skip exhaustive form tests — `AGENTS.md` § What to test
 still applies.

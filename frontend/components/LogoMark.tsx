@@ -1,4 +1,4 @@
-// Tempo — a Pomodoro timer and weekly planner
+// ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
 // This program is free software: you can redistribute it and/or modify
@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * The Tempo mark on its own: the ring that stands in for the final "o" of
+ * The ClockLog mark on its own: the ring that stands in for the final "o" of
  * the wordmark, without the text. For avatars, loaders, and anywhere the
  * full wordmark does not fit.
  *

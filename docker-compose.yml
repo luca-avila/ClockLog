@@ -8,11 +8,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://tempo:tempo@db:5432/tempo
+      - DATABASE_URL=postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog
       - SECRET_KEY=dev-secret-change-in-production
-      # Tests DELETE from every table — they run against tempo_test, never
+      # Tests DELETE from every table — they run against clocklog_test, never
       # the dev DB. The name must end in _test (conftest enforces it).
-      - TEST_DATABASE_URL=postgresql+asyncpg://tempo:tempo@db:5432/tempo_test
+      - TEST_DATABASE_URL=postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog_test
     depends_on:
       db:
         condition: service_healthy
@@ -22,15 +22,15 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_USER=tempo
-      - POSTGRES_PASSWORD=tempo
-      - POSTGRES_DB=tempo
+      - POSTGRES_USER=clocklog
+      - POSTGRES_PASSWORD=clocklog
+      - POSTGRES_DB=clocklog
     # ports:  # uncomment to expose on host
     #   - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tempo"]
+      test: ["CMD-SHELL", "pg_isready -U clocklog"]
       interval: 2s
       timeout: 3s
       retries: 5

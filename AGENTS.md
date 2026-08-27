@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Operating manual for coding agents working in the Tempo repository.
+Operating manual for coding agents working in the ClockLog repository.
 
 > `CLAUDE.md` imports this file. This is the canonical instruction set — edit it here, not in a copy.
 > Nested `AGENTS.md` files exist (`frontend/AGENTS.md`); the closest one to the file you are editing wins.
@@ -9,7 +9,7 @@ Operating manual for coding agents working in the Tempo repository.
 
 ## Project overview
 
-**Tempo** is a multi-user Pomodoro timer and weekly planner: two loosely coupled tools that share a vocabulary but not a codepath.
+**ClockLog** is a multi-user Pomodoro timer and weekly planner: two loosely coupled tools that share a vocabulary but not a codepath.
 
 1. **Timer + History** — a Pomodoro timer where every block gets a label, producing a queryable history of how time was actually spent.
 2. **Plan** — a dated weekly calendar of ordinary entries (gym, work, classes, meals). Independent of the timer, and fully usable by someone who has never run a Pomodoro.
@@ -196,9 +196,9 @@ npx vitest run -t "recovers an in-progress block"   # one test by name
 
 ### Test database safety
 
-Backend tests `DELETE FROM` every table. They run against a **separate `tempo_test` database**, never the dev one.
+Backend tests `DELETE FROM` every table. They run against a **separate `clocklog_test` database**, never the dev one.
 
-- `TEST_DATABASE_URL` is set in `docker-compose.yml`; if unset it is derived from `DATABASE_URL` by swapping the database name for `tempo_test`.
+- `TEST_DATABASE_URL` is set in `docker-compose.yml`; if unset it is derived from `DATABASE_URL` by swapping the database name for `clocklog_test`.
 - `tests/conftest.py` **raises** unless the resolved URL ends in `_test`. Do not weaken that assertion — it is the actual safety mechanism, not a formality.
 
 ### Test layout and naming
@@ -327,7 +327,7 @@ npx tsc --noEmit      # type check — CI runs this separately from lint
 The project is **AGPL-3.0**. Every new source file — `.py`, `.ts`, `.tsx`, and infrastructure files — gets the standard header. Copy it verbatim from an existing file, e.g. `backend/app/main.py` or `frontend/lib/api/client.ts`:
 
 ```
-Tempo — a Pomodoro timer and weekly planner
+ClockLog — a Pomodoro timer and weekly planner
 Copyright (C) 2024  Luca
 
 This program is free software: you can redistribute it and/or modify
@@ -340,7 +340,7 @@ by the Free Software Foundation, either version 3 of the License, or
 **Files under `plan/` use a different first line.** The standard header contains the word *Pomodoro*, which invariant 13 forbids anywhere under `plan/` — and `test_independence.py` scans the whole file, comments included. Every file in `backend/app/plan/`, `frontend/components/plan/`, and `frontend/lib/plan/` opens with:
 
 ```
-Tempo — a timer and weekly planner
+ClockLog — a timer and weekly planner
 ```
 
 Everything after that first line is identical. Copy the header from `backend/app/plan/models.py` when adding a file there.
@@ -378,7 +378,7 @@ The backend container applies migrations on boot (`alembic upgrade head && fasta
 | `LOGIN_RATE_LIMIT`, `LOGIN_RATE_WINDOW_SECONDS` | backend | Per-IP sliding window on the credential endpoints |
 | `AUTH_EMAIL_RATE_LIMIT`, `AUTH_EMAIL_RATE_WINDOW_SECONDS` | backend | Tighter window on the endpoints that send mail |
 | `RESEND_API_KEY` | backend | Resend key. **Empty in dev and CI**, which logs the link instead of sending |
-| `EMAIL_FROM` | backend | Verified sender, e.g. `Tempo <no-reply@example.com>` |
+| `EMAIL_FROM` | backend | Verified sender, e.g. `ClockLog <no-reply@example.com>` |
 | `APP_BASE_URL` | backend | Origin the emailed links point at — the frontend, not the API |
 | `NEXT_PUBLIC_API_URL` | frontend | Build-time |
 | `POSTGRES_*` | db | |
@@ -403,7 +403,7 @@ The backend container applies migrations on boot (`alembic upgrade head && fasta
 - Unhandled exceptions are logged as one JSON line with a correlating `request_id`, and the response carries `X-Request-ID`. Never leak a traceback to the client.
 - Every endpoint scopes its queries by the authenticated `user_id`. There is no admin path and no cross-user access.
 - **A `tag_id` arriving from a client is not trusted.** Blocks and entries must verify the tag belongs to the caller before storing it, and any query that resolves tags for display must filter by `user_id`. Under a single account these checks were unobservable; they are now the boundary between tenants.
-- **The browser is shared, so signing in is a fence.** Every persisted key is namespaced `tempo_*` (plus `token`), and signing in as a different account clears them all before the session starts — otherwise one account's in-progress block and unsynced offline queue follow the next one into the app.
+- **The browser is shared, so signing in is a fence.** Every persisted key is namespaced `clocklog_*` (plus `token`), and signing in as a different account clears them all before the session starts — otherwise one account's in-progress block and unsynced offline queue follow the next one into the app.
 
 ---
 

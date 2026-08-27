@@ -1,4 +1,4 @@
-# Tempo — a Pomodoro timer and weekly planner
+# ClockLog — a Pomodoro timer and weekly planner
 # Copyright (C) 2024  Luca
 #
 # This program is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ from app.shared.setting.api import router as setting_router
 from app.shared.tag.api import router as tag_router
 from app.shared.user.api import router as user_router
 
-app = FastAPI(title="Tempo")
+app = FastAPI(title="ClockLog")
 
 # Bearer header, not cookie — credentials stay off so any origin list is
 # an explicit allow, never an implicit ambient one.
@@ -55,7 +55,7 @@ for _module_name in ("app.timer.api", "app.plan.api"):
         continue
     app.include_router(_module.router)
 
-error_log = logging.getLogger("tempo.errors")
+error_log = logging.getLogger("clocklog.errors")
 error_log.setLevel(logging.ERROR)
 
 

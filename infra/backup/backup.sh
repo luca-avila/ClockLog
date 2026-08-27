@@ -1,4 +1,4 @@
-# Tempo — a Pomodoro timer and weekly planner
+# ClockLog — a Pomodoro timer and weekly planner
 # Copyright (C) 2024  Luca
 #
 # This program is free software: you can redistribute it and/or modify
@@ -24,7 +24,7 @@ REMOTE="${BACKUP_RCLONE_REMOTE:-}"
 
 while true; do
   STAMP="$(date -u +%Y%m%d-%H%M%S)"
-  FILE="$BACKUP_DIR/tempo-$STAMP.dump"
+  FILE="$BACKUP_DIR/clocklog-$STAMP.dump"
 
   echo "[$(date -u +%FT%TZ)] dumping to $FILE"
   if pg_dump -Fc -f "$FILE"; then
@@ -43,7 +43,7 @@ while true; do
   fi
 
   # Rotate local copies regardless of upload outcome.
-  ls -1t "$BACKUP_DIR"/tempo-*.dump 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
+  ls -1t "$BACKUP_DIR"/clocklog-*.dump 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
     rm -f "$old"
     echo "[$(date -u +%FT%TZ)] rotated out $old"
   done

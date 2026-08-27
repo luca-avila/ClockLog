@@ -1,4 +1,4 @@
-// Tempo — a Pomodoro timer and weekly planner
+// ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
 // This program is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ import {
   type ClockDeps,
 } from "@/lib/timer/engine";
 
-const STORAGE_KEY = "tempo_clock";
+const STORAGE_KEY = "clocklog_clock";
 
 function clearStorage() {
   if (typeof localStorage !== "undefined") {

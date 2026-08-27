@@ -1,4 +1,4 @@
-# Tempo — a Pomodoro timer and weekly planner
+# ClockLog — a Pomodoro timer and weekly planner
 # Copyright (C) 2024  Luca
 #
 # This program is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ from app.main import app
 
 
 def _test_database_url() -> str:
-    """The test DB defaults to a 'tempo_test' database next to the dev one.
+    """The test DB defaults to a 'clocklog_test' database next to the dev one.
 
     The '_test' suffix assertion is the actual safety mechanism: these
     tests DELETE from every table, so pointing them at the dev or prod

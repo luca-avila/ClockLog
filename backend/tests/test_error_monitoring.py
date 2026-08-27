@@ -1,4 +1,4 @@
-# Tempo — a Pomodoro timer and weekly planner
+# ClockLog — a Pomodoro timer and weekly planner
 # Copyright (C) 2024  Luca
 #
 # This program is free software: you can redistribute it and/or modify
@@ -58,11 +58,11 @@ async def test_unhandled_error_returns_structured_json(client, boom_route):
 
 
 async def test_unhandled_error_is_logged_with_request_id(client, boom_route, caplog):
-    with caplog.at_level(logging.ERROR, logger="tempo.errors"):
+    with caplog.at_level(logging.ERROR, logger="clocklog.errors"):
         res = await client.get(boom_route)
     request_id = res.json()["request_id"]
 
-    records = [r for r in caplog.records if r.name == "tempo.errors"]
+    records = [r for r in caplog.records if r.name == "clocklog.errors"]
     assert records, "expected an error log record"
     entry = json.loads(records[0].getMessage())
     assert entry["request_id"] == request_id

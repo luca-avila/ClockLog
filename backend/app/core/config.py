@@ -1,4 +1,4 @@
-# Tempo — a Pomodoro timer and weekly planner
+# ClockLog — a Pomodoro timer and weekly planner
 # Copyright (C) 2024  Luca
 #
 # This program is free software: you can redistribute it and/or modify
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
         if url:
             return url
         # Derive from the dev URL: same server, a *_test database.
-        return self.database_url.rstrip("/").rsplit("/", 1)[0] + "/tempo_test"
+        return self.database_url.rstrip("/").rsplit("/", 1)[0] + "/clocklog_test"
 
 
 settings = Settings()

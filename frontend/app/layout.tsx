@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tempo",
+  title: "ClockLog",
   description: "Pomodoro timer and weekly planner",
 };
 

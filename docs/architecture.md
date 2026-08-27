@@ -1,6 +1,6 @@
 # Architecture
 
-How Tempo is put together, and why. For the rules a contributor must follow see
+How ClockLog is put together, and why. For the rules a contributor must follow see
 [`../AGENTS.md`](../AGENTS.md); for closed design questions see
 [`DECISIONS.md`](DECISIONS.md).
 
@@ -58,7 +58,7 @@ Two consequences worth knowing before you touch shared code:
   loadable with either feature gone.
 - **The Plan module never uses Pomodoro words.** Its unit is an *entry*. Files under
   `backend/app/plan/`, `frontend/components/plan/`, and `frontend/lib/plan/` open with
-  the header line `Tempo — a timer and weekly planner`, because the standard header
+  the header line `ClockLog — a timer and weekly planner`, because the standard header
   contains the word "Pomodoro" and the scan reads whole files.
 
 **Known, deliberate gap:** frontend *routes* still hard-import timer components, so
@@ -226,11 +226,11 @@ clock must start when the label sheet is dismissed**, never at 00:00.
 | `localStorage` key | Holds |
 | --- | --- |
 | `token` | JWT bearer token |
-| `tempo_clock` | the in-progress `TimerState` — a refresh mid-block recovers it |
-| `tempo_cycle` | `{ completed, pendingBreak }` cycle position |
-| `tempo_block_queue` | blocks waiting to sync |
-| `tempo_has_completed_block` | first-block flag, used by the alert logic |
-| `tempo_last_user` | id of the account that last signed in on this browser |
+| `clocklog_clock` | the in-progress `TimerState` — a refresh mid-block recovers it |
+| `clocklog_cycle` | `{ completed, pendingBreak }` cycle position |
+| `clocklog_block_queue` | blocks waiting to sync |
+| `clocklog_has_completed_block` | first-block flag, used by the alert logic |
+| `clocklog_last_user` | id of the account that last signed in on this browser |
 
 `deserializeState` validates the persisted shape field by field and returns `null` on
 anything corrupt or stale, so a bad value can never produce a `TimerState` whose
@@ -238,9 +238,9 @@ anything corrupt or stale, so a bad value can never produce a `TimerState` whose
 
 **One browser, several accounts.** `localStorage` belongs to the origin, not to the
 session, so everything above outlives a sign-out. Signing out clears `token` and every
-`tempo_*` key — by prefix, so no shared code needs to know the timer's key names and the
+`clocklog_*` key — by prefix, so no shared code needs to know the timer's key names and the
 sweep survives either module being deleted. Signing **in** repeats the sweep whenever
-the new user id differs from `tempo_last_user`, which is the guard that actually holds:
+the new user id differs from `clocklog_last_user`, which is the guard that actually holds:
 an expired session leaves state behind without anyone pressing sign out. If the offline
 queue is non-empty, both paths are data loss, so the user is warned and offered a sync
 first rather than having blocks vanish.

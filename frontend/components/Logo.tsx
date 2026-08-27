@@ -1,4 +1,4 @@
-// Tempo — a Pomodoro timer and weekly planner
+// ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@ import { Geist } from "next/font/google";
 import LogoMark from "./LogoMark";
 
 /**
- * The Tempo wordmark: "temp" set in Geist, closed by the countdown ring of
+ * The ClockLog wordmark: "temp" set in Geist, closed by the countdown ring of
  * `LogoMark` standing in for the final "o".
  *
  * Stateless and directive-free, so it renders in a Server Component and in a
@@ -40,7 +40,7 @@ export default function Logo({ className }: LogoProps) {
   return (
     // One label on the wrapper: the text says "temp" and the ring says
     // nothing, so a reader walking the parts would announce a typo.
-    <span role="img" aria-label="Tempo" className={className}>
+    <span role="img" aria-label="ClockLog" className={className}>
       <span aria-hidden className={`${wordmark.className} tracking-[-0.03em]`}>
         temp
       </span>

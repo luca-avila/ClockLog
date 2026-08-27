@@ -1,6 +1,6 @@
 "use client";
 
-// Tempo — a Pomodoro timer and weekly planner
+// ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
 // This program is free software: you can redistribute it and/or modify
@@ -58,8 +58,8 @@ import PrimaryButton from "@/components/shared/PrimaryButton";
 // without React treating the difference as a mismatch.
 const subscribeNever = () => () => {};
 
-const STORAGE_KEY = "tempo_clock";
-const CYCLE_KEY = "tempo_cycle";
+const STORAGE_KEY = "clocklog_clock";
+const CYCLE_KEY = "clocklog_cycle";
 
 interface StoredCycle {
   completed: number | null;
