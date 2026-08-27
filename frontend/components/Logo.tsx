@@ -18,8 +18,8 @@ import { Geist } from "next/font/google";
 import LogoMark from "./LogoMark";
 
 /**
- * The ClockLog wordmark: "temp" set in Geist, closed by the countdown ring of
- * `LogoMark` standing in for the final "o".
+ * The ClockLog wordmark: "cl" and "cklog" set in Geist, with the countdown
+ * ring of `LogoMark` standing in for the first "o".
  *
  * Stateless and directive-free, so it renders in a Server Component and in a
  * Client Component alike. It carries no size of its own — everything below
@@ -38,16 +38,19 @@ interface LogoProps {
 
 export default function Logo({ className }: LogoProps) {
   return (
-    // One label on the wrapper: the text says "temp" and the ring says
-    // nothing, so a reader walking the parts would announce a typo.
+    // One label on the wrapper: the text says "cl" and "cklog" and the ring
+    // says nothing, so a reader walking the parts would announce a typo.
     <span role="img" aria-label="ClockLog" className={className}>
       <span aria-hidden className={`${wordmark.className} tracking-[-0.03em]`}>
-        temp
+        cl
       </span>
       {/* 0.58em against Geist's ~0.52em x-height, sat 0.03em below the
           baseline: the ring overshoots top and bottom exactly as a round
           letter does, so it reads as an "o" and not as a pasted-on icon. */}
       <LogoMark className="inline-block h-[0.58em] w-[0.58em] align-[-0.03em]" />
+      <span aria-hidden className={`${wordmark.className} tracking-[-0.03em]`}>
+        cklog
+      </span>
     </span>
   );
 }

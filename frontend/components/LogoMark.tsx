@@ -15,9 +15,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * The ClockLog mark on its own: the ring that stands in for the final "o" of
- * the wordmark, without the text. For avatars, loaders, and anywhere the
- * full wordmark does not fit.
+ * The ClockLog mark on its own: the ring that stands in for the "o" of the
+ * wordmark, without the text. For avatars, loaders, and anywhere the full
+ * wordmark does not fit.
  *
  * One arc, one path — the same geometry `Logo` uses, so the two can never
  * drift apart. The gap opens at 12 o'clock and runs 60° clockwise: that is

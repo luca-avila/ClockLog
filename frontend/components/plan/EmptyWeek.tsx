@@ -1,4 +1,4 @@
-// ClockLog — a timer and weekly planner
+// ClockLog — a weekly planner screen
 // Copyright (C) 2024  Luca
 //
 // This program is free software: you can redistribute it and/or modify
