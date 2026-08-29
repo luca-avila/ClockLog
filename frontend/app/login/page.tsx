@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API_BASE, LAST_USER_KEY, clearSession } from "@/lib/api/client";
 import { readQueue } from "@/lib/api/queue";
@@ -28,7 +29,24 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [unverified, setUnverified] = useState(false);
+  const [resent, setResent] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // The password-reset screen lands here with ?reset=1: resetting revoked
+  // every session, including this browser's. Read from the location, not
+  // useSearchParams, so this page stays statically renderable.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("reset") === "1") {
+      // One-shot URL flag → one-shot notice; there is no event to hang it on.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setNotice(
+        "Your password was reset. Every session was signed out — sign in with the new one."
+      );
+      window.history.replaceState(null, "", "/login");
+    }
+  }, []);
 
   // Plain fetch, not apiFetch: a failed login is a form error, never the
   // 401-redirect apiFetch performs for expired sessions.
@@ -36,6 +54,8 @@ export default function LoginPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setUnverified(false);
+    setResent(false);
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
@@ -51,6 +71,9 @@ export default function LoginPage() {
         }
         if (code === "INVALID_CREDENTIALS") {
           setError("Invalid email or password");
+        } else if (code === "EMAIL_NOT_VERIFIED") {
+          setError("Verify your email address first — check your inbox for the link");
+          setUnverified(true);
         } else if (code === "RATE_LIMITED") {
           setError("Too many attempts — wait a moment and try again");
         } else {
@@ -95,6 +118,25 @@ export default function LoginPage() {
     }
   }
 
+  async function resendVerification() {
+    setBusy(true);
+    setError(null);
+    try {
+      // 204 either way — but this branch only renders after the server
+      // already said the address exists and is unverified.
+      await fetch(`${API_BASE}/auth/resend-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setResent(true);
+    } catch {
+      setError("Could not reach the server — check your connection");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="max-w-xs mx-auto min-h-[80vh] flex flex-col justify-center px-4">
       <h1 className="text-xl text-neutral-800 mb-2 text-center">
@@ -127,16 +169,35 @@ export default function LoginPage() {
           />
         </label>
 
+        {notice && <p className="text-xs text-neutral-500">{notice}</p>}
+
         {error && (
           <p className="text-xs text-red-500" role="alert">
             {error}
           </p>
         )}
 
-        <PrimaryButton type="submit" disabled={busy}>
-          SIGN IN
-        </PrimaryButton>
+        {resent && <p className="text-xs text-neutral-500">Link sent — check your inbox</p>}
+
+        {unverified ? (
+          <PrimaryButton type="button" onClick={resendVerification} disabled={busy}>
+            RESEND LINK
+          </PrimaryButton>
+        ) : (
+          <PrimaryButton type="submit" disabled={busy}>
+            SIGN IN
+          </PrimaryButton>
+        )}
       </form>
+
+      <div className="mt-8 flex flex-col gap-1 text-xs text-neutral-400 text-center">
+        <Link href="/register" className="hover:text-neutral-600 transition-colors">
+          Create an account
+        </Link>
+        <Link href="/forgot-password" className="hover:text-neutral-600 transition-colors">
+          Forgot your password?
+        </Link>
+      </div>
     </div>
   );
 }
