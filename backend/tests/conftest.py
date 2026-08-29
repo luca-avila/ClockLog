@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import pytest
 import pytest_asyncio
 from sqlalchemy import NullPool, text
 from sqlalchemy.ext.asyncio import (
@@ -90,3 +91,25 @@ async def db_session(engine: AsyncEngine):
     async with maker() as session:
         yield session
         await session.rollback()
+
+
+@pytest.fixture(autouse=True)
+def mail_outbox(monkeypatch):
+    """Capture emails instead of sending them.
+
+    Works only because user/api.py imports the mailer as a module
+    (`from app.core import email as email_sender`) and calls
+    `email_sender.send_*` — patching the module attribute. Rebinding the
+    functions with a from-import would freeze them and silently defeat this.
+    """
+    sent: list[tuple[str, str, str]] = []  # (to, purpose, raw_token)
+
+    async def _verify(to: str, token: str) -> None:
+        sent.append((to, "verify", token))
+
+    async def _reset(to: str, token: str) -> None:
+        sent.append((to, "reset", token))
+
+    monkeypatch.setattr("app.core.email.send_verification_email", _verify)
+    monkeypatch.setattr("app.core.email.send_reset_email", _reset)
+    return sent

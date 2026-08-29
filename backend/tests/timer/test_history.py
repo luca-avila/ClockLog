@@ -19,7 +19,7 @@ import uuid
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
-from app.core.security import create_access_token
+from app.core.security import create_user_token
 from app.main import app
 from app.shared.user.schemas import UserCreate
 from app.shared.user.service import create_user
@@ -55,7 +55,7 @@ class TestHistory:
     async def test_blocks_in_range_ordered_by_time(self, db_session):
         user = await create_user(db_session, UserCreate(email="hist@test.com", password="secret12"))
         await db_session.commit()
-        token = create_access_token(data={"sub": user.email})
+        token = create_user_token(user.id, user.password_changed_at)
         headers = {"Authorization": f"Bearer {token}"}
 
         transport = ASGITransport(app=app)
@@ -81,7 +81,7 @@ class TestHistory:
             db_session, UserCreate(email="abort@test.com", password="secret12")
         )
         await db_session.commit()
-        token = create_access_token(data={"sub": user.email})
+        token = create_user_token(user.id, user.password_changed_at)
         headers = {"Authorization": f"Bearer {token}"}
 
         transport = ASGITransport(app=app)
@@ -110,8 +110,8 @@ class TestHistory:
         u1 = await create_user(db_session, UserCreate(email="u1-h@test.com", password="secret12"))
         u2 = await create_user(db_session, UserCreate(email="u2-h@test.com", password="secret12"))
         await db_session.commit()
-        h1 = {"Authorization": f"Bearer {create_access_token(data={'sub': u1.email})}"}
-        h2 = {"Authorization": f"Bearer {create_access_token(data={'sub': u2.email})}"}
+        h1 = {"Authorization": f"Bearer {create_user_token(u1.id, u1.password_changed_at)}"}
+        h2 = {"Authorization": f"Bearer {create_user_token(u2.id, u2.password_changed_at)}"}
 
         transport = ASGITransport(app=app)
 
@@ -132,7 +132,8 @@ class TestHistory:
     async def test_kind_roundtrip_and_default(self, db_session):
         user = await create_user(db_session, UserCreate(email="kind@test.com", password="secret12"))
         await db_session.commit()
-        headers = {"Authorization": f"Bearer {create_access_token(data={'sub': user.email})}"}
+        token = create_user_token(user.id, user.password_changed_at)
+        headers = {"Authorization": f"Bearer {token}"}
 
         transport = ASGITransport(app=app)
 
@@ -161,7 +162,7 @@ class TestSummary:
     async def test_aggregates_by_tag(self, db_session):
         user = await create_user(db_session, UserCreate(email="summ@test.com", password="secret12"))
         await db_session.commit()
-        token = create_access_token(data={"sub": user.email})
+        token = create_user_token(user.id, user.password_changed_at)
         headers = {"Authorization": f"Bearer {token}"}
 
         transport = ASGITransport(app=app)
@@ -219,7 +220,7 @@ class TestSummary:
             db_session, UserCreate(email="abrt-s@test.com", password="secret12")
         )
         await db_session.commit()
-        token = create_access_token(data={"sub": user.email})
+        token = create_user_token(user.id, user.password_changed_at)
         headers = {"Authorization": f"Bearer {token}"}
 
         transport = ASGITransport(app=app)
@@ -246,7 +247,8 @@ class TestSummary:
     async def test_summary_excludes_breaks(self, db_session):
         user = await create_user(db_session, UserCreate(email="brk@test.com", password="secret12"))
         await db_session.commit()
-        headers = {"Authorization": f"Bearer {create_access_token(data={'sub': user.email})}"}
+        token = create_user_token(user.id, user.password_changed_at)
+        headers = {"Authorization": f"Bearer {token}"}
 
         transport = ASGITransport(app=app)
 
@@ -300,7 +302,8 @@ class TestSummary:
             db_session, UserCreate(email="lbl-brk@test.com", password="secret12")
         )
         await db_session.commit()
-        headers = {"Authorization": f"Bearer {create_access_token(data={'sub': user.email})}"}
+        token = create_user_token(user.id, user.password_changed_at)
+        headers = {"Authorization": f"Bearer {token}"}
 
         transport = ASGITransport(app=app)
 

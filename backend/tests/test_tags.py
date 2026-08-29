@@ -34,7 +34,7 @@ from app.shared.user.service import create_user, get_user_by_email
 
 async def _auth_header(db_session) -> dict:
     """Create a user, authenticate, return auth headers."""
-    from app.core.security import create_access_token
+    from app.core.security import create_user_token
 
     email = "tag-test@example.com"
     user = await get_user_by_email(db_session, email)
@@ -42,7 +42,7 @@ async def _auth_header(db_session) -> dict:
         user = await create_user(db_session, UserCreate(email=email, password="secret12"))
         await db_session.commit()
 
-    token = create_access_token(data={"sub": user.email})
+    token = create_user_token(user.id, user.password_changed_at)
     return {"Authorization": f"Bearer {token}"}
 
 

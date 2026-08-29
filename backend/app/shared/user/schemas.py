@@ -17,12 +17,25 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+
+def _reject_over_72_bytes(password: str) -> str:
+    # bcrypt silently truncates past 72 bytes; accepting half a password is
+    # worse than rejecting it.
+    if len(password.encode("utf-8")) > 72:
+        raise ValueError("Password must be at most 72 bytes")
+    return password
 
 
 class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
+
+    @field_validator("password")
+    @classmethod
+    def _bcrypt_limit(cls, v: str) -> str:
+        return _reject_over_72_bytes(v)
 
 
 class UserLogin(BaseModel):
@@ -30,9 +43,30 @@ class UserLogin(BaseModel):
     password: str = Field(min_length=1)  # validated against stored hash, no need for 8
 
 
+class EmailRequest(BaseModel):
+    """resend-verification and forgot-password: only ever an address."""
+
+    email: EmailStr
+
+
+class TokenSubmit(BaseModel):
+    token: str = Field(min_length=1)
+
+
+class PasswordReset(BaseModel):
+    token: str = Field(min_length=1)
+    password: str = Field(min_length=8)
+
+    @field_validator("password")
+    @classmethod
+    def _bcrypt_limit(cls, v: str) -> str:
+        return _reject_over_72_bytes(v)
+
+
 class UserResponse(BaseModel):
     id: uuid.UUID
     email: str
+    email_verified: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}

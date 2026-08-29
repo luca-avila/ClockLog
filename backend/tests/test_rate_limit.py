@@ -82,7 +82,7 @@ async def test_rate_limit_window_expires(client, login_payload, monkeypatch):
     assert allowed.status_code == 401
 
 
-async def test_successful_login_still_counts_toward_limit(client):
+async def test_successful_login_still_counts_toward_limit(client, mail_outbox):
     from app.core import ratelimit
 
     ratelimit.reset()
@@ -91,6 +91,11 @@ async def test_successful_login_still_counts_toward_limit(client):
         json={"email": "ok@example.com", "password": "correct-horse"},
     )
     assert res.status_code == 201
+
+    # Login requires a verified address — burn the token from the mail first.
+    _, _, raw = mail_outbox[-1]
+    verified = await client.post("/auth/verify-email", json={"token": raw})
+    assert verified.status_code == 200
 
     good = {"email": "ok@example.com", "password": "correct-horse"}
     for _ in range(10):

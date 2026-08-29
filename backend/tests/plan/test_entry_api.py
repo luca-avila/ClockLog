@@ -20,7 +20,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.core.security import create_access_token
+from app.core.security import create_user_token
 from app.main import app
 from app.shared.user.schemas import UserCreate
 from app.shared.user.service import create_user
@@ -41,7 +41,7 @@ async def user_headers(db_session):
         UserCreate(email=f"plan-api-{uuid.uuid4().hex[:8]}@example.com", password="longenough"),
     )
     await db_session.commit()  # visible to the app's own session
-    token = create_access_token(data={"sub": user.email})
+    token = create_user_token(user.id, user.password_changed_at)
     return {"Authorization": f"Bearer {token}"}, user
 
 
@@ -52,7 +52,7 @@ async def other_headers(db_session):
         UserCreate(email=f"plan-other-{uuid.uuid4().hex[:8]}@example.com", password="longenough"),
     )
     await db_session.commit()
-    token = create_access_token(data={"sub": user.email})
+    token = create_user_token(user.id, user.password_changed_at)
     return {"Authorization": f"Bearer {token}"}, user
 
 

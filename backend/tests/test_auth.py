@@ -82,7 +82,7 @@ class TestProtectedRoutes:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_valid_token_returns_200(self):
+    async def test_valid_token_returns_200(self, mail_outbox):
         email = f"auth-test-{uuid.uuid4()}@example.com"
 
         transport = ASGITransport(app=app)
@@ -92,6 +92,12 @@ class TestProtectedRoutes:
                 json={"email": email, "password": "secret12"},
             )
             assert register_resp.status_code == 201
+
+            # Unverified addresses cannot sign in: take the token from the
+            # captured mail and verify first.
+            _, _, raw = mail_outbox[-1]
+            verify_resp = await client.post("/auth/verify-email", json={"token": raw})
+            assert verify_resp.status_code == 200
 
             login_resp = await client.post(
                 "/auth/login",
@@ -105,23 +111,6 @@ class TestProtectedRoutes:
             )
         assert response.status_code == 200
         assert response.json()["email"] == email
-
-    @pytest.mark.asyncio
-    async def test_registration_closes_once_a_user_exists(self):
-        """Single-user app: the second account is a 409, not a new tenant."""
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            first = await client.post(
-                "/auth/register",
-                json={"email": "owner@example.com", "password": "secret12"},
-            )
-            second = await client.post(
-                "/auth/register",
-                json={"email": "intruder@example.com", "password": "secret12"},
-            )
-        assert first.status_code == 201
-        assert second.status_code == 409
-        assert second.json()["code"] == "REGISTRATION_CLOSED"
 
 
 class TestErrorFormat:

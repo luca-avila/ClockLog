@@ -19,7 +19,7 @@ import uuid
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
-from app.core.security import create_access_token
+from app.core.security import create_user_token
 from app.main import app
 from app.shared.user.schemas import UserCreate
 from app.shared.user.service import create_user
@@ -30,7 +30,7 @@ async def _register_and_post(db_session) -> tuple[dict, str]:
     email = f"label-{uuid.uuid4()}@example.com"
     user = await create_user(db_session, UserCreate(email=email, password="secret12"))
     await db_session.commit()
-    token = create_access_token(data={"sub": user.email})
+    token = create_user_token(user.id, user.password_changed_at)
     return {"Authorization": f"Bearer {token}"}, str(user.id)
 
 

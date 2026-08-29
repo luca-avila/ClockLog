@@ -17,7 +17,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
-from app.core.security import create_access_token
+from app.core.security import create_user_token
 from app.main import app
 from app.shared.user.schemas import UserCreate
 from app.shared.user.service import create_user
@@ -27,7 +27,7 @@ async def _auth(db_session):
 
     user = await create_user(db_session, UserCreate(email="settings@test.com", password="secret12"))
     await db_session.commit()
-    token = create_access_token(data={"sub": user.email})
+    token = create_user_token(user.id, user.password_changed_at)
     return {"Authorization": f"Bearer {token}"}
 
 
