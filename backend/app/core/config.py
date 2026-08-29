@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     # conftest enforces the *_test suffix; deriving the default keeps the
     # documented `docker compose exec backend pytest` working unchanged.
     test_database_url: str = ""
+    auth_email_rate_limit: int = 3
+    auth_email_rate_window_seconds: float = 3600
+    # Vacío = no enviar, loguear el link. Es el valor de dev y de CI.
+    resend_api_key: str = ""
+    email_from: str = "ClockLog <no-reply@localhost>"
+    # Origen al que apuntan los links del mail: el FRONTEND, no la API.
+    app_base_url: str = "http://localhost:3000"
+    verification_token_ttl_hours: int = 24
+    reset_token_ttl_hours: int = 1
 
     @property
     def cors_origin_list(self) -> list[str]:

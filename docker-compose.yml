@@ -13,6 +13,10 @@ services:
       # Tests DELETE from every table — they run against clocklog_test, never
       # the dev DB. The name must end in _test (conftest enforces it).
       - TEST_DATABASE_URL=postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog_test
+      # Emailed links point at the frontend. RESEND_API_KEY is deliberately
+      # unset in dev: the sender then logs the link instead of sending.
+      - APP_BASE_URL=http://localhost:3000
+      - EMAIL_FROM=ClockLog <no-reply@localhost>
     depends_on:
       db:
         condition: service_healthy

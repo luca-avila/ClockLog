@@ -4,7 +4,8 @@ WORKDIR /app
 
 COPY pyproject.toml .
 
-# --- dev stage: includes pytest, ruff, httpx for local testing ---
+# --- dev stage: includes pytest and ruff for local testing ---
+# (httpx is a runtime dependency now — the email sender uses it in prod too.)
 FROM base AS dev
 RUN pip install --no-cache-dir -e ".[dev]"
 COPY . .
