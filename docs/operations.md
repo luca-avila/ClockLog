@@ -26,9 +26,6 @@ need `psql` from outside.
 
 ### First run
 
-> **Ahead of the code.** This section and § Email delivery describe open registration
-> (DECISIONS.md § G-6), not yet implemented.
-
 Registration is open — sign up from the app at <http://localhost:3000>. An address must
 be verified before it can sign in.
 

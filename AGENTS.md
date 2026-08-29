@@ -43,10 +43,9 @@ These describe the shipped system. The code is the source of truth for *what the
 | `docs/api.md` | Endpoint reference with examples, PATCH semantics, and the full error-code table |
 | `docs/operations.md` | Runbook: dev setup, first run, migrations, deploy, backup/restore, troubleshooting |
 | `docs/DECISIONS.md` | Closed decision log — every resolved gate and its consequences |
-| `docs/plans/multi-user-auth.md` | The open-registration change (G-6), step by step. Transient — deleted when it lands |
 | `docs/README.md` | Index of the above, with each document's status. **Check it before trusting a page**: sections written ahead of the code are flagged there and inline |
 
-Screens keep stable IDs — the table below is their definition. Cite the screen ID in issues, commits, and component docstrings. `SCR-02`…`SCR-05` are the unauthenticated screens: `SCR-02` exists, the rest arrive with G-6.
+Screens keep stable IDs — the table below is their definition. Cite the screen ID in issues, commits, and component docstrings. `SCR-02`…`SCR-05` are the unauthenticated screens.
 
 | ID | Screen |
 | --- | --- |
@@ -440,7 +439,7 @@ The backend container applies migrations on boot (`alembic upgrade head && fasta
 
 **Shipped (phase 2):** the weekly planner as an **isolated dated calendar** — week list, day timeline, entry editor with `repeat_weekly`, planner-only empty states. Zero timer coupling.
 
-**In progress:** open registration — multi-user sign-up with verified email addresses and password recovery, replacing the single-account model. Decided in `docs/DECISIONS.md` § G-6; the implementation steps are `docs/plans/multi-user-auth.md`. Until that lands, the code still seals registration after the first account, and any doc marked *ahead of the code* in `docs/README.md` describes the target, not the present.
+**Shipped (G-6):** open registration — multi-user sign-up with verified email addresses and password recovery, replacing the single-account model. Decided in `docs/DECISIONS.md` § G-6. Registration is open unconditionally; a private deployment is restricted at nginx, not in application code.
 
 **Phase 3+, not started:** timer integration with the plan (`Use focus timer for this`, `Start a timer` on an entry). Requires renegotiating invariants 12 and 13 **in writing, up front** — not feature by feature. **Do not resolve this unilaterally; ask.**
 

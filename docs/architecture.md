@@ -69,9 +69,6 @@ frontend deletability is not proven the way the backend's is. Recorded in
 
 ## 3. Data model
 
-> **Ahead of the code.** `email_verified_at`, `password_changed_at`, and `email_token`
-> are part of the open-registration change (DECISIONS.md § G-6), not yet implemented.
-
 Every table is owned by a `user` row and cascades on user delete. There is no table
 without a `user_id`, and no query anywhere reads across users.
 

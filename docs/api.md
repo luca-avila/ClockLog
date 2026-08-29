@@ -4,11 +4,6 @@ Base URL: `http://localhost:8000` in development. Interactive docs at `/docs`
 (OpenAPI JSON at `/openapi.json`) — this page is the prose version, with the parts the
 schema cannot tell you.
 
-> **Ahead of the code.** The `/auth` section below describes open registration with
-> verified addresses and password recovery, decided in
-> [DECISIONS.md](DECISIONS.md) § G-6 and not yet implemented. Everything outside
-> `/auth` is current. Implementation steps: `plans/multi-user-auth.md`.
-
 **Every endpoint requires `Authorization: Bearer <token>`** except `/health` and the
 unauthenticated half of `/auth`: `register`, `verify-email`, `resend-verification`,
 `login`, `forgot-password`, `reset-password`.

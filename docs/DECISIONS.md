@@ -93,5 +93,5 @@ account and are not harmless now: `tag_id` is accepted on blocks and entries
 without checking that the tag belongs to the caller; the history summary loads
 tags by id with no `user_id` filter; and the browser's `localStorage` is shared by
 every account that signs in on that browser, including an offline queue that
-would flush one user's blocks under another's token. Fixing these is part of the
-change, not a follow-up — see `docs/plans/multi-user-auth.md`.
+would flush one user's blocks under another's token. All three are closed as part
+of the change, proven by `backend/tests/test_isolation.py`.
