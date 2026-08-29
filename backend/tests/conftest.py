@@ -41,6 +41,12 @@ def _test_database_url() -> str:
     return url
 
 
+if settings.resend_api_key:
+    # The suite asserts the no-network email path; a real key would make
+    # tests send mail.
+    raise RuntimeError("RESEND_API_KEY must be empty when running tests")
+
+
 @pytest_asyncio.fixture(scope="session")
 async def engine():
     eng = create_async_engine(_test_database_url(), poolclass=NullPool)
@@ -58,6 +64,7 @@ async def _clean_db(engine: AsyncEngine):
             "entry",
             "tag",
             "user_setting",
+            "email_token",
             '"user"',
         ):
             await conn.execute(text(f"DELETE FROM {table}"))
