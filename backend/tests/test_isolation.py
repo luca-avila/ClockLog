@@ -54,8 +54,10 @@ async def two_users(mail_outbox):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         a = await _make_verified_user(client, f"a-{uuid.uuid4().hex[:8]}@example.com", mail_outbox)
         b = await _make_verified_user(client, f"b-{uuid.uuid4().hex[:8]}@example.com", mail_outbox)
-        yield client, Headers({"Authorization": f"Bearer {a}"}), Headers(
-            {"Authorization": f"Bearer {b}"}
+        yield (
+            client,
+            Headers({"Authorization": f"Bearer {a}"}),
+            Headers({"Authorization": f"Bearer {b}"}),
         )
     ratelimit.reset()
 
@@ -121,9 +123,7 @@ class TestCrossAccountIsolation:
         entry_id = await _make_entry(client, hb)
         for method in ("get", "patch", "delete"):
             kwargs = {"json": {"name": "stolen"}} if method == "patch" else {}
-            res = await getattr(client, method)(
-                f"/plan/entries/{entry_id}", headers=ha, **kwargs
-            )
+            res = await getattr(client, method)(f"/plan/entries/{entry_id}", headers=ha, **kwargs)
             assert res.status_code == 404, f"{method} leaked entry data: {res.text}"
             assert "b-entry" not in res.text
 
