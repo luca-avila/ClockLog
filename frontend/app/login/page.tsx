@@ -18,7 +18,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE } from "@/lib/api/client";
+import { API_BASE, LAST_USER_KEY, clearSession } from "@/lib/api/client";
+import { readQueue } from "@/lib/api/queue";
 import Logo from "@/components/Logo";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 
@@ -58,7 +59,34 @@ export default function LoginPage() {
         return;
       }
       const data: { access_token: string } = await res.json();
+
+      // Who is this token for? Needed before writing anything: a shared
+      // browser must not carry the previous account's state across.
+      let userId: string | null = null;
+      try {
+        const me = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${data.access_token}` },
+        });
+        if (me.ok) userId = (await me.json())?.id ?? null;
+      } catch {
+        /* unreachable server right after a successful login is unlikely;
+           without an id we skip the fence rather than block sign-in */
+      }
+
+      const lastUser = localStorage.getItem(LAST_USER_KEY);
+      if (userId && lastUser && lastUser !== userId) {
+        if (readQueue().length > 0) {
+          const ok = confirm(
+            "This browser has unsynced blocks from the previous account. " +
+              "Signing in as a different account discards them. Continue?"
+          );
+          if (!ok) return; // stay on the login screen, nothing written
+        }
+        clearSession();
+      }
+
       localStorage.setItem("token", data.access_token);
+      if (userId) localStorage.setItem(LAST_USER_KEY, userId);
       router.push("/");
     } catch {
       setError("Could not reach the server — check your connection");

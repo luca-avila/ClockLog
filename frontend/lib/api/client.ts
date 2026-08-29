@@ -16,6 +16,29 @@
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+/** The account this browser was last signed in as — user id, set on sign-in. */
+export const LAST_USER_KEY = "clocklog_last_user";
+
+/**
+ * Clears the token and EVERY `clocklog_*` key. By prefix, not by list:
+ * shared/ cannot know the feature modules' key names (invariant 11), and a
+ * new persisted key must not silently survive an account switch.
+ */
+export function clearSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("token");
+    const doomed: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("clocklog_")) doomed.push(k);
+    }
+    doomed.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Structured API error: the backend returns a stable `code` on every
  * error and callers should branch on it, not parse strings.

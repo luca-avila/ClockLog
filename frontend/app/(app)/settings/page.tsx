@@ -20,6 +20,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { type TimerSettings } from "@/lib/timer/engine";
 import { updateSettings } from "@/lib/api/settings";
+import { clearSession } from "@/lib/api/client";
+import { readQueue } from "@/lib/api/queue";
 import { useSettings } from "@/lib/useSettings";
 import TagManager from "@/components/shared/TagManager";
 
@@ -125,7 +127,14 @@ export default function SettingsPage() {
         <h2 className="text-xs uppercase tracking-widest text-neutral-400 mb-4">Account</h2>
         <button
           onClick={() => {
-            localStorage.removeItem("token");
+            // Same fence as sign-in: unsynced blocks are data loss (invariant 9).
+            if (readQueue().length > 0) {
+              const ok = confirm(
+                "There are unsynced blocks. Signing out discards them. Continue?"
+              );
+              if (!ok) return;
+            }
+            clearSession();
             router.push("/login");
           }}
           className="text-sm text-red-500 hover:text-red-600 transition-colors"
