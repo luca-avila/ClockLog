@@ -28,9 +28,12 @@ import httpx
 from app.core.config import settings
 
 logger = logging.getLogger("clocklog.email")
-# Module-level level, like error_log in main.py — otherwise the INFO lines
-# never surface in `docker compose logs`.
+# Module-level level, like error_log in main.py. Unlike ERROR, INFO does not
+# survive the last-resort handler (root has no handlers under uvicorn), so
+# the logger carries its own — without it the dev-mode link lines never
+# reach `docker compose logs`.
 logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler())
 
 RESEND_URL = "https://api.resend.com/emails"
 
