@@ -9,6 +9,7 @@ trusting a page.
 | [api.md](api.md) | Endpoint reference | Current, **except** § Auth, which describes G-6 ahead of the code |
 | [operations.md](operations.md) | Runbook | Current, **except** § First run and § Email delivery, which describe G-6 ahead of the code |
 | [DECISIONS.md](DECISIONS.md) | Closed decision log | Current |
+| [screenshots/](screenshots/) | The shipped screens, captured from the running app | Current; pre-G-6, so the only unauthenticated screen shown is `SCR-02` |
 | [plans/multi-user-auth.md](plans/multi-user-auth.md) | Implementation plan for G-6 | **Transient** — delete it when the change lands |
 | [../AGENTS.md](../AGENTS.md) | Contributor / agent operating manual | Current; § Scope boundaries marks G-6 as in progress |
 
@@ -33,6 +34,6 @@ table in `AGENTS.md` defines them.
 - **"Why are the timer and the plan kept apart, and what am I allowed to import?"** →
   `architecture.md`, then the invariants in `AGENTS.md`
 - **"What should this screen look like?"** → the shipped screen under `frontend/`, and
-  the frontend conventions in `AGENTS.md`
+  the frontend conventions in `AGENTS.md`; `screenshots/` shows each one as it renders
 - **"Why is it like this?"** → `DECISIONS.md`
 - **"What is being built right now, and in what order?"** → `plans/multi-user-auth.md`
