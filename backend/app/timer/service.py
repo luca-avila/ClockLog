@@ -53,7 +53,22 @@ def validate_history_range(from_dt: datetime, to_dt: datetime) -> None:
         )
 
 
+async def _assert_tag_owned(db: AsyncSession, tag_id: uuid.UUID | None, user_id: uuid.UUID) -> None:
+    if tag_id is None:
+        return
+    result = await db.execute(select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id))
+    if result.scalar_one_or_none() is None:
+        # Same answer as a nonexistent tag: the endpoint must not be usable
+        # to probe another account's tag ids.
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "TAG_NOT_FOUND", "message": "Tag not found"},
+        )
+
+
 async def create_block(db: AsyncSession, data: BlockCreate, user_id: uuid.UUID) -> Block:
+    # A tag_id arriving from a client is not trusted (multi-user boundary).
+    await _assert_tag_owned(db, data.tag_id, user_id)
     existing = await db.execute(select(Block).where(Block.id == data.id))
     block = existing.scalar_one_or_none()
     if block:
@@ -147,7 +162,9 @@ async def get_summary_by_tag(
     tag_ids = {b.tag_id for b in blocks if b.tag_id is not None}
     tags: dict[uuid.UUID, Tag] = {}
     if tag_ids:
-        result = await db.execute(select(Tag).where(Tag.id.in_(tag_ids)))
+        # Scoped by owner: a stale tag_id from another account must not leak
+        # its name or color into this user's summary.
+        result = await db.execute(select(Tag).where(Tag.id.in_(tag_ids), Tag.user_id == user_id))
         tags = {t.id: t for t in result.scalars().all()}
 
     totals: dict[uuid.UUID | None, TagSummary] = {}
@@ -191,6 +208,9 @@ async def update_block(
     # "clear this field" (invariant 10's untag path).
     fields = data.model_fields_set
 
+    if "tag_id" in fields:
+        # A tag_id arriving from a client is not trusted (multi-user boundary).
+        await _assert_tag_owned(db, data.tag_id, user_id)
     if "label" in fields:
         block.label = data.label
     if "tag_id" in fields:
