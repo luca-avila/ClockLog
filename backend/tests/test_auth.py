@@ -15,20 +15,47 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 from jose import JWTError
 
+from app.core import ratelimit
 from app.core.security import (
     create_access_token,
+    create_user_token,
     decode_access_token,
     get_password_hash,
+    hash_email_token,
     verify_password,
 )
 from app.main import app
+from app.shared.user.models import EmailToken
 from app.shared.user.schemas import UserCreate
 from app.shared.user.service import create_user, get_user_by_email
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limiter():
+    # Registrations accumulate against the per-IP window across tests.
+    ratelimit.reset()
+    yield
+    ratelimit.reset()
+
+
+async def _client() -> AsyncClient:
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+
+async def _register_and_verify(client: AsyncClient, email: str, mail_outbox) -> str:
+    """Verified account's access token, through the real endpoints."""
+    reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
+    assert reg.status_code == 201
+    _, _, raw = mail_outbox[-1]
+    verified = await client.post("/auth/verify-email", json={"token": raw})
+    assert verified.status_code == 200
+    return verified.json()["access_token"]
 
 
 class TestPasswordHashing:
@@ -155,3 +182,225 @@ class TestUserService:
                 db_session,
                 UserCreate(email=email, password="secret12"),
             )
+
+
+class TestVerificationGate:
+    async def test_unverified_login_is_403_then_verify_then_login_200(self, mail_outbox):
+        email = f"gate-{uuid.uuid4()}@example.com"
+        async with await _client() as client:
+            reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
+            assert reg.status_code == 201
+            assert "access_token" not in reg.json()
+
+            denied = await client.post("/auth/login", json={"email": email, "password": "secret12"})
+            assert denied.status_code == 403
+            assert denied.json()["code"] == "EMAIL_NOT_VERIFIED"
+
+            _, _, raw = mail_outbox[-1]
+            verified = await client.post("/auth/verify-email", json={"token": raw})
+            assert verified.status_code == 200
+            assert "access_token" in verified.json()
+
+            allowed = await client.post(
+                "/auth/login", json={"email": email, "password": "secret12"}
+            )
+            assert allowed.status_code == 200
+
+    async def test_register_response_does_not_verify(self, mail_outbox):
+        email = f"nover-{uuid.uuid4()}@example.com"
+        async with await _client() as client:
+            reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
+            assert reg.json()["email_verified"] is False
+
+
+class TestEmailTokenLifecycle:
+    async def _verified_user(self, client, mail_outbox, email):
+        return await _register_and_verify(client, email, mail_outbox)
+
+    async def test_expired_used_wrong_purpose_and_unknown_all_answer_alike(
+        self, mail_outbox, db_session
+    ):
+        email = f"lifecycle-{uuid.uuid4()}@example.com"
+        async with await _client() as client:
+            await self._verified_user(client, mail_outbox, email)
+
+            # Expired: a verify token whose expiry is already past.
+            expired_raw = "expired-raw-token"
+            db_session.add(
+                EmailToken(
+                    user_id=(await get_user_by_email(db_session, email)).id,
+                    token_hash=hash_email_token(expired_raw),
+                    purpose="verify",
+                    expires_at=datetime.now(UTC) - timedelta(seconds=1),
+                )
+            )
+            await db_session.commit()
+
+            # Used: burn a fresh one via resend.
+            await client.post("/auth/resend-verification", json={"email": email})
+            _, _, used_raw = mail_outbox[-1]
+
+            # Wrong purpose: a reset token submitted to /verify-email.
+            await client.post("/auth/forgot-password", json={"email": email})
+            _, purpose_raw, reset_raw = mail_outbox[-1]
+            assert purpose_raw == "reset"
+
+            responses = [
+                await client.post("/auth/verify-email", json={"token": expired_raw}),
+                await client.post("/auth/verify-email", json={"token": used_raw}),
+                await client.post("/auth/verify-email", json={"token": reset_raw}),
+                await client.post("/auth/verify-email", json={"token": "never-existed"}),
+            ]
+            codes = {(r.status_code, r.json()["code"]) for r in responses}
+            assert codes == {(400, "INVALID_VERIFICATION_TOKEN")}
+
+    async def test_reissue_invalidates_previous_token(self, mail_outbox):
+        email = f"reissue-{uuid.uuid4()}@example.com"
+        async with await _client() as client:
+            reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
+            assert reg.status_code == 201
+            _, _, first = mail_outbox[-1]
+
+            await client.post("/auth/resend-verification", json={"email": email})
+            _, _, second = mail_outbox[-1]
+            assert first != second
+
+            stale = await client.post("/auth/verify-email", json={"token": first})
+            assert stale.status_code == 400
+            fresh = await client.post("/auth/verify-email", json={"token": second})
+            assert fresh.status_code == 200
+
+
+class TestSessionRevocation:
+    async def test_token_before_reset_is_revoked(self, mail_outbox, db_session):
+        email = f"revoke-{uuid.uuid4()}@example.com"
+        async with await _client() as client:
+            reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
+            assert reg.status_code == 201
+            _, _, raw = mail_outbox[-1]
+            verified = await client.post("/auth/verify-email", json={"token": raw})
+            assert verified.status_code == 200
+
+            # Pin the password generation to a past instant: a reset running
+            # in the same second as the mint would otherwise produce the same
+            # truncated timestamp and the revocation would be invisible.
+            user = await get_user_by_email(db_session, email)
+            user.password_changed_at = datetime.now(UTC) - timedelta(hours=1)
+            await db_session.commit()
+            old_token = create_user_token(user.id, user.password_changed_at)
+
+            before = await client.get(
+                "/auth/me", headers=Headers({"Authorization": f"Bearer {old_token}"})
+            )
+            assert before.status_code == 200
+
+            await client.post("/auth/forgot-password", json={"email": email})
+            _, _, reset_raw = mail_outbox[-1]
+            reset = await client.post(
+                "/auth/reset-password", json={"token": reset_raw, "password": "nuevaclave1"}
+            )
+            assert reset.status_code == 204
+
+            me = await client.get(
+                "/auth/me", headers=Headers({"Authorization": f"Bearer {old_token}"})
+            )
+            assert me.status_code == 401
+            assert me.json()["code"] == "TOKEN_REVOKED"
+
+    async def test_pwd_claim_round_trips_through_microseconds(self, db_session):
+        """int(timestamp()) truncates; the check must truncate identically or
+        every request logs the user out. A microsecond-bearing timestamp is
+        the case that would catch the mismatch."""
+        from app.shared.user.service import get_current_user
+
+        email = f"micro-{uuid.uuid4()}@example.com"
+        user = await create_user(db_session, UserCreate(email=email, password="secret12"))
+        user.password_changed_at = datetime.now(UTC)  # carries microseconds
+        await db_session.commit()
+
+        token = create_user_token(user.id, user.password_changed_at)
+        payload = decode_access_token(token)
+        assert payload["pwd"] == int(user.password_changed_at.timestamp())
+        assert await get_current_user(db_session, payload)
+
+
+class TestNoEnumeration:
+    async def test_forgot_password_unknown_address_is_204_and_sends_nothing(self, mail_outbox):
+        async with await _client() as client:
+            res = await client.post("/auth/forgot-password", json={"email": "ghost@example.com"})
+            assert res.status_code == 204
+            assert mail_outbox == []
+
+    async def test_resend_unknown_address_is_204_and_sends_nothing(self, mail_outbox):
+        async with await _client() as client:
+            res = await client.post(
+                "/auth/resend-verification", json={"email": "ghost@example.com"}
+            )
+            assert res.status_code == 204
+            assert mail_outbox == []
+
+    async def test_resend_verified_address_sends_nothing(self, mail_outbox):
+        email = f"already-{uuid.uuid4()}@example.com"
+        async with await _client() as client:
+            await _register_and_verify(client, email, mail_outbox)
+            mail_outbox.clear()
+            res = await client.post("/auth/resend-verification", json={"email": email})
+            assert res.status_code == 204
+            assert mail_outbox == []
+
+
+class TestEmailRateLimit:
+    async def test_per_email_limit_is_independent_of_ip(self, mail_outbox):
+        """The same mailbox exhausts its own budget from many IPs, while a
+        different mailbox from the same IP is untouched."""
+        email = f"hammered-{uuid.uuid4()}@example.com"
+        async with await _client() as client:
+            # Register + verify so resend actually sends.
+            await _register_and_verify(client, email, mail_outbox)
+            mail_outbox.clear()
+
+            # auth_email_rate_limit is 3; the register call already spent one
+            # from this IP but the per-email key counts resend calls only.
+            for i in range(3):
+                res = await client.post(
+                    "/auth/resend-verification",
+                    json={"email": email},
+                    headers={"X-Forwarded-For": f"10.0.0.{i}"},
+                )
+                assert res.status_code == 204, f"call {i} should pass"
+            blocked = await client.post(
+                "/auth/resend-verification",
+                json={"email": email},
+                headers={"X-Forwarded-For": "10.0.0.99"},
+            )
+            assert blocked.status_code == 429
+            assert blocked.json()["code"] == "RATE_LIMITED"
+
+            # A different mailbox, same IP as the blocked one: fine.
+            other = await client.post(
+                "/auth/resend-verification",
+                json={"email": f"other-{uuid.uuid4()}@example.com"},
+                headers={"X-Forwarded-For": "10.0.0.99"},
+            )
+            assert other.status_code == 204
+
+
+class TestPasswordLength:
+    async def test_73_byte_password_is_422(self):
+        async with await _client() as client:
+            res = await client.post(
+                "/auth/register",
+                json={"email": f"long-{uuid.uuid4()}@example.com", "password": "a" * 73},
+            )
+            assert res.status_code == 422
+
+    async def test_72_byte_password_is_accepted(self, mail_outbox):
+        async with await _client() as client:
+            res = await client.post(
+                "/auth/register",
+                json={
+                    "email": f"exact-{uuid.uuid4()}@example.com",
+                    "password": "a" * 72,
+                },
+            )
+            assert res.status_code == 201
