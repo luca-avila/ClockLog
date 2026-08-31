@@ -308,9 +308,10 @@ render a time the user never entered. Overlapping entries get side-by-side lanes
 
 Rate limiting (`core/ratelimit.py`) is an in-memory sliding window keyed by
 `path:client_ip`, applied to every `/auth` endpoint. Keyed per endpoint so register
-attempts cannot lock out login; `X-Forwarded-For` is trusted because nginx is always the
-socket peer. In-memory by design — one VPS, one process; Redis would be a dependency for
-no benefit. The three endpoints that send mail (`register`, `resend-verification`,
+attempts cannot lock out login; the last `X-Forwarded-For` entry is taken as the client
+IP — nginx appends the socket peer, so earlier entries are client-controlled. In-memory
+by design — one VPS, one process; Redis would be a dependency for no benefit. The three
+endpoints that send mail (`register`, `resend-verification`,
 `forgot-password`) carry a second, tighter key on the **email address**, because an
 attacker rotating IPs to mailbomb one victim is the abuse that per-IP limiting does not
 see.

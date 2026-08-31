@@ -103,3 +103,34 @@ async def test_successful_login_still_counts_toward_limit(client, mail_outbox):
         assert res.status_code == 200
     blocked = await client.post("/auth/login", json=good)
     assert blocked.status_code == 429
+
+
+async def test_spoofed_xff_prefix_cannot_rotate_the_bucket(client, login_payload):
+    # nginx appends the socket peer, so the first entries are attacker
+    # controlled; only the last one is real.
+    for i in range(10):
+        await client.post(
+            "/auth/login",
+            json=login_payload,
+            headers={"X-Forwarded-For": f"9.9.9.{i}, 1.1.1.1"},
+        )
+    blocked = await client.post(
+        "/auth/login",
+        json=login_payload,
+        headers={"X-Forwarded-For": "9.9.9.99, 1.1.1.1"},
+    )
+    assert blocked.status_code == 429
+
+
+async def test_client_ip_takes_the_last_hop():
+    from starlette.requests import Request
+
+    from app.core.ratelimit import client_ip
+
+    def req(xff):
+        headers = [(b"x-forwarded-for", xff.encode())] if xff else []
+        return Request({"type": "http", "headers": headers, "client": ("127.0.0.1", 1234)})
+
+    assert client_ip(req("9.9.9.9, 1.1.1.1")) == "1.1.1.1"
+    assert client_ip(req(" 5.5.5.5 ")) == "5.5.5.5"
+    assert client_ip(req(None)) == "127.0.0.1"

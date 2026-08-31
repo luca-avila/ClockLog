@@ -208,8 +208,11 @@ location / { proxy_pass http://127.0.0.1:3000; }   # app.example.com
 location / { proxy_pass http://127.0.0.1:8000; }   # api.example.com
 ```
 
-Keep `X-Forwarded-For` set: the rate limiter trusts it, because behind a proxy the
-socket address is always nginx.
+The backend takes the **last** entry of `X-Forwarded-For` as the client IP — the one
+nginx appends with `$proxy_add_x_forwarded_for`; the earlier ones are spoofeable, and
+rotating them must not buy a fresh rate-limit bucket. This holds exactly while nginx is
+the only proxy: if another hop ever sits in between, that hop must overwrite the header
+(`proxy_set_header X-Forwarded-For $remote_addr;`) instead of appending.
 
 ---
 

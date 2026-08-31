@@ -72,8 +72,14 @@ def reset() -> None:
 
 
 def client_ip(request) -> str:
-    """Behind nginx the socket IP is always the proxy; trust X-Forwarded-For."""
+    """Behind nginx the socket IP is always the proxy; trust X-Forwarded-For.
+
+    nginx ($proxy_add_x_forwarded_for) APPENDS the socket peer to whatever
+    the client sent, so only the last entry is proxy-vouched — the first
+    ones are attacker-controlled and rotating them must not buy a fresh
+    rate-limit bucket.
+    """
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        return forwarded.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
