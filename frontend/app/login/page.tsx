@@ -156,14 +156,20 @@ export default function LoginPage() {
 
         {resent && <p className="text-xs text-neutral-500">Link sent — check your inbox</p>}
 
-        {unverified ? (
-          <PrimaryButton type="button" onClick={resendVerification} disabled={busy}>
-            RESEND LINK
-          </PrimaryButton>
-        ) : (
-          <PrimaryButton type="submit" disabled={busy}>
-            SIGN IN
-          </PrimaryButton>
+        <PrimaryButton type="submit" disabled={busy}>
+          SIGN IN
+        </PrimaryButton>
+
+        {/* Resend is not a commit action — a text link, never a swap that hides SIGN IN. */}
+        {unverified && !resent && (
+          <button
+            type="button"
+            onClick={resendVerification}
+            disabled={busy}
+            className="self-center text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+          >
+            Resend verification link
+          </button>
         )}
       </form>
 
