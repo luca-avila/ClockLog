@@ -158,22 +158,29 @@ async def issue_email_token(db: AsyncSession, user: User, purpose: str) -> str:
 async def consume_email_token(db: AsyncSession, raw: str, purpose: str, code: str) -> User:
     """Unknown token / wrong purpose / expired / already used all raise the
     SAME error — the response must not help an attacker distinguish them."""
+    now = datetime.now(UTC)
+    # One conditional UPDATE, not SELECT-then-mark: under READ COMMITTED
+    # the row lock serializes concurrent submits of the same link, and the
+    # loser's WHERE re-check finds used_at already set.
     result = await db.execute(
-        select(EmailToken).where(EmailToken.token_hash == hash_email_token(raw))
+        update(EmailToken)
+        .execution_options(synchronize_session=False)
+        .where(
+            EmailToken.token_hash == hash_email_token(raw),
+            EmailToken.purpose == purpose,
+            EmailToken.used_at.is_(None),
+            EmailToken.expires_at > now,
+        )
+        .values(used_at=now)
+        .returning(EmailToken.user_id)
     )
-    token = result.scalar_one_or_none()
-    if (
-        token is None
-        or token.purpose != purpose
-        or token.used_at is not None
-        or token.expires_at <= datetime.now(UTC)
-    ):
+    user_id = result.scalar_one_or_none()
+    if user_id is None:
         raise HTTPException(
             status_code=400,
             detail={"code": code, "message": _TOKEN_ERROR_MESSAGE},
         )
-    token.used_at = datetime.now(UTC)
-    user = await db.get(User, token.user_id)
+    user = await db.get(User, user_id)
     if not user:
         raise HTTPException(
             status_code=400,

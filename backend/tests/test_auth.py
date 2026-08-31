@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -291,6 +292,21 @@ class TestEmailTokenLifecycle:
             assert stale.status_code == 400
             fresh = await client.post("/auth/verify-email", json={"token": second})
             assert fresh.status_code == 200
+
+    async def test_concurrent_submit_consumes_exactly_once(self, mail_outbox):
+        email = f"race-{uuid.uuid4()}@example.com"
+        async with await _client() as c1, await _client() as c2:
+            reg = await c1.post("/auth/register", json={"email": email, "password": "secret12"})
+            assert reg.status_code == 201
+            _, _, raw = mail_outbox[-1]
+            results = await asyncio.gather(
+                c1.post("/auth/verify-email", json={"token": raw}),
+                c2.post("/auth/verify-email", json={"token": raw}),
+            )
+            statuses = sorted(r.status_code for r in results)
+            assert statuses == [200, 400]
+            rejected = next(r for r in results if r.status_code == 400)
+            assert rejected.json()["code"] == "INVALID_VERIFICATION_TOKEN"
 
 
 class TestSessionRevocation:
