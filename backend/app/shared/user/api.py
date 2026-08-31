@@ -132,8 +132,9 @@ async def resend_verification(
 ):
     _check_email_rate(request, data.email)
     user = await get_user_by_email(db, data.email)
-    # 204 either way — the endpoint must not reveal whether an address is
-    # registered (or already verified).
+    # 204 either way — the RESPONSE must not reveal whether an address is
+    # registered (or already verified). Timing is not flattened: this branch
+    # does one extra insert+commit; accepted residual, see docs/architecture.md.
     if user and user.email_verified_at is None:
         raw = await issue_email_token(db, user, VERIFY)
         await db.commit()
@@ -151,7 +152,8 @@ async def forgot_password(
 ):
     _check_email_rate(request, data.email)
     user = await get_user_by_email(db, data.email)
-    # 204 either way — no enumeration of registered addresses.
+    # 204 either way — no enumeration via the response; the timing note
+    # lives in docs/architecture.md.
     if user:
         raw = await issue_email_token(db, user, RESET)
         await db.commit()

@@ -314,7 +314,10 @@ by design — one VPS, one process; Redis would be a dependency for no benefit. 
 endpoints that send mail (`register`, `resend-verification`,
 `forgot-password`) carry a second, tighter key on the **email address**, because an
 attacker rotating IPs to mailbomb one victim is the abuse that per-IP limiting does not
-see.
+see. On the response-enumeration side, the 204 responses of `resend-verification` /
+`forgot-password` hide registration status at the response level only; the
+registered-and-unverified branch does one extra insert+commit, a few milliseconds that
+network jitter dominates — a known, accepted residual channel, not a flattened one.
 
 Authentication is hand-rolled on purpose: bcrypt + python-jose, no auth framework.
 
