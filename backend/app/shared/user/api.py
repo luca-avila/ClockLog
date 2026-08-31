@@ -107,7 +107,6 @@ async def get_current_user_dependency(
 async def register(db: DBSession, data: UserCreate, background: BackgroundTasks, request: Request):
     _check_email_rate(request, data.email)
     user = await create_user(db, data)
-    await db.flush()  # assign user.id before the token row references it
     raw = await issue_email_token(db, user, VERIFY)
     # Commit BEFORE enqueueing: the request session closes on response, so the
     # background task only ever receives plain strings, never the session.

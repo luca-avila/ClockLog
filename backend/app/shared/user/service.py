@@ -20,6 +20,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -58,6 +59,17 @@ async def create_user(db: AsyncSession, data: UserCreate) -> User:
     # emailed link comes back.
     user = User(email=email, hashed_password=get_password_hash(data.password))
     db.add(user)
+    try:
+        # Flush here, not at the caller's commit: two concurrent sign-ups
+        # with the same address both pass the check above, and the loser
+        # must meet the unique constraint as this same 409, not a 500.
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "EMAIL_EXISTS", "message": "Email already registered"},
+        ) from None
     return user
 
 

@@ -183,6 +183,28 @@ class TestUserService:
                 UserCreate(email=email, password="secret12"),
             )
 
+    @pytest.mark.asyncio
+    async def test_duplicate_race_returns_409_not_500(self, monkeypatch, mail_outbox):
+        """Both requests pass the SELECT (simulated: the check is made to
+        miss) and the loser hits the unique constraint at flush — it must
+        surface as the same 409, never a 500."""
+        email = f"race-{uuid.uuid4()}@example.com"
+        async with await _client() as client:
+            first = await client.post(
+                "/auth/register", json={"email": email, "password": "secret12"}
+            )
+            assert first.status_code == 201
+
+            async def _miss(db, _email):
+                return None
+
+            monkeypatch.setattr("app.shared.user.service.get_user_by_email", _miss)
+            loser = await client.post(
+                "/auth/register", json={"email": email, "password": "secret12"}
+            )
+        assert loser.status_code == 409
+        assert loser.json()["code"] == "EMAIL_EXISTS"
+
 
 class TestVerificationGate:
     async def test_unverified_login_is_403_then_verify_then_login_200(self, mail_outbox):
