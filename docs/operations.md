@@ -200,13 +200,18 @@ rebuilding the frontend image — restarting the container does nothing.
 
 ### nginx sketch
 
-Two server blocks — the app origin and the API origin — each proxying to a loopback
-port, with certbot managing certificates on the host:
+A worked example lives at `infra/nginx.example.conf`. The shipped layout is a **single
+origin** serving both halves by path — `/` is the frontend, `/api` is the backend —
+which keeps the app same-origin and CORS out of the way:
 
 ```
-location / { proxy_pass http://127.0.0.1:3000; }   # app.example.com
-location / { proxy_pass http://127.0.0.1:8000; }   # api.example.com
+location /api/ { proxy_pass http://127.0.0.1:8000/; }   # strips the /api prefix
+location /     { proxy_pass http://127.0.0.1:3001; }    # frontend host port
 ```
+
+The frontend binds host port **3001** (moved off 3000), and the backend 8000. The
+`/api/` proxy_pass has a trailing slash so `/api/auth/register` reaches the backend as
+`/auth/register` — the backend routers mount at the app root.
 
 The backend takes the **last** entry of `X-Forwarded-For` as the client IP — the one
 nginx appends with `$proxy_add_x_forwarded_for`; the earlier ones are spoofeable, and
