@@ -32,7 +32,11 @@ services:
     build: ./backend
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8000:8000"
+      # !override replaces the base list (which binds 0.0.0.0:8000) instead of
+      # concatenating onto it — otherwise both binds target host port 8000 and
+      # the daemon fails with "address already in use".
+      - !override
+        - "127.0.0.1:8000:8000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - SECRET_KEY=${SECRET_KEY}
