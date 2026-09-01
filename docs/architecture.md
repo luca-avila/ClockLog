@@ -23,8 +23,10 @@ Everything is a single VPS running Docker Compose: `backend`, `db`, `frontend`, 
 `backup` sidecar. nginx and certbot run on the host, outside Compose, and proxy to
 services bound on `127.0.0.1`.
 
-There is exactly one user. There is no admin path, no multi-tenancy, and no
-cross-user access — every query is scoped by the authenticated `user_id`.
+Registration is open (decision G-6): anyone may sign up, and an unverified
+address cannot sign in. There is no admin path, no cross-user access, and no
+visibility of one account from another — every query is scoped by the
+authenticated `user_id`.
 
 ### Two products, one app
 
@@ -346,11 +348,12 @@ app/
     (plan)/plan/         SCR-31  week
     (plan)/plan/day/     SCR-31  day timeline
     settings/            SCR-40
-  login/                 renders bare — outside the shell
+  login/  register/  verify-email/    SCR-02..05, render bare —
+  forgot-password/  reset-password/   outside the shell
 components/
   shared/  timer/  plan/
 lib/
-  api/     client, queue, per-resource modules
+  api/     client, session (auth), queue, per-resource modules
   timer/   engine.ts — the state machine
   plan/    view.ts (URL → view), hooks.ts, layout.ts
   date/    instant.ts (blocks), week.ts (entries)

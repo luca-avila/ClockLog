@@ -1,7 +1,7 @@
 # Operations runbook
 
 Everything you do to ClockLog after the code is written: run it, migrate it, deploy it,
-back it up, and diagnose it. One VPS, one user, Docker Compose.
+back it up, and diagnose it. One VPS, Docker Compose.
 
 ---
 
@@ -30,10 +30,10 @@ Registration is open — sign up from the app at <http://localhost:3000>. An add
 be verified before it can sign in.
 
 **In development no mail is sent.** `RESEND_API_KEY` is unset, so the sender writes the
-verification link to the log instead:
+email content — including the link — to the log instead:
 
 ```bash
-docker compose logs backend | grep -i 'verification link'
+docker compose logs backend | grep 'not sent, no RESEND_API_KEY'
 ```
 
 Open that URL and you are verified and signed in. The same applies to password-reset

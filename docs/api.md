@@ -73,8 +73,10 @@ account cannot sign in yet.
 - `409 EMAIL_EXISTS` — the address is already registered. Deliberately not disguised:
   the sign-up form has to be able to say so. The rate limit is what keeps it from being
   a bulk enumeration oracle.
-- `429 RATE_LIMITED`, `422` on a bad email, a password under 8 characters, or one over
-  72 bytes (bcrypt truncates past that, so it is rejected rather than silently cut).
+- `429 RATE_LIMITED` — limited per IP **and** per email address, under the tighter
+  `AUTH_EMAIL_RATE_LIMIT` window. `422` on a bad email, a password under 8 characters,
+  or one over 72 bytes (bcrypt truncates past that, so it is rejected rather than
+  silently cut).
 
 ### `POST /auth/verify-email` → `200`
 
