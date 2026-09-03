@@ -19,8 +19,8 @@ from fastapi import APIRouter, Depends
 from app.core.db import DBSession
 from app.shared.setting.schemas import SettingsResponse, SettingsUpdate
 from app.shared.setting.service import get_or_create_settings, update_settings
-from app.shared.user.api import get_current_user_dependency
 from app.shared.user.schemas import UserResponse
+from app.shared.user.session import current_user_dependency
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 @router.get("", response_model=SettingsResponse)
 async def get(
     db: DBSession,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     s = await get_or_create_settings(db, current_user.id)
     await db.commit()
@@ -39,7 +39,7 @@ async def get(
 async def update(
     db: DBSession,
     data: SettingsUpdate,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     s = await update_settings(db, current_user.id, data)
     await db.commit()

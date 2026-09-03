@@ -21,13 +21,10 @@ from fastapi import (
     HTTPException,
     Request,
 )
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
 
 from app.core import ratelimit
 from app.core.config import settings
 from app.core.db import DBSession
-from app.core.security import decode_access_token
 from app.shared.user.schemas import (
     EmailRequest,
     PasswordReset,
@@ -39,7 +36,6 @@ from app.shared.user.schemas import (
 )
 from app.shared.user.service import (
     authenticate_user,
-    get_current_user,
     normalize_email,
     register_user,
     request_password_reset,
@@ -47,9 +43,9 @@ from app.shared.user.service import (
     reset_user_password,
     verify_user_email,
 )
+from app.shared.user.session import current_user_dependency
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-security = HTTPBearer()
 
 
 async def _rate_limited(request: Request, _: None = None) -> None:
@@ -78,20 +74,6 @@ def _check_email_rate(request: Request, address: str) -> None:
         detail={"code": "RATE_LIMITED", "message": "Too many emails requested, slow down"},
         headers={"Retry-After": str(ratelimit.retry_after(key, window))},
     )
-
-
-async def get_current_user_dependency(
-    db: DBSession,
-    credentials: HTTPAuthorizationCredentials = Depends(security),  # noqa: B008
-) -> UserResponse:
-    try:
-        payload = decode_access_token(credentials.credentials)
-    except JWTError as e:
-        raise HTTPException(
-            status_code=401,
-            detail={"code": "INVALID_TOKEN", "message": "Invalid or expired token"},
-        ) from e
-    return await get_current_user(db, payload)
 
 
 @router.post(
@@ -134,5 +116,5 @@ async def reset_password(db: DBSession, data: PasswordReset):
 
 
 @router.get("/me", response_model=UserResponse)
-async def me(current_user: UserResponse = Depends(get_current_user_dependency)):  # noqa: B008
+async def me(current_user: UserResponse = Depends(current_user_dependency)):  # noqa: B008
     return current_user

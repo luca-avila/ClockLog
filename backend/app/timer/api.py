@@ -20,8 +20,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 
 from app.core.db import DBSession
-from app.shared.user.api import get_current_user_dependency
 from app.shared.user.schemas import UserResponse
+from app.shared.user.session import current_user_dependency
 from app.timer.schemas import BlockCreate, BlockResponse, BlockUpdate, TagSummary
 from app.timer.service import (
     create_block,
@@ -40,7 +40,7 @@ router = APIRouter(prefix="/blocks", tags=["blocks"])
 @router.get("/recent-labels", response_model=list[str])
 async def recent_labels(
     db: DBSession,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     return await get_recent_labels(db, current_user.id)
 
@@ -51,7 +51,7 @@ async def list_blocks(
     # Typed datetime: Pydantic rejects garbage with a 422, never a 500.
     from_: datetime = Query(alias="from"),  # noqa: B008
     to: datetime = Query(alias="to"),  # noqa: B008
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     validate_history_range(from_, to)
     blocks = await get_blocks_in_range(db, current_user.id, from_, to)
@@ -63,7 +63,7 @@ async def summary(
     db: DBSession,
     from_: datetime = Query(alias="from"),  # noqa: B008
     to: datetime = Query(alias="to"),  # noqa: B008
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     validate_history_range(from_, to)
     return await get_summary_by_tag(db, current_user.id, from_, to)
@@ -73,7 +73,7 @@ async def summary(
 async def create(
     db: DBSession,
     data: BlockCreate,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     block = await create_block(db, data, current_user.id)
     await db.commit()
@@ -88,7 +88,7 @@ async def patch_block(
     db: DBSession,
     block_id: uuid.UUID,
     data: BlockUpdate,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     block = await update_block(db, block_id, current_user.id, data)
     await db.commit()
@@ -100,7 +100,7 @@ async def patch_block(
 async def remove_block(
     db: DBSession,
     block_id: uuid.UUID,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     await delete_block(db, block_id, current_user.id)
     await db.commit()
