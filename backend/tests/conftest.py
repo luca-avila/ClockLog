@@ -14,8 +14,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import uuid
+
 import pytest
 import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import NullPool, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -24,6 +27,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from app.core import ratelimit
 from app.core.config import settings
 from app.core.db import get_db
 from app.main import app
@@ -93,11 +97,59 @@ async def db_session(engine: AsyncEngine):
         await session.rollback()
 
 
+@pytest_asyncio.fixture
+async def client():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limiter():
+    # Registering through the real endpoints accumulates against the per-IP
+    # window; every test starts (and leaves) an empty limiter.
+    ratelimit.reset()
+    yield
+    ratelimit.reset()
+
+
+@pytest.fixture
+def auth_headers():
+    """Bearer header for a token the test obtained some other way (login,
+    a revocation flow) — never for minting one."""
+
+    def _make(token: str) -> dict:
+        return {"Authorization": f"Bearer {token}"}
+
+    return _make
+
+
+@pytest_asyncio.fixture
+async def verified_user(client, mail_outbox):
+    """A verified account's (headers, email), through the real endpoints.
+
+    Register → verify is the only way in: minting a session token directly
+    would fake auth below the EMAIL_NOT_VERIFIED gate (403). Call once per
+    account — again when a test needs a second user.
+    """
+
+    async def _verified_user(password: str = "secret12") -> tuple[dict[str, str], str]:
+        email = f"verified-{uuid.uuid4()}@example.com"
+        reg = await client.post("/auth/register", json={"email": email, "password": password})
+        assert reg.status_code == 201, reg.text
+        _, _, raw = mail_outbox[-1]
+        verified = await client.post("/auth/verify-email", json={"token": raw})
+        assert verified.status_code == 200, verified.text
+        token = verified.json()["access_token"]
+        return {"Authorization": f"Bearer {token}"}, email
+
+    return _verified_user
+
+
 @pytest.fixture(autouse=True)
 def mail_outbox(monkeypatch):
     """Capture emails instead of sending them.
 
-    Works only because user/api.py imports the mailer as a module
+    Works only because user/service.py imports the mailer as a module
     (`from app.core import email as email_sender`) and calls
     `email_sender.send_*` — patching the module attribute. Rebinding the
     functions with a from-import would freeze them and silently defeat this.

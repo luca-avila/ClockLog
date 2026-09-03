@@ -17,24 +17,13 @@
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
-from app.core.security import create_user_token
 from app.main import app
-from app.shared.user.schemas import UserCreate
-from app.shared.user.service import create_user
-
-
-async def _auth(db_session):
-
-    user = await create_user(db_session, UserCreate(email="settings@test.com", password="secret12"))
-    await db_session.commit()
-    token = create_user_token(user.id, user.password_changed_at)
-    return {"Authorization": f"Bearer {token}"}
 
 
 class TestSettings:
     @pytest.mark.asyncio
-    async def test_get_defaults(self, db_session):
-        headers = await _auth(db_session)
+    async def test_get_defaults(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -47,8 +36,8 @@ class TestSettings:
         assert data["autoStartBreaks"] is False
 
     @pytest.mark.asyncio
-    async def test_update_and_read_back(self, db_session):
-        headers = await _auth(db_session)
+    async def test_update_and_read_back(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

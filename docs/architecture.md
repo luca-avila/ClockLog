@@ -298,12 +298,17 @@ render a time the user never entered. Overlapping entries get side-by-side lanes
    `X-Request-ID` on every response, and logs one JSON line per unhandled exception with
    the traceback. The client gets `{"code": "INTERNAL_ERROR", ...}` and never a
    traceback.
-3. **Auth dependency** — `HTTPBearer` → `decode_access_token` → user lookup by id →
-   password-generation check. Bad or expired token yields 401 `INVALID_TOKEN`; a token
-   whose `pwd` claim no longer matches the account's `password_changed_at` yields 401
-   `TOKEN_REVOKED`. Tokens are HS256 and last 7 days. The subject is the user id, not
-   the email, so identity does not ride on a mutable field.
+3. **Auth dependency** — `Depends(current_user_dependency)` from
+   `shared/user/session.py`: `HTTPBearer` → `resolve_session_user` (decode → user lookup
+   by id → password-generation check). The session seam owns the claim names, the
+   seconds-truncation of the `pwd` stamp, and every 401 mapping. Bad or expired token
+   yields 401 `INVALID_TOKEN`; a token whose `pwd` claim no longer matches the account's
+   `password_changed_at` yields 401 `TOKEN_REVOKED`. Tokens are HS256 and last 7 days.
+   The subject is the user id, not the email, so identity does not ride on a mutable
+   field.
 4. **Router** stays thin: parse, delegate to `service.py`, commit, serialize.
+   Exception: in `shared/user` the service commits, because the
+   commit-before-enqueue rule (token → commit → mail) lives in `service.py`.
 5. **HTTPException handler** normalizes everything to
    `{"code": ..., "message": ...}` — a `detail` dict with its own `code` passes through,
    anything else becomes `{"code": "ERROR"}`.

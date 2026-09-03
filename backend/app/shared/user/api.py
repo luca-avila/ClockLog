@@ -14,8 +14,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from datetime import UTC, datetime
-
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -23,17 +21,10 @@ from fastapi import (
     HTTPException,
     Request,
 )
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
 
-# Imported as a module so tests can patch email_sender.send_* — a
-# `from ... import send_verification_email` binding would freeze the
-# function and silently defeat the mail_outbox fixture.
-from app.core import email as email_sender
 from app.core import ratelimit
 from app.core.config import settings
 from app.core.db import DBSession
-from app.core.security import create_user_token, decode_access_token, get_password_hash
 from app.shared.user.schemas import (
     EmailRequest,
     PasswordReset,
@@ -44,19 +35,17 @@ from app.shared.user.schemas import (
     UserResponse,
 )
 from app.shared.user.service import (
-    RESET,
-    VERIFY,
     authenticate_user,
-    consume_email_token,
-    create_user,
-    get_current_user,
-    get_user_by_email,
-    issue_email_token,
     normalize_email,
+    register_user,
+    request_password_reset,
+    resend_user_verification,
+    reset_user_password,
+    verify_user_email,
 )
+from app.shared.user.session import current_user_dependency
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-security = HTTPBearer()
 
 
 async def _rate_limited(request: Request, _: None = None) -> None:
@@ -87,43 +76,17 @@ def _check_email_rate(request: Request, address: str) -> None:
     )
 
 
-async def get_current_user_dependency(
-    db: DBSession,
-    credentials: HTTPAuthorizationCredentials = Depends(security),  # noqa: B008
-) -> UserResponse:
-    try:
-        payload = decode_access_token(credentials.credentials)
-    except JWTError as e:
-        raise HTTPException(
-            status_code=401,
-            detail={"code": "INVALID_TOKEN", "message": "Invalid or expired token"},
-        ) from e
-    return await get_current_user(db, payload)
-
-
 @router.post(
     "/register", response_model=UserResponse, status_code=201, dependencies=[Depends(_rate_limited)]
 )
 async def register(db: DBSession, data: UserCreate, background: BackgroundTasks, request: Request):
     _check_email_rate(request, data.email)
-    user = await create_user(db, data)
-    raw = await issue_email_token(db, user, VERIFY)
-    # Commit BEFORE enqueueing: the request session closes on response, so the
-    # background task only ever receives plain strings, never the session.
-    await db.commit()
-    background.add_task(email_sender.send_verification_email, user.email, raw)
-    await db.refresh(user)
-    return user
+    return await register_user(db, background, data)
 
 
 @router.post("/verify-email", response_model=TokenResponse, dependencies=[Depends(_rate_limited)])
 async def verify_email(db: DBSession, data: TokenSubmit):
-    user = await consume_email_token(db, data.token, VERIFY, "INVALID_VERIFICATION_TOKEN")
-    # Verifying IS signing in: the address is proven, issue the session here
-    # so the emailed link lands the user directly in the app.
-    user.email_verified_at = datetime.now(UTC)
-    await db.commit()
-    return TokenResponse(access_token=create_user_token(user.id, user.password_changed_at))
+    return await verify_user_email(db, data)
 
 
 @router.post("/resend-verification", status_code=204, dependencies=[Depends(_rate_limited)])
@@ -131,14 +94,7 @@ async def resend_verification(
     db: DBSession, data: EmailRequest, background: BackgroundTasks, request: Request
 ):
     _check_email_rate(request, data.email)
-    user = await get_user_by_email(db, data.email)
-    # 204 either way — the RESPONSE must not reveal whether an address is
-    # registered (or already verified). Timing is not flattened: this branch
-    # does one extra insert+commit; accepted residual, see docs/architecture.md.
-    if user and user.email_verified_at is None:
-        raw = await issue_email_token(db, user, VERIFY)
-        await db.commit()
-        background.add_task(email_sender.send_verification_email, user.email, raw)
+    await resend_user_verification(db, background, data)
 
 
 @router.post("/login", response_model=TokenResponse, dependencies=[Depends(_rate_limited)])
@@ -151,28 +107,14 @@ async def forgot_password(
     db: DBSession, data: EmailRequest, background: BackgroundTasks, request: Request
 ):
     _check_email_rate(request, data.email)
-    user = await get_user_by_email(db, data.email)
-    # 204 either way — no enumeration via the response; the timing note
-    # lives in docs/architecture.md.
-    if user:
-        raw = await issue_email_token(db, user, RESET)
-        await db.commit()
-        background.add_task(email_sender.send_reset_email, user.email, raw)
+    await request_password_reset(db, background, data)
 
 
 @router.post("/reset-password", status_code=204, dependencies=[Depends(_rate_limited)])
 async def reset_password(db: DBSession, data: PasswordReset):
-    user = await consume_email_token(db, data.token, RESET, "INVALID_RESET_TOKEN")
-    user.hashed_password = get_password_hash(data.password)
-    # Moving this timestamp is what revokes every live session (the `pwd`
-    # claim) — the point of resetting through a mailed link.
-    user.password_changed_at = datetime.now(UTC)
-    if user.email_verified_at is None:
-        # The reset link reached the mailbox, so the address is theirs.
-        user.email_verified_at = datetime.now(UTC)
-    await db.commit()
+    await reset_user_password(db, data)
 
 
 @router.get("/me", response_model=UserResponse)
-async def me(current_user: UserResponse = Depends(get_current_user_dependency)):  # noqa: B008
+async def me(current_user: UserResponse = Depends(current_user_dependency)):  # noqa: B008
     return current_user

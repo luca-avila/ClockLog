@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import hashlib
-import uuid
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
@@ -43,14 +42,6 @@ def create_access_token(data: dict, expires_delta_seconds: int | None = None) ->
         expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.secret_key, algorithm=ALGORITHM)
-
-
-def create_user_token(user_id: uuid.UUID, password_changed_at: datetime) -> str:
-    """Session token. The `pwd` claim pins the password generation: moving
-    password_changed_at invalidates everything issued before it."""
-    # int(...timestamp()) truncates to seconds; the check on decode must
-    # truncate the same way or every request logs the user out.
-    return create_access_token({"sub": str(user_id), "pwd": int(password_changed_at.timestamp())})
 
 
 def hash_email_token(raw: str) -> str:

@@ -21,8 +21,8 @@ from fastapi import APIRouter, Depends
 from app.core.db import DBSession
 from app.shared.tag.schemas import TagCreate, TagDeleteResponse, TagResponse, TagUpdate
 from app.shared.tag.service import create_tag, delete_tag, get_tags_for_user, update_tag
-from app.shared.user.api import get_current_user_dependency
 from app.shared.user.schemas import UserResponse
+from app.shared.user.session import current_user_dependency
 
 router = APIRouter(prefix="/tags", tags=["tags"])
 
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/tags", tags=["tags"])
 async def create(
     db: DBSession,
     data: TagCreate,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     tag = await create_tag(db, data, current_user.id)
     await db.commit()
@@ -42,7 +42,7 @@ async def create(
 @router.get("", response_model=list[TagResponse])
 async def list_tags(
     db: DBSession,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     return await get_tags_for_user(db, current_user.id)
 
@@ -52,7 +52,7 @@ async def update(
     db: DBSession,
     tag_id: uuid.UUID,
     data: TagUpdate,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     tag = await update_tag(
         db,
@@ -68,7 +68,7 @@ async def update(
 async def delete(
     db: DBSession,
     tag_id: uuid.UUID,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     affected = await delete_tag(db, tag_id, current_user.id)
     await db.commit()

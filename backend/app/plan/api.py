@@ -35,8 +35,8 @@ from app.plan.service import (
     list_occurrences,
     update_entry,
 )
-from app.shared.user.api import get_current_user_dependency
 from app.shared.user.schemas import UserResponse
+from app.shared.user.session import current_user_dependency
 
 router = APIRouter(prefix="/plan/entries", tags=["plan"])
 
@@ -45,7 +45,7 @@ router = APIRouter(prefix="/plan/entries", tags=["plan"])
 async def create(
     db: DBSession,
     data: EntryCreate,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     entry = await create_entry(db, data, current_user.id)
     await db.commit()
@@ -59,7 +59,7 @@ async def list_range(
     # Dates, not instants — wall-clock calendar data (docs/DECISIONS.md).
     from_date: date = Query(alias="from"),  # noqa: B008
     to_date: date = Query(alias="to"),  # noqa: B008
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     return await list_occurrences(db, current_user.id, from_date, to_date)
 
@@ -68,7 +68,7 @@ async def list_range(
 async def get_one(
     db: DBSession,
     entry_id: uuid.UUID,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     return await get_entry(db, entry_id, current_user.id)
 
@@ -78,7 +78,7 @@ async def update(
     db: DBSession,
     entry_id: uuid.UUID,
     data: EntryUpdate,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     entry = await update_entry(db, entry_id, data, current_user.id)
     await db.commit()
@@ -89,7 +89,7 @@ async def update(
 async def delete(
     db: DBSession,
     entry_id: uuid.UUID,
-    current_user: UserResponse = Depends(get_current_user_dependency),  # noqa: B008
+    current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008
 ):
     await delete_entry(db, entry_id, current_user.id)
     await db.commit()

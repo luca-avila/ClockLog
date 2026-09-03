@@ -18,42 +18,18 @@ import uuid
 
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-
-from app.core.security import create_user_token
-from app.main import app
-from app.shared.user.schemas import UserCreate
-from app.shared.user.service import create_user
 
 pytestmark = pytest.mark.asyncio
 
 
 @pytest_asyncio.fixture
-async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        yield c
+async def user_headers(verified_user):
+    return await verified_user()
 
 
 @pytest_asyncio.fixture
-async def user_headers(db_session):
-    user = await create_user(
-        db_session,
-        UserCreate(email=f"plan-api-{uuid.uuid4().hex[:8]}@example.com", password="longenough"),
-    )
-    await db_session.commit()  # visible to the app's own session
-    token = create_user_token(user.id, user.password_changed_at)
-    return {"Authorization": f"Bearer {token}"}, user
-
-
-@pytest_asyncio.fixture
-async def other_headers(db_session):
-    user = await create_user(
-        db_session,
-        UserCreate(email=f"plan-other-{uuid.uuid4().hex[:8]}@example.com", password="longenough"),
-    )
-    await db_session.commit()
-    token = create_user_token(user.id, user.password_changed_at)
-    return {"Authorization": f"Bearer {token}"}, user
+async def other_headers(verified_user):
+    return await verified_user()
 
 
 def entry_body(**overrides) -> dict:
