@@ -18,13 +18,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import NavIcon, { type NavIconName } from "./NavIcon";
+import NavIcon from "./NavIcon";
+import { destinationsIn, isActivePath } from "./nav";
 
-const TABS: readonly { href: string; label: string; icon: NavIconName }[] = [
-  { href: "/", label: "Timer", icon: "timer" },
-  { href: "/history", label: "History", icon: "history" },
-  { href: "/plan", label: "Plan", icon: "plan" },
-];
+const tabs = destinationsIn("tab");
 
 export default function TabBar() {
   const pathname = usePathname();
@@ -32,10 +29,8 @@ export default function TabBar() {
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-10 bg-white border-t border-neutral-200">
       <div className="flex justify-around items-center h-14 max-w-lg mx-auto">
-        {TABS.map((tab) => {
-          // Sub-routes like /plan/day belong to Plan; / must stay exact.
-          const active =
-            tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
+        {tabs.map((tab) => {
+          const active = isActivePath(pathname, tab.href);
           return (
             <Link
               key={tab.href}

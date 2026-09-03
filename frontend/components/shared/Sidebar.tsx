@@ -19,40 +19,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "@/components/Logo";
-import NavIcon, { type NavIconName } from "./NavIcon";
+import NavIcon from "./NavIcon";
+import { destinationsIn, isActivePath, type NavDestination } from "./nav";
 
-interface Item {
-  href: string;
-  label: string;
-  icon: NavIconName;
-}
-
-// The three destinations the tab bar also carries (SCR-01).
-const PRIMARY: readonly Item[] = [
-  { href: "/", label: "Timer", icon: "timer" },
-  { href: "/history", label: "History", icon: "history" },
-  { href: "/plan", label: "Plan", icon: "plan" },
-];
-
-// Tags live under Settings' Data section (SCR-40), so this tier is about
-// the app rather than about time — it sits at the foot of the rail.
-const SECONDARY: readonly Item[] = [
-  { href: "/settings#tags", label: "Tags", icon: "tags" },
-  { href: "/settings", label: "Settings", icon: "settings" },
-];
+// Destination data and the active rule live in one shared registry
+// (shared/nav.ts) — the sidebar renders the "rail" and "rail-foot" tiers.
+const primary = destinationsIn("rail");
+const secondary = destinationsIn("rail-foot");
 
 export default function Sidebar() {
   const pathname = usePathname();
 
-  function isActive(href: string): boolean {
-    // A hash href jumps to a section of another item's page, so it is never
-    // a destination of its own — otherwise /settings lights up twice.
-    if (href.includes("#")) return false;
-    return href === "/" ? pathname === "/" : pathname.startsWith(href);
-  }
-
-  function renderItem(item: Item) {
-    const active = isActive(item.href);
+  function renderItem(item: NavDestination) {
+    const active = isActivePath(pathname, item.href);
     return (
       <Link
         key={item.href}
@@ -88,10 +67,10 @@ export default function Sidebar() {
         <Logo />
       </Link>
 
-      <nav className="flex flex-col gap-1">{PRIMARY.map(renderItem)}</nav>
+      <nav className="flex flex-col gap-1">{primary.map(renderItem)}</nav>
 
       <div className="mt-auto flex flex-col gap-1 border-t border-neutral-200 pt-3">
-        {SECONDARY.map(renderItem)}
+        {secondary.map(renderItem)}
       </div>
     </aside>
   );

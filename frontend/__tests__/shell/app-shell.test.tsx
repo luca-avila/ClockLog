@@ -27,6 +27,7 @@ vi.mock("next/navigation", () => ({
 import AppShell from "@/components/shared/AppShell";
 import TabBar from "@/components/shared/TabBar";
 import Sidebar from "@/components/shared/Sidebar";
+import { destinationsIn, isActivePath } from "@/components/shared/nav";
 
 const DESTINATIONS = ["/", "/history", "/plan"] as const;
 
@@ -37,7 +38,10 @@ function hrefs(markup: string): string[] {
 describe("navigation destinations", () => {
   it("the tab bar carries exactly three destinations", () => {
     const markup = renderToStaticMarkup(<TabBar />);
-    expect(hrefs(markup)).toEqual([...DESTINATIONS]);
+    // Consumption, not content: the content is fixed in the "nav registry"
+    // describe below, and this test fails loudly if TabBar ever stops
+    // mapping the registry into its markup.
+    expect(hrefs(markup)).toEqual(destinationsIn("tab").map((d) => d.href));
     expect(markup).toContain("Timer");
     expect(markup).toContain("History");
     expect(markup).toContain("Plan");
@@ -60,17 +64,6 @@ describe("navigation destinations", () => {
     // gear + sidebar entry.
     expect(settingsHrefs.length).toBeGreaterThanOrEqual(1);
     expect(shellMarkup).toContain("⚙");
-  });
-
-  it("the active destination is marked with aria-current", () => {
-    nav.pathname = "/history";
-    const markup = renderToStaticMarkup(<TabBar />);
-    const active = [...markup.matchAll(/<a[^>]*aria-current="page"[^>]*>/g)].map(
-      (m) => m[0]
-    );
-    expect(active).toHaveLength(1);
-    expect(active[0]).toContain('href="/history"');
-    nav.pathname = "/";
   });
 
   it("marks one sidebar item on /settings, not Tags as well", () => {
@@ -98,6 +91,62 @@ describe("navigation destinations", () => {
   });
 });
 
+describe("nav registry", () => {
+  it.each([
+    ["/", "/", true],
+    ["/", "/plan", false],
+    ["/plan/day", "/plan", true],
+    ["/history", "/history", true],
+    ["/settings", "/settings#tags", false],
+  ] as const)(
+    "isActivePath(%s, %s) is %s",
+    (pathname, href, expected) => {
+      expect(isActivePath(pathname, href)).toBe(expected);
+    }
+  );
+
+  it("the tab and rail tiers carry the same three primary destinations", () => {
+    const primary = ["/", "/history", "/plan"];
+    expect(destinationsIn("tab").map((d) => d.href)).toEqual(primary);
+    expect(destinationsIn("rail").map((d) => d.href)).toEqual(primary);
+  });
+
+  it("the rail foot carries Tags then Settings", () => {
+    expect(destinationsIn("rail-foot").map((d) => d.href)).toEqual([
+      "/settings#tags",
+      "/settings",
+    ]);
+  });
+
+  it("the gear tier is exactly Settings", () => {
+    expect(destinationsIn("gear").map((d) => d.href)).toEqual(["/settings"]);
+  });
+
+  it("each href across all tiers names a single destination", () => {
+    // Tiers are surfaces, not ownership: a destination legitimately appears
+    // in several tiers (the primary three are "tab" and "rail"), so the
+    // flattened list repeats hrefs. The invariant to guard is that one href
+    // never names two different destinations — that would collide on the
+    // rendered Link key.
+    const byHref = new Map<string, { label: string; icon: string }>();
+    for (const d of [
+      ...destinationsIn("tab"),
+      ...destinationsIn("rail"),
+      ...destinationsIn("rail-foot"),
+      ...destinationsIn("gear"),
+    ]) {
+      const prev = byHref.get(d.href);
+      if (prev) {
+        expect({ label: d.label, icon: d.icon }).toEqual(prev);
+      } else {
+        byHref.set(d.href, { label: d.label, icon: d.icon });
+      }
+    }
+    // And the four tiers together reach every registered destination.
+    expect(byHref.size).toBe(5);
+  });
+});
+
 describe("responsive shape (mobile-first)", () => {
   it("mobile renders the tab bar and no sidebar; md: inverts", () => {
     const shell = renderToStaticMarkup(
@@ -117,7 +166,13 @@ describe("responsive shape (mobile-first)", () => {
 });
 
 describe("module independence of the shell", () => {
-  const files = ["TabBar.tsx", "Sidebar.tsx", "AppShell.tsx", "PrimaryButton.tsx"];
+  const files = [
+    "TabBar.tsx",
+    "Sidebar.tsx",
+    "AppShell.tsx",
+    "nav.ts",
+    "PrimaryButton.tsx",
+  ];
 
   it("imports nothing from components/timer or components/plan", () => {
     // Mirrors the ESLint no-restricted-imports rule extended to

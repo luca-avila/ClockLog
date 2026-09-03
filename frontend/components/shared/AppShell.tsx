@@ -19,6 +19,7 @@ import Logo from "@/components/Logo";
 import Sidebar from "./Sidebar";
 import TabBar from "./TabBar";
 import QueueSync from "./QueueSync";
+import { destinationsIn } from "./nav";
 
 // SCR-01: mobile = bottom tab bar + header gear to Settings; desktop =
 // persistent sidebar. The shell knows no module beyond shared/ — it
@@ -33,13 +34,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Logo />
           </Link>
           {/* Settings is reached from the gear, never a fourth tab */}
-          <Link
-            href="/settings"
-            aria-label="Settings"
-            className="text-neutral-400 hover:text-neutral-700 transition-colors text-lg"
-          >
-            ⚙
-          </Link>
+          {destinationsIn("gear").map((d) => (
+            <Link
+              key={d.href}
+              href={d.href}
+              aria-label={d.label}
+              className="text-neutral-400 hover:text-neutral-700 transition-colors text-lg"
+            >
+              ⚙
+            </Link>
+          ))}
         </header>
         <main className="flex-1 pb-20 md:pb-6">{children}</main>
       </div>
