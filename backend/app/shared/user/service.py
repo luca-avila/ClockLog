@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import secrets
-import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 
@@ -42,7 +41,6 @@ from app.shared.user.schemas import (
     TokenSubmit,
     UserCreate,
     UserLogin,
-    UserResponse,
 )
 from app.shared.user.session import issue_session_token
 
@@ -109,31 +107,6 @@ async def authenticate_user(db: AsyncSession, data: UserLogin) -> TokenResponse:
             detail={"code": "EMAIL_NOT_VERIFIED", "message": "Verify your email address first"},
         )
     return TokenResponse(access_token=issue_session_token(user.id, user.password_changed_at))
-
-
-async def get_current_user(db: AsyncSession, payload: dict) -> UserResponse:
-    raw_sub = payload.get("sub")
-    try:
-        user_id = uuid.UUID(raw_sub)
-    except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=401,
-            detail={"code": "INVALID_TOKEN", "message": "Invalid token subject"},
-        ) from None
-    user = await db.get(User, user_id)
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail={"code": "USER_NOT_FOUND", "message": "User not found"},
-        )
-    # Same truncation the claim was written with (int seconds) — comparing
-    # raw datetimes would log everyone out on every request.
-    if payload.get("pwd") != int(user.password_changed_at.timestamp()):
-        raise HTTPException(
-            status_code=401,
-            detail={"code": "TOKEN_REVOKED", "message": "Session no longer valid"},
-        )
-    return UserResponse.model_validate(user)
 
 
 async def issue_email_token(db: AsyncSession, user: User, purpose: str) -> str:
