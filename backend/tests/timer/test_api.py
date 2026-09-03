@@ -19,25 +19,13 @@ import uuid
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
-from app.core.security import create_user_token
 from app.main import app
-from app.shared.user.models import User
-from app.shared.user.schemas import UserCreate
-from app.shared.user.service import create_user
-
-
-async def _register_and_auth(db_session) -> tuple[dict[str, str], User]:
-    email = f"block-{uuid.uuid4()}@example.com"
-    user = await create_user(db_session, UserCreate(email=email, password="secret12"))
-    await db_session.commit()
-    token = create_user_token(user.id, user.password_changed_at)
-    return {"Authorization": f"Bearer {token}"}, user
 
 
 class TestPostBlocks:
     @pytest.mark.asyncio
-    async def test_post_block_succeeds(self, db_session):
-        headers, _ = await _register_and_auth(db_session)
+    async def test_post_block_succeeds(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
@@ -57,8 +45,8 @@ class TestPostBlocks:
         assert resp.status_code == 201
 
     @pytest.mark.asyncio
-    async def test_rejects_missing_started_at(self, db_session):
-        headers, _ = await _register_and_auth(db_session)
+    async def test_rejects_missing_started_at(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -70,8 +58,8 @@ class TestPostBlocks:
         assert resp.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_same_uuid_is_idempotent(self, db_session):
-        headers, _ = await _register_and_auth(db_session)
+    async def test_same_uuid_is_idempotent(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
@@ -91,9 +79,9 @@ class TestPostBlocks:
         assert r1.json() == r2.json()
 
     @pytest.mark.asyncio
-    async def test_cannot_write_another_users_block(self, db_session):
-        headers1, u1 = await _register_and_auth(db_session)
-        headers2, u2 = await _register_and_auth(db_session)
+    async def test_cannot_write_another_users_block(self, verified_user):
+        headers1, _ = await verified_user()
+        headers2, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
@@ -129,9 +117,9 @@ class TestPostBlocks:
 
 class TestPatchBlocks:
     @pytest.mark.asyncio
-    async def test_patch_can_clear_tag_and_label(self, db_session):
+    async def test_patch_can_clear_tag_and_label(self, verified_user):
         """An explicit null clears the field — exclude_unset semantics."""
-        headers, _ = await _register_and_auth(db_session)
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -167,8 +155,8 @@ class TestPatchBlocks:
         assert body["label"] is None
 
     @pytest.mark.asyncio
-    async def test_patch_absent_fields_untouched(self, db_session):
-        headers, _ = await _register_and_auth(db_session)
+    async def test_patch_absent_fields_untouched(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
@@ -195,9 +183,9 @@ class TestPatchBlocks:
         assert resp.json()["status"] == "completed"
 
     @pytest.mark.asyncio
-    async def test_patch_status(self, db_session):
+    async def test_patch_status(self, verified_user):
         """SCR-21 edits status in the block inspector."""
-        headers, _ = await _register_and_auth(db_session)
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
@@ -223,10 +211,10 @@ class TestPatchBlocks:
         assert resp.json()["status"] == "aborted"
 
     @pytest.mark.asyncio
-    async def test_patch_cannot_clear_started_at(self, db_session):
+    async def test_patch_cannot_clear_started_at(self, verified_user):
         """started_at: null is rejected — a block always has a start
         (invariant 7). ended_at: null is the only clearable time."""
-        headers, _ = await _register_and_auth(db_session)
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
@@ -257,9 +245,9 @@ class TestPatchBlocks:
         assert blocks[block_id]["started_at"] == "2026-08-05T12:00:00Z"
 
     @pytest.mark.asyncio
-    async def test_patch_can_clear_ended_at(self, db_session):
+    async def test_patch_can_clear_ended_at(self, verified_user):
         """Pins the asymmetry: ended_at: null clears the end (200)."""
-        headers, _ = await _register_and_auth(db_session)
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
@@ -285,10 +273,10 @@ class TestPatchBlocks:
         assert resp.json()["intervals"][0]["ended_at"] is None
 
     @pytest.mark.asyncio
-    async def test_patch_rejects_unknown_field(self, db_session):
+    async def test_patch_rejects_unknown_field(self, verified_user):
         """extra='forbid': an unknown key is a client bug, and the patch
         body must not double as a mass-assignment vector."""
-        headers, _ = await _register_and_auth(db_session)
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
@@ -313,10 +301,10 @@ class TestPatchBlocks:
         assert resp.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_patch_cannot_clear_status(self, db_session):
+    async def test_patch_cannot_clear_status(self, verified_user):
         """status backs a NOT NULL column — an explicit null must 422 in the
         schema, not 500 on commit. The re-read proves nothing was written."""
-        headers, _ = await _register_and_auth(db_session)
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
@@ -347,10 +335,10 @@ class TestPatchBlocks:
         assert blocks[block_id]["status"] == "completed"
 
     @pytest.mark.asyncio
-    async def test_patch_rejects_naive_datetime(self, db_session):
+    async def test_patch_rejects_naive_datetime(self, verified_user):
         """The tz guards deleted from update_block live on in BlockUpdate's
         field validator (invariant 5)."""
-        headers, _ = await _register_and_auth(db_session)
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         block_id = str(uuid.uuid4())
@@ -377,8 +365,8 @@ class TestPatchBlocks:
 
 class TestPathIdValidation:
     @pytest.mark.asyncio
-    async def test_malformed_block_id_is_422_not_500(self, db_session):
-        headers, _ = await _register_and_auth(db_session)
+    async def test_malformed_block_id_is_422_not_500(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -390,8 +378,8 @@ class TestPathIdValidation:
         assert gone.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_unknown_block_id_is_still_404(self, db_session):
-        headers, _ = await _register_and_auth(db_session)
+    async def test_unknown_block_id_is_still_404(self, verified_user):
+        headers, _ = await verified_user()
 
         fake_id = str(uuid.uuid4())
         transport = ASGITransport(app=app)
@@ -407,8 +395,8 @@ class TestPathIdValidation:
 
 class TestHistoryQueryValidation:
     @pytest.mark.asyncio
-    async def test_garbage_from_is_422_not_500(self, db_session):
-        headers, _ = await _register_and_auth(db_session)
+    async def test_garbage_from_is_422_not_500(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -424,8 +412,8 @@ class TestHistoryQueryValidation:
         assert summary.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_naive_datetime_is_422(self, db_session):
-        headers, _ = await _register_and_auth(db_session)
+    async def test_naive_datetime_is_422(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -438,8 +426,8 @@ class TestHistoryQueryValidation:
         assert resp.json()["code"] == "NAIVE_DATETIME"
 
     @pytest.mark.asyncio
-    async def test_from_after_to_is_422(self, db_session):
-        headers, _ = await _register_and_auth(db_session)
+    async def test_from_after_to_is_422(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -451,8 +439,8 @@ class TestHistoryQueryValidation:
         assert resp.json()["code"] == "INVALID_RANGE"
 
     @pytest.mark.asyncio
-    async def test_valid_range_still_works(self, db_session):
-        headers, _ = await _register_and_auth(db_session)
+    async def test_valid_range_still_works(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

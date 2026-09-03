@@ -19,10 +19,7 @@ import uuid
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
-from app.core.security import create_user_token
 from app.main import app
-from app.shared.user.schemas import UserCreate
-from app.shared.user.service import create_user
 
 
 async def _auth_and_post_block(
@@ -52,11 +49,8 @@ async def _auth_and_post_block(
 
 class TestHistory:
     @pytest.mark.asyncio
-    async def test_blocks_in_range_ordered_by_time(self, db_session):
-        user = await create_user(db_session, UserCreate(email="hist@test.com", password="secret12"))
-        await db_session.commit()
-        token = create_user_token(user.id, user.password_changed_at)
-        headers = {"Authorization": f"Bearer {token}"}
+    async def test_blocks_in_range_ordered_by_time(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
 
@@ -76,13 +70,8 @@ class TestHistory:
         assert blocks[1]["label"] == "second"
 
     @pytest.mark.asyncio
-    async def test_aborted_blocks_included(self, db_session):
-        user = await create_user(
-            db_session, UserCreate(email="abort@test.com", password="secret12")
-        )
-        await db_session.commit()
-        token = create_user_token(user.id, user.password_changed_at)
-        headers = {"Authorization": f"Bearer {token}"}
+    async def test_aborted_blocks_included(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
 
@@ -106,12 +95,9 @@ class TestHistory:
         assert "completed" in statuses
 
     @pytest.mark.asyncio
-    async def test_scoped_to_user(self, db_session):
-        u1 = await create_user(db_session, UserCreate(email="u1-h@test.com", password="secret12"))
-        u2 = await create_user(db_session, UserCreate(email="u2-h@test.com", password="secret12"))
-        await db_session.commit()
-        h1 = {"Authorization": f"Bearer {create_user_token(u1.id, u1.password_changed_at)}"}
-        h2 = {"Authorization": f"Bearer {create_user_token(u2.id, u2.password_changed_at)}"}
+    async def test_scoped_to_user(self, verified_user):
+        h1, _ = await verified_user()
+        h2, _ = await verified_user()
 
         transport = ASGITransport(app=app)
 
@@ -129,11 +115,8 @@ class TestHistory:
         assert blocks[0]["label"] == "u1-block"
 
     @pytest.mark.asyncio
-    async def test_kind_roundtrip_and_default(self, db_session):
-        user = await create_user(db_session, UserCreate(email="kind@test.com", password="secret12"))
-        await db_session.commit()
-        token = create_user_token(user.id, user.password_changed_at)
-        headers = {"Authorization": f"Bearer {token}"}
+    async def test_kind_roundtrip_and_default(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
 
@@ -159,11 +142,8 @@ class TestHistory:
 
 class TestSummary:
     @pytest.mark.asyncio
-    async def test_aggregates_by_tag(self, db_session):
-        user = await create_user(db_session, UserCreate(email="summ@test.com", password="secret12"))
-        await db_session.commit()
-        token = create_user_token(user.id, user.password_changed_at)
-        headers = {"Authorization": f"Bearer {token}"}
+    async def test_aggregates_by_tag(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
 
@@ -215,13 +195,8 @@ class TestSummary:
         assert "Untagged" in names
 
     @pytest.mark.asyncio
-    async def test_includes_aborted_in_summary(self, db_session):
-        user = await create_user(
-            db_session, UserCreate(email="abrt-s@test.com", password="secret12")
-        )
-        await db_session.commit()
-        token = create_user_token(user.id, user.password_changed_at)
-        headers = {"Authorization": f"Bearer {token}"}
+    async def test_includes_aborted_in_summary(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
 
@@ -244,11 +219,8 @@ class TestSummary:
         # so duration will be 0. But the test just verifies they're included.
 
     @pytest.mark.asyncio
-    async def test_summary_excludes_breaks(self, db_session):
-        user = await create_user(db_session, UserCreate(email="brk@test.com", password="secret12"))
-        await db_session.commit()
-        token = create_user_token(user.id, user.password_changed_at)
-        headers = {"Authorization": f"Bearer {token}"}
+    async def test_summary_excludes_breaks(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
 
@@ -297,13 +269,8 @@ class TestSummary:
         assert [b["kind"] for b in list_resp.json()] == ["focus", "short_break"]
 
     @pytest.mark.asyncio
-    async def test_recent_labels_excludes_breaks(self, db_session):
-        user = await create_user(
-            db_session, UserCreate(email="lbl-brk@test.com", password="secret12")
-        )
-        await db_session.commit()
-        token = create_user_token(user.id, user.password_changed_at)
-        headers = {"Authorization": f"Bearer {token}"}
+    async def test_recent_labels_excludes_breaks(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
 

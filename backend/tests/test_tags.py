@@ -29,21 +29,7 @@ from app.shared.tag.service import (
     update_tag,
 )
 from app.shared.user.schemas import UserCreate
-from app.shared.user.service import create_user, get_user_by_email
-
-
-async def _auth_header(db_session) -> dict:
-    """Create a user, authenticate, return auth headers."""
-    from app.core.security import create_user_token
-
-    email = "tag-test@example.com"
-    user = await get_user_by_email(db_session, email)
-    if not user:
-        user = await create_user(db_session, UserCreate(email=email, password="secret12"))
-        await db_session.commit()
-
-    token = create_user_token(user.id, user.password_changed_at)
-    return {"Authorization": f"Bearer {token}"}
+from app.shared.user.service import create_user
 
 
 class TestTagService:
@@ -122,8 +108,8 @@ class TestTagService:
 
 class TestTagAPI:
     @pytest.mark.asyncio
-    async def test_create_tag_via_api(self, db_session):
-        headers = await _auth_header(db_session)
+    async def test_create_tag_via_api(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -137,8 +123,8 @@ class TestTagAPI:
         assert data["name"] == "API Study"
 
     @pytest.mark.asyncio
-    async def test_list_tags_via_api(self, db_session):
-        headers = await _auth_header(db_session)
+    async def test_list_tags_via_api(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -157,8 +143,8 @@ class TestTagAPI:
 
 class TestTagAPIPathIdValidation:
     @pytest.mark.asyncio
-    async def test_malformed_tag_id_is_422_not_500(self, db_session):
-        headers = await _auth_header(db_session)
+    async def test_malformed_tag_id_is_422_not_500(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -172,8 +158,8 @@ class TestTagAPIPathIdValidation:
         assert gone.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_unknown_tag_id_is_still_404(self, db_session):
-        headers = await _auth_header(db_session)
+    async def test_unknown_tag_id_is_still_404(self, verified_user):
+        headers, _ = await verified_user()
 
         fake_id = str(uuid.uuid4())
         transport = ASGITransport(app=app)

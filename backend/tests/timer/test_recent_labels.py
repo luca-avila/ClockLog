@@ -19,25 +19,13 @@ import uuid
 import pytest
 from httpx import ASGITransport, AsyncClient, Headers
 
-from app.core.security import create_user_token
 from app.main import app
-from app.shared.user.schemas import UserCreate
-from app.shared.user.service import create_user
-
-
-async def _register_and_post(db_session) -> tuple[dict, str]:
-    """Create user, auth, return headers + user_id."""
-    email = f"label-{uuid.uuid4()}@example.com"
-    user = await create_user(db_session, UserCreate(email=email, password="secret12"))
-    await db_session.commit()
-    token = create_user_token(user.id, user.password_changed_at)
-    return {"Authorization": f"Bearer {token}"}, str(user.id)
 
 
 class TestRecentLabels:
     @pytest.mark.asyncio
-    async def test_deduped_most_recent_first(self, db_session):
-        headers, _ = await _register_and_post(db_session)
+    async def test_deduped_most_recent_first(self, verified_user):
+        headers, _ = await verified_user()
 
         transport = ASGITransport(app=app)
 
@@ -75,9 +63,9 @@ class TestRecentLabels:
         assert labels[2] == "read docs"
 
     @pytest.mark.asyncio
-    async def test_scoped_to_user(self, db_session):
-        headers1, _ = await _register_and_post(db_session)
-        headers2, _ = await _register_and_post(db_session)
+    async def test_scoped_to_user(self, verified_user):
+        headers1, _ = await verified_user()
+        headers2, _ = await verified_user()
 
         transport = ASGITransport(app=app)
 
