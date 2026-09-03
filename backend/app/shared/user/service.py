@@ -16,13 +16,18 @@
 
 import secrets
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Imported as a module so tests can patch email_sender.send_* — a
+# `from ... import send_verification_email` binding would freeze the
+# function and silently defeat the mail_outbox fixture.
+from app.core import email as email_sender
 from app.core.config import settings
 from app.core.security import (
     create_user_token,
@@ -31,7 +36,15 @@ from app.core.security import (
     verify_password,
 )
 from app.shared.user.models import EmailToken, User
-from app.shared.user.schemas import TokenResponse, UserCreate, UserLogin, UserResponse
+from app.shared.user.schemas import (
+    EmailRequest,
+    PasswordReset,
+    TokenResponse,
+    TokenSubmit,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+)
 
 VERIFY = "verify"
 RESET = "reset"
@@ -187,3 +200,70 @@ async def consume_email_token(db: AsyncSession, raw: str, purpose: str, code: st
             detail={"code": code, "message": _TOKEN_ERROR_MESSAGE},
         )
     return user
+
+
+async def _issue_mail_token(
+    db: AsyncSession,
+    background: BackgroundTasks,
+    user: User,
+    purpose: str,
+    send: Callable[[str, str], Awaitable[None]],
+) -> str:
+    """Issue a token, COMMIT, then enqueue the mail — in that order, here only."""
+    raw = await issue_email_token(db, user, purpose)
+    # Commit BEFORE enqueueing: the request session closes on response, so the
+    # background task only ever receives plain strings, never the session.
+    await db.commit()
+    background.add_task(send, user.email, raw)
+    return raw
+
+
+async def register_user(db: AsyncSession, background: BackgroundTasks, data: UserCreate) -> User:
+    user = await create_user(db, data)
+    await _issue_mail_token(db, background, user, VERIFY, email_sender.send_verification_email)
+    # expire_on_commit=False keeps the object serializable after the commit
+    # above; refresh anyway for identical behavior, the boring solution.
+    await db.refresh(user)
+    return user
+
+
+async def verify_user_email(db: AsyncSession, data: TokenSubmit) -> TokenResponse:
+    user = await consume_email_token(db, data.token, VERIFY, "INVALID_VERIFICATION_TOKEN")
+    # Verifying IS signing in: the address is proven, issue the session here
+    # so the emailed link lands the user directly in the app.
+    user.email_verified_at = datetime.now(UTC)
+    await db.commit()
+    return TokenResponse(access_token=create_user_token(user.id, user.password_changed_at))
+
+
+async def resend_user_verification(
+    db: AsyncSession, background: BackgroundTasks, data: EmailRequest
+) -> None:
+    user = await get_user_by_email(db, data.email)
+    # 204 either way — the RESPONSE must not reveal whether an address is
+    # registered (or already verified). Timing is not flattened: this branch
+    # does one extra insert+commit; accepted residual, see docs/architecture.md.
+    if user and user.email_verified_at is None:
+        await _issue_mail_token(db, background, user, VERIFY, email_sender.send_verification_email)
+
+
+async def request_password_reset(
+    db: AsyncSession, background: BackgroundTasks, data: EmailRequest
+) -> None:
+    user = await get_user_by_email(db, data.email)
+    # 204 either way — no enumeration via the response; the timing note
+    # lives in docs/architecture.md.
+    if user:
+        await _issue_mail_token(db, background, user, RESET, email_sender.send_reset_email)
+
+
+async def reset_user_password(db: AsyncSession, data: PasswordReset) -> None:
+    user = await consume_email_token(db, data.token, RESET, "INVALID_RESET_TOKEN")
+    user.hashed_password = get_password_hash(data.password)
+    # Moving this timestamp is what revokes every live session (the `pwd`
+    # claim) — the point of resetting through a mailed link.
+    user.password_changed_at = datetime.now(UTC)
+    if user.email_verified_at is None:
+        # The reset link reached the mailbox, so the address is theirs.
+        user.email_verified_at = datetime.now(UTC)
+    await db.commit()

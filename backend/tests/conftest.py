@@ -97,7 +97,7 @@ async def db_session(engine: AsyncEngine):
 def mail_outbox(monkeypatch):
     """Capture emails instead of sending them.
 
-    Works only because user/api.py imports the mailer as a module
+    Works only because user/service.py imports the mailer as a module
     (`from app.core import email as email_sender`) and calls
     `email_sender.send_*` — patching the module attribute. Rebinding the
     functions with a from-import would freeze them and silently defeat this.
