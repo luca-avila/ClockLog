@@ -304,6 +304,8 @@ render a time the user never entered. Overlapping entries get side-by-side lanes
    `TOKEN_REVOKED`. Tokens are HS256 and last 7 days. The subject is the user id, not
    the email, so identity does not ride on a mutable field.
 4. **Router** stays thin: parse, delegate to `service.py`, commit, serialize.
+   Exception: in `shared/user` the service commits, because the
+   commit-before-enqueue rule (token → commit → mail) lives in `service.py`.
 5. **HTTPException handler** normalizes everything to
    `{"code": ..., "message": ...}` — a `detail` dict with its own `code` passes through,
    anything else becomes `{"code": "ERROR"}`.
