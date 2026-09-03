@@ -30,7 +30,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import email as email_sender
 from app.core.config import settings
 from app.core.security import (
-    create_user_token,
     get_password_hash,
     hash_email_token,
     verify_password,
@@ -45,6 +44,7 @@ from app.shared.user.schemas import (
     UserLogin,
     UserResponse,
 )
+from app.shared.user.session import issue_session_token
 
 VERIFY = "verify"
 RESET = "reset"
@@ -108,7 +108,7 @@ async def authenticate_user(db: AsyncSession, data: UserLogin) -> TokenResponse:
             status_code=403,
             detail={"code": "EMAIL_NOT_VERIFIED", "message": "Verify your email address first"},
         )
-    return TokenResponse(access_token=create_user_token(user.id, user.password_changed_at))
+    return TokenResponse(access_token=issue_session_token(user.id, user.password_changed_at))
 
 
 async def get_current_user(db: AsyncSession, payload: dict) -> UserResponse:
@@ -233,7 +233,7 @@ async def verify_user_email(db: AsyncSession, data: TokenSubmit) -> TokenRespons
     # so the emailed link lands the user directly in the app.
     user.email_verified_at = datetime.now(UTC)
     await db.commit()
-    return TokenResponse(access_token=create_user_token(user.id, user.password_changed_at))
+    return TokenResponse(access_token=issue_session_token(user.id, user.password_changed_at))
 
 
 async def resend_user_verification(
