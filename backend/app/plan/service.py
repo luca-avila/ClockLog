@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.plan.models import Entry
 from app.plan.schemas import EntryCreate, EntryOccurrence, EntryUpdate
 from app.shared.tag.models import Tag
+from app.shared.tag.service import assert_tag_owned
 
 
 def _validate_times(all_day: bool, start: time | None, end: time | None) -> None:
@@ -47,23 +48,10 @@ def _validate_times(all_day: bool, start: time | None, end: time | None) -> None
         )
 
 
-async def _assert_tag_owned(db: AsyncSession, tag_id: uuid.UUID | None, user_id: uuid.UUID) -> None:
-    if tag_id is None:
-        return
-    result = await db.execute(select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id))
-    if result.scalar_one_or_none() is None:
-        # Same answer as a nonexistent tag: the endpoint must not be usable
-        # to probe another account's tag ids.
-        raise HTTPException(
-            status_code=404,
-            detail={"code": "TAG_NOT_FOUND", "message": "Tag not found"},
-        )
-
-
 async def create_entry(db: AsyncSession, data: EntryCreate, user_id: uuid.UUID) -> Entry:
     _validate_times(data.all_day, data.start_time, data.end_time)
     # A tag_id arriving from a client is not trusted (multi-user boundary).
-    await _assert_tag_owned(db, data.tag_id, user_id)
+    await assert_tag_owned(db, data.tag_id, user_id)
     entry = Entry(
         name=data.name,
         date=data.date,
@@ -117,7 +105,7 @@ async def update_entry(
     updates = data.model_dump(exclude_unset=True)
     if "tag_id" in updates:
         # A tag_id arriving from a client is not trusted (multi-user boundary).
-        await _assert_tag_owned(db, updates["tag_id"], user_id)
+        await assert_tag_owned(db, updates["tag_id"], user_id)
     if any(k in updates for k in ("all_day", "start_time", "end_time")):
         _validate_times(
             updates.get("all_day", entry.all_day),

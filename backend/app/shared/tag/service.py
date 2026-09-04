@@ -47,6 +47,21 @@ async def get_tag_by_name(db: AsyncSession, name: str, user_id: uuid.UUID) -> Ta
     return result.scalar_one_or_none()
 
 
+# Single home for tag tenancy: any service verifying a client-supplied tag_id
+# calls this instead of keeping a private copy.
+async def assert_tag_owned(db: AsyncSession, tag_id: uuid.UUID | None, user_id: uuid.UUID) -> None:
+    if tag_id is None:
+        return
+    result = await db.execute(select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id))
+    if result.scalar_one_or_none() is None:
+        # Same answer as a nonexistent tag: the endpoint must not be usable
+        # to probe another account's tag ids.
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "TAG_NOT_FOUND", "message": "Tag not found"},
+        )
+
+
 async def update_tag(
     db: AsyncSession, tag_id: uuid.UUID, data: TagUpdate, user_id: uuid.UUID
 ) -> Tag:

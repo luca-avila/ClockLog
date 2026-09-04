@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.shared.tag.models import Tag
+from app.shared.tag.service import assert_tag_owned
 from app.timer.models import Block, BlockInterval
 from app.timer.schemas import BlockCreate, BlockUpdate, TagSummary
 
@@ -53,22 +54,9 @@ def validate_history_range(from_dt: datetime, to_dt: datetime) -> None:
         )
 
 
-async def _assert_tag_owned(db: AsyncSession, tag_id: uuid.UUID | None, user_id: uuid.UUID) -> None:
-    if tag_id is None:
-        return
-    result = await db.execute(select(Tag).where(Tag.id == tag_id, Tag.user_id == user_id))
-    if result.scalar_one_or_none() is None:
-        # Same answer as a nonexistent tag: the endpoint must not be usable
-        # to probe another account's tag ids.
-        raise HTTPException(
-            status_code=404,
-            detail={"code": "TAG_NOT_FOUND", "message": "Tag not found"},
-        )
-
-
 async def create_block(db: AsyncSession, data: BlockCreate, user_id: uuid.UUID) -> Block:
     # A tag_id arriving from a client is not trusted (multi-user boundary).
-    await _assert_tag_owned(db, data.tag_id, user_id)
+    await assert_tag_owned(db, data.tag_id, user_id)
     existing = await db.execute(select(Block).where(Block.id == data.id))
     block = existing.scalar_one_or_none()
     if block:
@@ -210,7 +198,7 @@ async def update_block(
 
     if "tag_id" in fields:
         # A tag_id arriving from a client is not trusted (multi-user boundary).
-        await _assert_tag_owned(db, data.tag_id, user_id)
+        await assert_tag_owned(db, data.tag_id, user_id)
     if "label" in fields:
         block.label = data.label
     if "tag_id" in fields:
