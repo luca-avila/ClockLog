@@ -22,6 +22,7 @@ import WeekView from "@/components/plan/WeekView";
 import DayView from "@/components/plan/DayView";
 import { railFor, railPosition, timelineLanes } from "@/lib/plan/layout";
 import { minutesBetween } from "@/lib/date/week";
+import { newEntryUrl } from "@/lib/plan/urls";
 import type { EntryOccurrence, TimedOccurrence } from "@/lib/api/plan";
 
 const WEEK = { from: "2026-07-27", to: "2026-08-02" };
@@ -173,8 +174,12 @@ describe("DayView (SCR-31)", () => {
     const markup = renderToStaticMarkup(
       <DayView date={DAY} occurrences={[]} />
     );
-    // Hour cells link into the (S-21) editor with the hour prefilled.
-    expect(markup).toMatch(/new=1[^"]*hour=14|hour=14[^"]*new=1/);
+    // Hour cells link into the (S-21) editor with the hour prefilled. The
+    // writer now guarantees param order, so the pin is exact — the href is
+    // the builder's output with its & escaped as &amp; in HTML attributes.
+    expect(markup).toContain(
+      `href="${newEntryUrl(DAY, 14).replaceAll("&", "&amp;")}"`
+    );
   });
 
   it("a midnight-spanning entry renders at the correct height — same computation as the rail", () => {

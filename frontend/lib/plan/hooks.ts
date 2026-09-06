@@ -48,7 +48,8 @@ export function useOccurrences(from: string, to: string, tick: string): EntryOcc
     return () => {
       cancelled = true;
     };
-    // Editor saves redirect with a fresh tick so this screen refetches.
+    // EntrySheet closes save/delete via withTick() (lib/plan/urls.ts); the
+    // fresh t= param becomes this tick, which is what makes this refetch.
   }, [from, to, tick]);
 
   return occurrences;

@@ -21,6 +21,7 @@ import type { EntryOccurrence } from "@/lib/api/plan";
 import EmptyWeek from "./EmptyWeek";
 import PlanHeader from "./PlanHeader";
 import { addDays, formatDuration, hhmm, minutesBetween, weekDays } from "@/lib/date/week";
+import { PLAN_WEEK_PATH, dayUrl, editEntryUrl, newEntryUrl, weekUrl } from "@/lib/plan/urls";
 
 const DAY_NAMES = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 // [Ugly but honest] months/weekdays come from the runtime locale at render;
@@ -98,15 +99,15 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
         title={rangeLabel(week.from, week.to)}
         meta={meta}
         view="week"
-        weekHref="/plan"
-        dayHref={`/plan/day?date=${dayTarget}`}
-        prevHref={`/plan?week=${addDays(week.from, -7)}`}
-        nextHref={`/plan?week=${addDays(week.from, 7)}`}
+        weekHref={PLAN_WEEK_PATH}
+        dayHref={dayUrl(dayTarget)}
+        prevHref={weekUrl(addDays(week.from, -7))}
+        nextHref={weekUrl(addDays(week.from, 7))}
         prevLabel="Previous week"
         nextLabel="Next week"
-        currentHref={todayInWeek ? undefined : "/plan"}
+        currentHref={todayInWeek ? undefined : PLAN_WEEK_PATH}
         currentLabel="This week"
-        newHref={`/plan?new=1&date=${dayTarget}`}
+        newHref={newEntryUrl(dayTarget)}
       />
 
       {count === 0 ? (
@@ -125,7 +126,7 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
                 }`}
               >
                 <Link
-                  href={`/plan/day?date=${d}`}
+                  href={dayUrl(d)}
                   className="flex items-center gap-2 border-b border-neutral-100 px-3 py-2 transition-colors hover:bg-neutral-50"
                 >
                   <span className="text-[10px] uppercase tracking-[0.18em] text-neutral-400">
@@ -153,7 +154,7 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
                   {list.map((o) => (
                     <li key={`${o.entry_id}-${o.date}`}>
                       <Link
-                        href={`/plan?edit=${o.entry_id}`}
+                        href={editEntryUrl(o.entry_id)}
                         className="relative flex items-baseline gap-3 py-2.5 pl-5 pr-3 transition-colors hover:bg-neutral-50 lg:flex-col lg:gap-0.5"
                       >
                         {/* The tag reads as a spine down the entry rather
@@ -184,7 +185,7 @@ export default function WeekView({ week, occurrences, today }: WeekViewProps) {
                 </ul>
 
                 <Link
-                  href={`/plan?new=1&date=${d}`}
+                  href={newEntryUrl(d)}
                   className="border-t border-neutral-100 px-3 py-2 text-xs text-neutral-400 transition-colors hover:bg-neutral-50 hover:text-neutral-700"
                 >
                   + Add

@@ -20,6 +20,7 @@ import { Suspense } from "react";
 import PlanWeekScreen from "@/components/plan/PlanWeekScreen";
 import EntrySheet from "@/components/plan/EntrySheet";
 import { usePlanView } from "@/lib/plan/hooks";
+import { PLAN_WEEK_PATH } from "@/lib/plan/urls";
 
 function Page() {
   const view = usePlanView();
@@ -27,7 +28,7 @@ function Page() {
   return (
     <>
       <PlanWeekScreen week={view.week} tick={view.tick} today={view.today} />
-      {view.sheet && <EntrySheet mode={view.sheet} returnTo="/plan" />}
+      {view.sheet && <EntrySheet mode={view.sheet} returnTo={PLAN_WEEK_PATH} />}
     </>
   );
 }

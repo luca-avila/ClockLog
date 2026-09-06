@@ -20,6 +20,7 @@ import { Suspense } from "react";
 import PlanDayScreen from "@/components/plan/PlanDayScreen";
 import EntrySheet from "@/components/plan/EntrySheet";
 import { usePlanView } from "@/lib/plan/hooks";
+import { dayUrl } from "@/lib/plan/urls";
 
 function Page() {
   const view = usePlanView();
@@ -28,7 +29,7 @@ function Page() {
     <>
       <PlanDayScreen date={view.date} tick={view.tick} today={view.today} />
       {view.sheet && (
-        <EntrySheet mode={view.sheet} returnTo={`/plan/day?date=${view.date}`} />
+        <EntrySheet mode={view.sheet} returnTo={dayUrl(view.date)} />
       )}
     </>
   );

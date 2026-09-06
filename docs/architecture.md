@@ -362,7 +362,7 @@ components/
 lib/
   api/     client, session (auth), queue, per-resource modules
   timer/   engine.ts — the state machine
-  plan/    view.ts (URL → view), hooks.ts, layout.ts
+  plan/    view.ts (URL → view), urls.ts (view → URL), hooks.ts, layout.ts
   date/    instant.ts (blocks), week.ts (entries)
   alerts/  plan.ts (pure) + runtime.ts (browser effects)
 ```
@@ -374,9 +374,11 @@ Conventions that carry design intent:
   behind the header gear; a persistent sidebar plus a two-pane history on desktop.
 - **The shell knows no feature module.** It navigates by `href`, which is what lets
   either module be deleted.
-- **Plan view state lives in the URL** (`?week=`, `?date=`, `?sheet=`, `?tick=`), parsed
-  by the pure `readPlanView` — so the sheet is linkable and the parser is testable
-  without `next/navigation`.
+- **Plan view state lives in the URL** (`?week=`, `?date=`, `?new=1`, `?edit=`, `?hour=`,
+  `?t=`). Writer and reader of the one format live together in `lib/plan/`: the pure
+  builders in `urls.ts` construct every URL and the pure `readPlanView` in `view.ts`
+  parses it. Neither imports `next/navigation`, so the sheet is linkable, the writer's
+  grammar is pinned by roundtrip tests, and the parser is testable on its own.
 - **Alerts split pure from impure**: `planAlert()` decides which channels fire; only
   `fireAlert()` touches the browser, and each channel fails independently without
   throwing.

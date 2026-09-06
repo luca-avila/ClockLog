@@ -21,6 +21,7 @@ import type { EntryOccurrence } from "@/lib/api/plan";
 import PlanHeader from "./PlanHeader";
 import { railFor, railPosition, timelineLanes } from "@/lib/plan/layout";
 import { addDays, formatDuration, hhmm, minutesBetween, weekBounds } from "@/lib/date/week";
+import { PLAN_DAY_PATH, dayUrl, editEntryUrl, newEntryUrl, weekUrl } from "@/lib/plan/urls";
 
 const HOUR = 60;
 /** One hour of rail, in pixels. Everything on the rail — labels, hour
@@ -91,15 +92,15 @@ export default function DayView({ date, occurrences, today, nowMinutes }: DayVie
         })}
         meta={meta}
         view="day"
-        weekHref={`/plan?week=${weekBounds(date).from}`}
-        dayHref={`/plan/day?date=${date}`}
-        prevHref={`/plan/day?date=${addDays(date, -1)}`}
-        nextHref={`/plan/day?date=${addDays(date, 1)}`}
+        weekHref={weekUrl(weekBounds(date).from)}
+        dayHref={dayUrl(date)}
+        prevHref={dayUrl(addDays(date, -1))}
+        nextHref={dayUrl(addDays(date, 1))}
         prevLabel="Previous day"
         nextLabel="Next day"
-        currentHref={today === undefined || today === date ? undefined : "/plan/day"}
+        currentHref={today === undefined || today === date ? undefined : PLAN_DAY_PATH}
         currentLabel="Today"
-        newHref={`/plan?new=1&date=${date}`}
+        newHref={newEntryUrl(date)}
       />
 
       {allDay.length > 0 && (
@@ -107,7 +108,7 @@ export default function DayView({ date, occurrences, today, nowMinutes }: DayVie
           {allDay.map((o) => (
             <li key={o.entry_id}>
               <Link
-                href={`/plan/day?date=${date}&edit=${o.entry_id}`}
+                href={editEntryUrl(o.entry_id, date)}
                 className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white py-1.5 pl-2.5 pr-3.5 text-sm text-neutral-800 transition-colors hover:border-neutral-400"
               >
                 <span
@@ -142,7 +143,7 @@ export default function DayView({ date, occurrences, today, nowMinutes }: DayVie
               <span className="mt-0 h-px flex-1 bg-neutral-100" aria-hidden />
             </div>
             <Link
-              href={`/plan?new=1&date=${date}&hour=${h % 24}`}
+              href={newEntryUrl(date, h % 24)}
               className="absolute left-12 right-0 top-0"
               style={{ height: `${PX_PER_HOUR}px` }}
               aria-label={`Add entry at ${String(h % 24).padStart(2, "0")}:00`}
@@ -159,7 +160,7 @@ export default function DayView({ date, occurrences, today, nowMinutes }: DayVie
             return (
               <Link
                 key={`${occ.entry_id}-${occ.date}`}
-                href={`/plan/day?date=${date}&edit=${occ.entry_id}`}
+                href={editEntryUrl(occ.entry_id, date)}
                 className="absolute overflow-hidden rounded-lg border border-neutral-200 bg-white pl-3 pr-2 py-1 transition-colors hover:border-neutral-400"
                 style={{
                   top: `${pos.topPct}%`,

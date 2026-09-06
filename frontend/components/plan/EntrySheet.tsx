@@ -32,6 +32,7 @@ import {
 import { fetchTags, type Tag } from "@/lib/api/tags";
 import type { EntrySheetMode } from "@/lib/plan/view";
 import { hhmm } from "@/lib/date/week";
+import { withTick } from "@/lib/plan/urls";
 
 export default function EntrySheet({
   mode,
@@ -100,11 +101,6 @@ export default function EntrySheet({
   // Wall-clock note, not an error: the server accepts midnight spans (S-19).
   const spansMidnight = !allDay && start !== "" && end !== "" && end <= start;
 
-  // The tick makes the screen behind refetch after a save.
-  function closeOver(returnTo: string): string {
-    return `${returnTo}${returnTo.includes("?") ? "&" : "?"}t=${Date.now()}`;
-  }
-
   async function handleSave() {
     if (!name.trim()) {
       setError("Give the entry a name");
@@ -132,7 +128,9 @@ export default function EntrySheet({
     try {
       if (editing) await updateEntry(editing.id, payload);
       else await createEntry(payload);
-      router.replace(closeOver(returnTo));
+      // Save/delete append a fresh tick so the screen behind refetches
+      // (withTick, lib/plan/urls.ts); cancel below returns without one.
+      router.replace(withTick(returnTo));
     } catch {
       setError("Could not save — try again");
       setBusy(false);
@@ -151,7 +149,7 @@ export default function EntrySheet({
     setBusy(true);
     try {
       await deleteEntry(editing.id);
-      router.replace(closeOver(returnTo));
+      router.replace(withTick(returnTo));
     } catch {
       setError("Could not delete — try again");
       setBusy(false);
