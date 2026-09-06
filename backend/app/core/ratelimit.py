@@ -72,10 +72,12 @@ def _retry_after(key: str, window: float) -> int:
     return max(1, int(remaining + 0.999))
 
 
-def _too_many(key: str, window: float, message: str) -> HTTPException:
-    # One call site raises the 429, so check and retry_after can never be
-    # paired with different windows.
-    return HTTPException(
+def _enforce(key: str, limit: int, window: float, message: str) -> None:
+    # Single check+raise path: callers pass window once, so the check and
+    # the Retry-After computation cannot drift onto different windows.
+    if _check(key, limit, window):
+        return
+    raise HTTPException(
         status_code=429,
         detail={"code": "RATE_LIMITED", "message": message},
         headers={"Retry-After": str(_retry_after(key, window))},
@@ -87,9 +89,7 @@ async def ip_guard(request: Request) -> None:
     lock out login."""
     key = f"{request.url.path}:{client_ip(request)}"
     limit, window = settings.login_rate_limit, settings.login_rate_window_seconds
-    if _check(key, limit, window):
-        return
-    raise _too_many(key, window, "Too many attempts, slow down")
+    _enforce(key, limit, window, "Too many attempts, slow down")
 
 
 async def email_guard(request: Request, address: str) -> None:
@@ -99,9 +99,7 @@ async def email_guard(request: Request, address: str) -> None:
     parsing it twice. Normalizes internally; callers pass the raw address."""
     key = f"{request.url.path}:email:{normalize_email(address)}"
     limit, window = settings.auth_email_rate_limit, settings.auth_email_rate_window_seconds
-    if _check(key, limit, window):
-        return
-    raise _too_many(key, window, "Too many emails requested, slow down")
+    _enforce(key, limit, window, "Too many emails requested, slow down")
 
 
 def reset() -> None:
