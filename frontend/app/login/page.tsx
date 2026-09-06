@@ -19,7 +19,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { adoptSession, postAuth } from "@/lib/api/session";
+import { adoptSession, authErrorMessage, postAuth } from "@/lib/api/session";
 import Logo from "@/components/Logo";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 
@@ -61,17 +61,15 @@ export default function LoginPage() {
         password,
       });
       if (!result.ok) {
-        if (result.code === "NETWORK_ERROR") {
-          setError("Could not reach the server — check your connection");
-        } else if (result.code === "INVALID_CREDENTIALS") {
-          setError("Invalid email or password");
-        } else if (result.code === "EMAIL_NOT_VERIFIED") {
+        // Flow codes stay here — EMAIL_NOT_VERIFIED flips the form into its
+        // resend state; transport codes are the shared helper's copy.
+        if (result.code === "EMAIL_NOT_VERIFIED") {
           setError("Verify your email address first — check your inbox for the link");
           setUnverified(true);
-        } else if (result.code === "RATE_LIMITED") {
-          setError("Too many attempts — wait a moment and try again");
+        } else if (result.code === "INVALID_CREDENTIALS") {
+          setError("Invalid email or password");
         } else {
-          setError("Could not sign in — try again");
+          setError(authErrorMessage(result.code, "Could not sign in — try again"));
         }
         return;
       }
@@ -95,10 +93,8 @@ export default function LoginPage() {
       const result = await postAuth("/auth/resend-verification", { email });
       if (result.ok) {
         setResent(true);
-      } else if (result.code === "NETWORK_ERROR") {
-        setError("Could not reach the server — check your connection");
       } else {
-        setError("Could not send the link — try again");
+        setError(authErrorMessage(result.code, "Could not send the link — try again"));
       }
     } finally {
       setBusy(false);

@@ -19,7 +19,7 @@
 import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { adoptSession, postAuth } from "@/lib/api/session";
+import { adoptSession, authErrorMessage, postAuth } from "@/lib/api/session";
 import Logo from "@/components/Logo";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 
@@ -81,10 +81,8 @@ function VerifyEmailInner() {
       const result = await postAuth("/auth/resend-verification", { email });
       if (result.ok) {
         setResent(true);
-      } else if (result.code === "NETWORK_ERROR") {
-        setError("Could not reach the server — check your connection");
       } else {
-        setError("Could not send the link — try again");
+        setError(authErrorMessage(result.code, "Could not send the link — try again"));
       }
     } finally {
       setBusy(false);

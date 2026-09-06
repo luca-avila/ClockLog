@@ -20,7 +20,7 @@ import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { clearSession } from "@/lib/api/client";
-import { postAuth } from "@/lib/api/session";
+import { authErrorMessage, postAuth } from "@/lib/api/session";
 import Logo from "@/components/Logo";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 
@@ -52,14 +52,12 @@ function ResetPasswordInner() {
         router.push("/login?reset=1");
         return;
       }
+      // INVALID_RESET_TOKEN is the flow's own code — it swaps the whole
+      // form for the "request a new link" state, not just an error line.
       if (result.code === "INVALID_RESET_TOKEN") {
         setInvalid(true);
-      } else if (result.code === "RATE_LIMITED") {
-        setError("Too many attempts — wait a moment and try again");
-      } else if (result.code === "NETWORK_ERROR") {
-        setError("Could not reach the server — check your connection");
       } else {
-        setError("Could not reset — try again");
+        setError(authErrorMessage(result.code, "Could not reset — try again"));
       }
     } finally {
       setBusy(false);

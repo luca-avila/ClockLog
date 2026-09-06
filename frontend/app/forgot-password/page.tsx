@@ -18,7 +18,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { postAuth } from "@/lib/api/session";
+import { authErrorMessage, postAuth } from "@/lib/api/session";
 import Logo from "@/components/Logo";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 
@@ -39,12 +39,8 @@ export default function ForgotPasswordPage() {
       const result = await postAuth("/auth/forgot-password", { email });
       if (result.ok) {
         setSent(true);
-      } else if (result.code === "RATE_LIMITED") {
-        setError("Too many attempts — wait a moment and try again");
-      } else if (result.code === "NETWORK_ERROR") {
-        setError("Could not reach the server — check your connection");
       } else {
-        setError("Could not send — try again");
+        setError(authErrorMessage(result.code, "Could not send — try again"));
       }
     } finally {
       setBusy(false);

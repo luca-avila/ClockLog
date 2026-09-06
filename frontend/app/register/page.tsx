@@ -18,7 +18,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { postAuth } from "@/lib/api/session";
+import { authErrorMessage, postAuth } from "@/lib/api/session";
 import Logo from "@/components/Logo";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 
@@ -40,14 +40,12 @@ export default function RegisterPage() {
     try {
       const result = await postAuth("/auth/register", { email, password });
       if (!result.ok) {
-        if (result.code === "NETWORK_ERROR") {
-          setError("Could not reach the server — check your connection");
-        } else if (result.code === "EMAIL_EXISTS") {
+        // EMAIL_EXISTS earns its own line under the form ("Sign in instead");
+        // everything else is shared transport copy.
+        if (result.code === "EMAIL_EXISTS") {
           setError("That address is already registered");
-        } else if (result.code === "RATE_LIMITED") {
-          setError("Too many attempts — wait a moment and try again");
         } else {
-          setError("Could not sign up — try again");
+          setError(authErrorMessage(result.code, "Could not sign up — try again"));
         }
         return;
       }
@@ -65,10 +63,8 @@ export default function RegisterPage() {
       const result = await postAuth("/auth/resend-verification", { email: sentTo });
       if (result.ok) {
         setResent(true);
-      } else if (result.code === "NETWORK_ERROR") {
-        setError("Could not reach the server — check your connection");
       } else {
-        setError("Could not send the link — try again");
+        setError(authErrorMessage(result.code, "Could not send the link — try again"));
       }
     } finally {
       setBusy(false);

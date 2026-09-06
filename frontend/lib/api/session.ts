@@ -97,3 +97,16 @@ export async function postAuth<T>(path: string, body: unknown): Promise<AuthResu
     return { ok: false, status: 0, code: "NETWORK_ERROR" };
   }
 }
+
+/**
+ * The error copy every auth screen shares. NETWORK_ERROR and RATE_LIMITED
+ * read the same across the five screens — this is the one place that says
+ * so. Codes a single flow owns (EMAIL_EXISTS, INVALID_CREDENTIALS,
+ * INVALID_RESET_TOKEN, ...) are the caller's to render first; anything else
+ * falls back to the caller's own line.
+ */
+export function authErrorMessage(code: string, fallback: string): string {
+  if (code === "NETWORK_ERROR") return "Could not reach the server — check your connection";
+  if (code === "RATE_LIMITED") return "Too many attempts — wait a moment and try again";
+  return fallback;
+}

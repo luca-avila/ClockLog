@@ -17,7 +17,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { LAST_USER_KEY, clearSession, handleUnauthorized, isPublicAuthPath } from "@/lib/api/client";
 import { enqueueBlock, type BlockPayload } from "@/lib/api/queue";
-import { adoptSession, postAuth, signOut } from "@/lib/api/session";
+import { adoptSession, authErrorMessage, postAuth, signOut } from "@/lib/api/session";
 
 function blockPayload(id: string): BlockPayload {
   return {
@@ -277,5 +277,30 @@ describe("postAuth", () => {
     const result = await postAuth("/auth/login", { email: "u@example.com", password: "x" });
 
     expect(result).toEqual({ ok: false, status: 0, code: "NETWORK_ERROR" });
+  });
+});
+
+describe("authErrorMessage", () => {
+  it("renders the shared copy for the transport codes every screen gets", () => {
+    expect(authErrorMessage("NETWORK_ERROR", "fallback")).toBe(
+      "Could not reach the server — check your connection"
+    );
+    expect(authErrorMessage("RATE_LIMITED", "fallback")).toBe(
+      "Too many attempts — wait a moment and try again"
+    );
+  });
+
+  it("leaves flow-owned codes to the screen's fallback", () => {
+    // Flow codes (EMAIL_EXISTS, INVALID_CREDENTIALS, ...) keep their own
+    // copy on the screen — the helper must never swallow them.
+    expect(authErrorMessage("EMAIL_EXISTS", "Could not sign up — try again")).toBe(
+      "Could not sign up — try again"
+    );
+    expect(authErrorMessage("INVALID_RESET_TOKEN", "Could not reset — try again")).toBe(
+      "Could not reset — try again"
+    );
+    expect(authErrorMessage("UNKNOWN", "Could not send the link — try again")).toBe(
+      "Could not send the link — try again"
+    );
   });
 });
