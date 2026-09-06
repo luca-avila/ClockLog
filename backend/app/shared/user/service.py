@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import secrets
-from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 
 from fastapi import BackgroundTasks, HTTPException
@@ -172,25 +171,26 @@ async def consume_email_token(db: AsyncSession, raw: str, purpose: str, code: st
     return user
 
 
+# Purpose -> sender name on the email module, resolved via getattr at call
+# time: a module-level binding of the function itself would freeze it and
+# defeat the fixture that patches email_sender.send_*.
+_SENDERS = {VERIFY: "send_verification_email", RESET: "send_reset_email"}
+
+
 async def _issue_mail_token(
-    db: AsyncSession,
-    background: BackgroundTasks,
-    user: User,
-    purpose: str,
-    send: Callable[[str, str], Awaitable[None]],
-) -> str:
+    db: AsyncSession, background: BackgroundTasks, user: User, purpose: str
+) -> None:
     """Issue a token, COMMIT, then enqueue the mail — in that order, here only."""
     raw = await issue_email_token(db, user, purpose)
     # Commit BEFORE enqueueing: the request session closes on response, so the
     # background task only ever receives plain strings, never the session.
     await db.commit()
-    background.add_task(send, user.email, raw)
-    return raw
+    background.add_task(getattr(email_sender, _SENDERS[purpose]), user.email, raw)
 
 
 async def register_user(db: AsyncSession, background: BackgroundTasks, data: UserCreate) -> User:
     user = await create_user(db, data)
-    await _issue_mail_token(db, background, user, VERIFY, email_sender.send_verification_email)
+    await _issue_mail_token(db, background, user, VERIFY)
     # expire_on_commit=False keeps the object serializable after the commit
     # above; refresh anyway for identical behavior, the boring solution.
     await db.refresh(user)
@@ -214,7 +214,7 @@ async def resend_user_verification(
     # registered (or already verified). Timing is not flattened: this branch
     # does one extra insert+commit; accepted residual, see docs/architecture.md.
     if user and user.email_verified_at is None:
-        await _issue_mail_token(db, background, user, VERIFY, email_sender.send_verification_email)
+        await _issue_mail_token(db, background, user, VERIFY)
 
 
 async def request_password_reset(
@@ -224,7 +224,7 @@ async def request_password_reset(
     # 204 either way — no enumeration via the response; the timing note
     # lives in docs/architecture.md.
     if user:
-        await _issue_mail_token(db, background, user, RESET, email_sender.send_reset_email)
+        await _issue_mail_token(db, background, user, RESET)
 
 
 async def reset_user_password(db: AsyncSession, data: PasswordReset) -> None:
