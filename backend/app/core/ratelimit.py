@@ -23,6 +23,8 @@ would be a new dependency for no benefit at this scale.
 import time
 from collections import deque
 
+from fastapi import HTTPException, Request
+
 from app.core.config import settings
 
 _hits: dict[str, deque[float]] = {}
@@ -34,11 +36,15 @@ def _now() -> float:
     return time.monotonic()
 
 
-def check(key: str, limit: int | None = None, window: float | None = None) -> bool:
-    """Record a hit and report whether it is within the limit."""
-    limit = settings.login_rate_limit if limit is None else limit
-    window = settings.login_rate_window_seconds if window is None else window
+def normalize_email(email: str) -> str:
+    # Forma canónica única del buzón: la usan las claves de este limiter Y el
+    # storage/lookup de shared/user. Vive en core por ser la capa de fondo
+    # que ambos lados ya importan — dos copias podrían divergir.
+    return email.strip().lower()
 
+
+def _check(key: str, limit: int, window: float) -> bool:
+    """Record a hit and report whether it is within the limit."""
     now = _now()
     bucket = _hits.get(key)
     if bucket is not None:
@@ -57,14 +63,45 @@ def check(key: str, limit: int | None = None, window: float | None = None) -> bo
     return True
 
 
-def retry_after(key: str, window: float | None = None) -> int:
+def _retry_after(key: str, window: float) -> int:
     """Seconds until the oldest hit leaves the window (for Retry-After)."""
-    window = settings.login_rate_window_seconds if window is None else window
     bucket = _hits.get(key)
     if not bucket:
         return 0
     remaining = window - (_now() - bucket[0])
     return max(1, int(remaining + 0.999))
+
+
+def _too_many(key: str, window: float, message: str) -> HTTPException:
+    # One call site raises the 429, so check and retry_after can never be
+    # paired with different windows.
+    return HTTPException(
+        status_code=429,
+        detail={"code": "RATE_LIMITED", "message": message},
+        headers={"Retry-After": str(_retry_after(key, window))},
+    )
+
+
+async def ip_guard(request: Request) -> None:
+    """Per-IP sliding window, keyed by path: register attempts must not
+    lock out login."""
+    key = f"{request.url.path}:{client_ip(request)}"
+    limit, window = settings.login_rate_limit, settings.login_rate_window_seconds
+    if _check(key, limit, window):
+        return
+    raise _too_many(key, window, "Too many attempts, slow down")
+
+
+async def email_guard(request: Request, address: str) -> None:
+    """Per-address window under separate keys from the per-IP one: one
+    mailbox must not exhaust another's budget, nor its own IP's. Called
+    inside the handler — the body is not available to a Depends without
+    parsing it twice. Normalizes internally; callers pass the raw address."""
+    key = f"{request.url.path}:email:{normalize_email(address)}"
+    limit, window = settings.auth_email_rate_limit, settings.auth_email_rate_window_seconds
+    if _check(key, limit, window):
+        return
+    raise _too_many(key, window, "Too many emails requested, slow down")
 
 
 def reset() -> None:

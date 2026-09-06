@@ -134,3 +134,33 @@ async def test_client_ip_takes_the_last_hop():
     assert client_ip(req("9.9.9.9, 1.1.1.1")) == "1.1.1.1"
     assert client_ip(req(" 5.5.5.5 ")) == "5.5.5.5"
     assert client_ip(req(None)) == "127.0.0.1"
+
+
+async def test_email_window_shares_one_budget_across_address_case(client):
+    # The email guard must canonicalize exactly like storage: rotating case
+    # or padding must not buy a fresh budget for the same mailbox.
+    for address in ("USER@example.com", " user@example.com ", "User@Example.com"):
+        res = await client.post("/auth/forgot-password", json={"email": address})
+        assert res.status_code == 204, res.text
+
+    blocked = await client.post("/auth/forgot-password", json={"email": "user@example.com"})
+    assert blocked.status_code == 429
+    assert blocked.json()["code"] == "RATE_LIMITED"
+
+    # A different mailbox from the same IP is untouched.
+    other = await client.post("/auth/forgot-password", json={"email": "other@example.com"})
+    assert other.status_code == 204, other.text
+
+
+async def test_email_429_retry_after_is_the_email_window(client):
+    # Retry-After must be computed against the email window (3600 s), not the
+    # login default (60 s): a check/retry_after pair drifted apart would answer ~60.
+    email = "budget@example.com"
+    for _ in range(3):
+        res = await client.post("/auth/forgot-password", json={"email": email})
+        assert res.status_code == 204, res.text
+
+    blocked = await client.post("/auth/forgot-password", json={"email": email})
+    assert blocked.status_code == 429
+    assert blocked.json()["code"] == "RATE_LIMITED"
+    assert int(blocked.headers["Retry-After"]) > 3590

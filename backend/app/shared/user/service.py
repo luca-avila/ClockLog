@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # function and silently defeat the mail_outbox fixture.
 from app.core import email as email_sender
 from app.core.config import settings
+from app.core.ratelimit import normalize_email
 from app.core.security import (
     get_password_hash,
     hash_email_token,
@@ -52,10 +53,6 @@ RESET = "reset"
 _DUMMY_HASH = get_password_hash("clocklog-dummy-password")
 
 _TOKEN_ERROR_MESSAGE = "This link is invalid or has expired"
-
-
-def normalize_email(email: str) -> str:
-    return email.strip().lower()
 
 
 async def create_user(db: AsyncSession, data: UserCreate) -> User:

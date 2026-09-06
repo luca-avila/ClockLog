@@ -18,12 +18,10 @@ from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
-    HTTPException,
     Request,
 )
 
 from app.core import ratelimit
-from app.core.config import settings
 from app.core.db import DBSession
 from app.shared.user.schemas import (
     EmailRequest,
@@ -36,7 +34,6 @@ from app.shared.user.schemas import (
 )
 from app.shared.user.service import (
     authenticate_user,
-    normalize_email,
     register_user,
     request_password_reset,
     resend_user_verification,
@@ -48,69 +45,46 @@ from app.shared.user.session import current_user_dependency
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-async def _rate_limited(request: Request, _: None = None) -> None:
-    # Keyed per endpoint + IP: register attempts must not lock out login.
-    key = f"{request.url.path}:{ratelimit.client_ip(request)}"
-    if ratelimit.check(key):
-        return
-    raise HTTPException(
-        status_code=429,
-        detail={"code": "RATE_LIMITED", "message": "Too many attempts, slow down"},
-        headers={"Retry-After": str(ratelimit.retry_after(key))},
-    )
-
-
-def _check_email_rate(request: Request, address: str) -> None:
-    # Per-address window under separate keys from the per-IP one: one mailbox
-    # must not be able to exhaust another's budget, nor its own IP's. Called
-    # inside the handler — the body is not available to a Depends without
-    # parsing it twice.
-    key = f"{request.url.path}:email:{normalize_email(address)}"
-    limit, window = settings.auth_email_rate_limit, settings.auth_email_rate_window_seconds
-    if ratelimit.check(key, limit, window):
-        return
-    raise HTTPException(
-        status_code=429,
-        detail={"code": "RATE_LIMITED", "message": "Too many emails requested, slow down"},
-        headers={"Retry-After": str(ratelimit.retry_after(key, window))},
-    )
-
-
 @router.post(
-    "/register", response_model=UserResponse, status_code=201, dependencies=[Depends(_rate_limited)]
+    "/register",
+    response_model=UserResponse,
+    status_code=201,
+    dependencies=[Depends(ratelimit.ip_guard)],
 )
 async def register(db: DBSession, data: UserCreate, background: BackgroundTasks, request: Request):
-    _check_email_rate(request, data.email)
+    await ratelimit.email_guard(request, data.email)
     return await register_user(db, background, data)
 
 
-@router.post("/verify-email", response_model=TokenResponse, dependencies=[Depends(_rate_limited)])
+@router.post(
+    "/verify-email", response_model=TokenResponse, dependencies=[Depends(ratelimit.ip_guard)]
+)
 async def verify_email(db: DBSession, data: TokenSubmit):
     return await verify_user_email(db, data)
 
 
-@router.post("/resend-verification", status_code=204, dependencies=[Depends(_rate_limited)])
+@router.post("/resend-verification", status_code=204, dependencies=[Depends(ratelimit.ip_guard)])
 async def resend_verification(
     db: DBSession, data: EmailRequest, background: BackgroundTasks, request: Request
 ):
-    _check_email_rate(request, data.email)
+    await ratelimit.email_guard(request, data.email)
     await resend_user_verification(db, background, data)
 
 
-@router.post("/login", response_model=TokenResponse, dependencies=[Depends(_rate_limited)])
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(ratelimit.ip_guard)])
 async def login(db: DBSession, data: UserLogin):
     return await authenticate_user(db, data)
 
 
-@router.post("/forgot-password", status_code=204, dependencies=[Depends(_rate_limited)])
+@router.post("/forgot-password", status_code=204, dependencies=[Depends(ratelimit.ip_guard)])
 async def forgot_password(
     db: DBSession, data: EmailRequest, background: BackgroundTasks, request: Request
 ):
-    _check_email_rate(request, data.email)
+    await ratelimit.email_guard(request, data.email)
     await request_password_reset(db, background, data)
 
 
-@router.post("/reset-password", status_code=204, dependencies=[Depends(_rate_limited)])
+@router.post("/reset-password", status_code=204, dependencies=[Depends(ratelimit.ip_guard)])
 async def reset_password(db: DBSession, data: PasswordReset):
     await reset_user_password(db, data)
 
