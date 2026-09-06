@@ -36,13 +36,6 @@ def _now() -> float:
     return time.monotonic()
 
 
-def normalize_email(email: str) -> str:
-    # Forma canónica única del buzón: la usan las claves de este limiter Y el
-    # storage/lookup de shared/user. Vive en core por ser la capa de fondo
-    # que ambos lados ya importan — dos copias podrían divergir.
-    return email.strip().lower()
-
-
 def _check(key: str, limit: int, window: float) -> bool:
     """Record a hit and report whether it is within the limit."""
     now = _now()
@@ -92,14 +85,20 @@ async def ip_guard(request: Request) -> None:
     _enforce(key, limit, window, "Too many attempts, slow down")
 
 
-async def email_guard(request: Request, address: str) -> None:
+async def email_guard(request: Request, key: str) -> None:
     """Per-address window under separate keys from the per-IP one: one
     mailbox must not exhaust another's budget, nor its own IP's. Called
     inside the handler — the body is not available to a Depends without
-    parsing it twice. Normalizes internally; callers pass the raw address."""
-    key = f"{request.url.path}:email:{normalize_email(address)}"
+    parsing it twice.
+
+    `key` is opaque: the limiter is infrastructure and does not
+    canonicalize — callers must pass the same spelling storage would use.
+    The user schemas normalize email at the boundary, so a validated body
+    already carries it.
+    """
+    full_key = f"{request.url.path}:email:{key}"
     limit, window = settings.auth_email_rate_limit, settings.auth_email_rate_window_seconds
-    _enforce(key, limit, window, "Too many emails requested, slow down")
+    _enforce(full_key, limit, window, "Too many emails requested, slow down")
 
 
 def reset() -> None:

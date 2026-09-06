@@ -20,6 +20,14 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
+def normalize_email(email: str) -> str:
+    # Canonical mailbox form, owned by the user module: storage, lookups and
+    # per-address rate-limit keys must all spell the same address the same
+    # way. It lives here, not in core/ratelimit — core carries no business
+    # logic, and the limiter keys on whatever string it is handed.
+    return email.strip().lower()
+
+
 def _reject_over_72_bytes(password: str) -> str:
     # bcrypt silently truncates past 72 bytes; accepting half a password is
     # worse than rejecting it.
@@ -32,6 +40,11 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
 
+    @field_validator("email")
+    @classmethod
+    def _canonical(cls, v: str) -> str:
+        return normalize_email(v)
+
     @field_validator("password")
     @classmethod
     def _bcrypt_limit(cls, v: str) -> str:
@@ -42,11 +55,21 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1)  # validated against stored hash, no need for 8
 
+    @field_validator("email")
+    @classmethod
+    def _canonical(cls, v: str) -> str:
+        return normalize_email(v)
+
 
 class EmailRequest(BaseModel):
     """resend-verification and forgot-password: only ever an address."""
 
     email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def _canonical(cls, v: str) -> str:
+        return normalize_email(v)
 
 
 class TokenSubmit(BaseModel):
