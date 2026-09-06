@@ -14,10 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Cycle with ./session is safe: every cross-module use sits in a function body,
-// never at module-evaluation time.
-import { handleUnauthorized } from "./session";
-
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 /** The account this browser was last signed in as — user id, set on sign-in. */
@@ -64,10 +60,50 @@ export function getToken(): string | null {
   return localStorage.getItem("token");
 }
 
+export function isSignedIn(): boolean {
+  return getToken() !== null;
+}
+
 export function authHeaders(): Record<string, string> {
   const token = getToken();
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
+}
+
+/**
+ * The routes where a 401 is a form error, never a redirect. A screen listed
+ * here is unauthenticated by design; add a future public screen here.
+ */
+const PUBLIC_AUTH_PATHS = new Set([
+  "/login",
+  "/register",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
+]);
+
+export function isPublicAuthPath(pathname: string): boolean {
+  return PUBLIC_AUTH_PATHS.has(pathname);
+}
+
+/**
+ * Expired/invalid session: drop the stale token and go sign in again.
+ * Called by apiFetch on 401. Only the token is dropped — the offline queue
+ * and the clock survive a re-sign-in; the full `clocklog_*` sweep belongs to
+ * the fences that ask first (invariant 9).
+ */
+export function handleUnauthorized(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("token");
+  } catch {
+    /* ignore */
+  }
+  if (isPublicAuthPath(window.location.pathname)) return;
+  // Hard navigation on purpose: runs outside React, mid-promise, and must
+  // tear down whatever screen made the request.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+  window.location.href = "/login";
 }
 
 export async function apiFetch<T>(
@@ -79,7 +115,7 @@ export async function apiFetch<T>(
     headers: { ...authHeaders(), ...options.headers },
   });
   if (!res.ok) {
-    // Expired/invalid session: the policy lives in session.ts — one owner (c6).
+    // Expired/invalid session: the 401 policy above is the one owner (c6).
     if (res.status === 401 && typeof window !== "undefined") {
       handleUnauthorized();
     }

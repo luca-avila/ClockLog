@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { apiFetch, ApiError } from "./client";
-import { isSignedIn } from "./session";
+import { apiFetch, ApiError, isSignedIn } from "./client";
 
 export interface BlockPayload {
   id: string;

@@ -15,9 +15,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { LAST_USER_KEY, clearSession } from "@/lib/api/client";
+import { LAST_USER_KEY, clearSession, handleUnauthorized, isPublicAuthPath } from "@/lib/api/client";
 import { enqueueBlock, type BlockPayload } from "@/lib/api/queue";
-import { adoptSession, handleUnauthorized, isPublicAuthPath, postAuth, signOut } from "@/lib/api/session";
+import { adoptSession, postAuth, signOut } from "@/lib/api/session";
 
 function blockPayload(id: string): BlockPayload {
   return {
