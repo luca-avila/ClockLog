@@ -23,6 +23,7 @@ import { updateSettings } from "@/lib/api/settings";
 import { signOut } from "@/lib/api/session";
 import { useSettings } from "@/lib/useSettings";
 import TagManager from "@/components/shared/TagManager";
+import Toast from "@/components/shared/Toast";
 
 const DURATION_OPTIONS = [5, 10, 15, 20, 25, 30, 45, 50, 60];
 
@@ -137,7 +138,7 @@ export default function SettingsPage() {
       </section>
 
       {(error || saved) && (
-        <div className="fixed bottom-16 md:bottom-4 right-4 z-40">
+        <Toast slot="page">
           {error ? (
             <div role="alert" className="text-xs text-red-600 bg-red-50 px-3 py-1.5 rounded-full">
               {error}
@@ -147,7 +148,7 @@ export default function SettingsPage() {
               Saved
             </div>
           )}
-        </div>
+        </Toast>
       )}
     </div>
   );

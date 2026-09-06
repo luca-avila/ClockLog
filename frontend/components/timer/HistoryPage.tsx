@@ -25,6 +25,7 @@ import {
 } from "@/lib/api/history";
 import { fetchTags, type Tag } from "@/lib/api/tags";
 import { localDayRange, formatClock, formatDuration, durationSeconds } from "@/lib/date/instant";
+import Sheet from "@/components/shared/Sheet";
 import BlockEditor from "./BlockEditor";
 
 function isSameDay(a: Date, b: Date) {
@@ -386,22 +387,17 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {/* Mobile: the editor is a bottom sheet, same pattern as the plan's EntrySheet */}
+      {/* Mobile: the editor is a bottom sheet, desktop keeps the two-pane layout. */}
       {selected && (
-        <div className="fixed inset-x-0 bottom-16 top-0 z-20 md:hidden">
-          <div
-            className="absolute inset-0 bg-black/30"
-            aria-hidden
-            onClick={afterEditorDone}
-          />
-          <div className="absolute inset-x-0 bottom-0 max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-t-2xl bg-white shadow-xl">
+        <div className="md:hidden">
+          <Sheet onClose={afterEditorDone}>
             <BlockEditor
               key={selected.id}
               block={selected}
               tags={tags}
               onDone={afterEditorDone}
             />
-          </div>
+          </Sheet>
         </div>
       )}
     </div>

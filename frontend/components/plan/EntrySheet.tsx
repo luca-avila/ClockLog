@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import TagPicker from "@/components/shared/TagPicker";
 import PrimaryButton from "@/components/shared/PrimaryButton";
+import Sheet from "@/components/shared/Sheet";
 import {
   createEntry,
   deleteEntry,
@@ -162,13 +163,8 @@ export default function EntrySheet({
     "w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none transition-colors hover:border-neutral-300 focus:border-neutral-500";
 
   return (
-    <div className="fixed inset-x-0 bottom-16 top-0 z-30 md:bottom-0">
-      <div
-        className="absolute inset-0 bg-black/30"
-        aria-hidden
-        onClick={handleClose}
-      />
-      <div className="absolute inset-x-0 bottom-0 max-h-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl md:inset-0 md:m-auto md:h-fit md:max-w-md md:rounded-2xl md:p-6">
+    <Sheet onClose={handleClose}>
+      <div className="p-5 md:p-6">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-400">
@@ -308,6 +304,6 @@ export default function EntrySheet({
           )}
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }

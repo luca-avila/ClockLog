@@ -172,6 +172,8 @@ describe("module independence of the shell", () => {
     "AppShell.tsx",
     "nav.ts",
     "PrimaryButton.tsx",
+    "Sheet.tsx",
+    "Toast.tsx",
   ];
 
   it("imports nothing from components/timer or components/plan", () => {

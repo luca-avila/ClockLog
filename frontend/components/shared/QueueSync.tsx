@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from "react";
 import { initQueueSync, onBlocksDropped } from "@/lib/api/queue";
+import Toast from "./Toast";
 
 /**
  * App-wide sync wiring, mounted once by the shell. The queue module itself
@@ -36,19 +37,21 @@ export default function QueueSync() {
   if (dropped === 0) return null;
 
   return (
-    <div
-      role="alert"
-      className="fixed bottom-16 md:bottom-4 left-1/2 -translate-x-1/2 z-40 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full"
-    >
-      {dropped} block{dropped !== 1 ? "s" : ""} could not be saved
-      <button
-        type="button"
-        onClick={() => setDropped(0)}
-        className="ml-2 text-amber-500 hover:text-amber-700"
-        aria-label="Dismiss"
+    <Toast slot="app">
+      <div
+        role="alert"
+        className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full"
       >
-        ×
-      </button>
-    </div>
+        {dropped} block{dropped !== 1 ? "s" : ""} could not be saved
+        <button
+          type="button"
+          onClick={() => setDropped(0)}
+          className="ml-2 text-amber-500 hover:text-amber-700"
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      </div>
+    </Toast>
   );
 }

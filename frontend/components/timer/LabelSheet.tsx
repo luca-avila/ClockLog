@@ -20,6 +20,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api/client";
 import TagPicker from "@/components/shared/TagPicker";
 import PrimaryButton from "@/components/shared/PrimaryButton";
+import Sheet from "@/components/shared/Sheet";
 import { fetchTags, type Tag } from "@/lib/api/tags";
 
 interface LabelSheetProps {
@@ -50,9 +51,11 @@ export default function LabelSheet({ onSave, onSkip }: LabelSheetProps) {
     onSave(item, tagId);
   }
 
+  // Closing the backdrop equals Skip: the finished block saves unlabelled
+  // rather than being lost (invariant 9 — time spent is time spent).
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/20">
-      <div className="w-full max-w-md bg-white rounded-t-2xl p-6 pb-10 shadow-xl">
+    <Sheet onClose={onSkip}>
+      <div className="p-6 pb-10">
         <div className="flex flex-col items-center gap-5">
           <h2 className="text-lg font-medium text-neutral-800">Block complete</h2>
           <p className="text-sm text-neutral-500">What did you work on?</p>
@@ -103,6 +106,6 @@ export default function LabelSheet({ onSave, onSkip }: LabelSheetProps) {
           </div>
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
