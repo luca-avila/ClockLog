@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { API_BASE, LAST_USER_KEY, clearSession } from "./client";
+import { API_BASE, ApiError, LAST_USER_KEY, apiFetch, clearSession, getToken } from "./client";
 import { readQueue } from "./queue";
 
 /**
@@ -58,4 +58,82 @@ export async function adoptSession(accessToken: string): Promise<boolean> {
   localStorage.setItem("token", accessToken);
   if (userId) localStorage.setItem(LAST_USER_KEY, userId);
   return true;
+}
+
+/**
+ * The routes where a 401 is a form error, never a redirect. A screen listed
+ * here is unauthenticated by design; add a future public screen here.
+ */
+const PUBLIC_AUTH_PATHS = new Set([
+  "/login",
+  "/register",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
+]);
+
+export function isPublicAuthPath(pathname: string): boolean {
+  return PUBLIC_AUTH_PATHS.has(pathname);
+}
+
+/**
+ * Expired/invalid session: drop the stale token and go sign in again.
+ * Called by apiFetch on 401. Only the token is dropped — the offline queue
+ * and the clock survive a re-sign-in; the full `clocklog_*` sweep belongs to
+ * the fences that ask first (invariant 9).
+ */
+export function handleUnauthorized(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("token");
+  } catch {
+    /* ignore */
+  }
+  if (isPublicAuthPath(window.location.pathname)) return;
+  // Hard navigation on purpose: runs outside React, mid-promise, and must
+  // tear down whatever screen made the request.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+  window.location.href = "/login";
+}
+
+const SIGN_OUT_CONFIRM =
+  "There are unsynced blocks. Signing out discards them. Continue?";
+
+/**
+ * The one sign-out: the same fence as sign-in — dropping unsynced blocks is
+ * data loss (invariant 9), so the user is asked first. Returns whether the
+ * session was cleared; navigation is the caller's job.
+ */
+export function signOut(): boolean {
+  if (typeof window === "undefined") return false;
+  if (readQueue().length > 0 && !confirm(SIGN_OUT_CONFIRM)) return false; // nothing written
+  clearSession();
+  return true;
+}
+
+export function isSignedIn(): boolean {
+  return getToken() !== null;
+}
+
+export type AuthResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; status: number; code: string };
+
+/**
+ * Unauthenticated POST for the auth screens: never throws, branches on
+ * `code`. apiFetch's 401 policy does not apply here — every auth screen is a
+ * public path, so a failed login stays a form error.
+ */
+export async function postAuth<T>(path: string, body: unknown): Promise<AuthResult<T>> {
+  try {
+    const data = await apiFetch<T>(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return { ok: true, data };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false, status: err.status, code: err.code };
+    return { ok: false, status: 0, code: "NETWORK_ERROR" };
+  }
 }

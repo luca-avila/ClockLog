@@ -19,7 +19,8 @@
 import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { API_BASE, clearSession } from "@/lib/api/client";
+import { clearSession } from "@/lib/api/client";
+import { postAuth } from "@/lib/api/session";
 import Logo from "@/components/Logo";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 
@@ -37,39 +38,29 @@ function ResetPasswordInner() {
   const [invalid, setInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // Plain fetch, not apiFetch: unauthenticated screen.
+  // postAuth never redirects: unauthenticated screen on a public route.
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
-      });
-      if (res.ok || res.status === 204) {
+      const result = await postAuth("/auth/reset-password", { token, password });
+      if (result.ok) {
         // Every session was just revoked; this browser's token (if any) is
         // dead weight, and any persisted state belongs to a signed-out world.
         clearSession();
         router.push("/login?reset=1");
         return;
       }
-      let code: string | null = null;
-      try {
-        code = (await res.json())?.code ?? null;
-      } catch {
-        /* non-JSON error body */
-      }
-      if (code === "INVALID_RESET_TOKEN") {
+      if (result.code === "INVALID_RESET_TOKEN") {
         setInvalid(true);
-      } else if (code === "RATE_LIMITED") {
+      } else if (result.code === "RATE_LIMITED") {
         setError("Too many attempts — wait a moment and try again");
+      } else if (result.code === "NETWORK_ERROR") {
+        setError("Could not reach the server — check your connection");
       } else {
         setError("Could not reset — try again");
       }
-    } catch {
-      setError("Could not reach the server — check your connection");
     } finally {
       setBusy(false);
     }

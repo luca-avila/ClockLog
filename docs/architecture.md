@@ -254,9 +254,11 @@ the timer's path and never interrupts a running block.
   to someone else). Same id enqueued twice replaces its copy — last write wins.
 - Flush triggers: mount (`QueueSync`), the `online` event, and a 30 s interval while
   anything is pending.
-- 401/403 stops the flush and fires `onReauthNeeded`; other 4xx is permanent rejection,
-  so the payload is **dropped** rather than poisoning the queue forever; 5xx and
-  offline keep the remainder queued.
+- 401/403 stops the flush and marks the result `needsReauth`; the 401 redirect itself
+  lives in `lib/api/session.ts` (`handleUnauthorized`), which drops only the stale
+  token — the queue and the clock survive a re-sign-in. Other 4xx is permanent
+  rejection, so the payload is **dropped** rather than poisoning the queue forever;
+  5xx and offline keep the remainder queued.
 - A drop is data loss, so it is surfaced in the UI ("N blocks could not be saved") via
   `onBlocksDropped` — never silent.
 

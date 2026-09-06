@@ -17,7 +17,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { LAST_USER_KEY, clearSession } from "@/lib/api/client";
 import { enqueueBlock, type BlockPayload } from "@/lib/api/queue";
-import { adoptSession } from "@/lib/api/session";
+import { adoptSession, handleUnauthorized, isPublicAuthPath, postAuth, signOut } from "@/lib/api/session";
 
 function blockPayload(id: string): BlockPayload {
   return {
@@ -154,5 +154,128 @@ describe("adoptSession", () => {
     expect(ok).toBe(true);
     expect(localStorage.getItem("token")).toBe("fresh-token");
     expect(localStorage.getItem("clocklog_clock")).toBe('{"startedAt":1}');
+  });
+});
+
+describe("isPublicAuthPath", () => {
+  it("lists the unauthenticated screens", () => {
+    for (const p of ["/login", "/register", "/verify-email", "/forgot-password", "/reset-password"]) {
+      expect(isPublicAuthPath(p)).toBe(true);
+    }
+  });
+
+  it("excludes app routes and near-misses", () => {
+    for (const p of ["/", "/history", "/settings", "/loginx"]) {
+      expect(isPublicAuthPath(p)).toBe(false);
+    }
+  });
+});
+
+describe("handleUnauthorized", () => {
+  it("drops only the stale token — the queue and the clock survive a 401", () => {
+    // A public route, so the redirect half of the policy stays out of the way.
+    window.history.replaceState(null, "", "/login");
+    localStorage.setItem("token", "stale");
+    localStorage.setItem("clocklog_clock", '{"startedAt":1}');
+    localStorage.setItem("clocklog_block_queue", "[]");
+
+    handleUnauthorized();
+
+    expect(localStorage.getItem("token")).toBeNull();
+    // Token-only sweep on 401: the full clocklog_* wipe belongs to the fences,
+    // which ask the user first (invariant 9).
+    expect(localStorage.getItem("clocklog_clock")).toBe('{"startedAt":1}');
+    expect(localStorage.getItem("clocklog_block_queue")).toBe("[]");
+  });
+});
+
+describe("signOut", () => {
+  it("clears the session without asking when the queue is empty", () => {
+    localStorage.setItem("token", "t");
+    localStorage.setItem("clocklog_clock", '{"startedAt":1}');
+    const confirmMock = vi.fn();
+    vi.stubGlobal("confirm", confirmMock);
+
+    expect(signOut()).toBe(true);
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(localStorage.getItem("token")).toBeNull();
+    expect(localStorage.getItem("clocklog_clock")).toBeNull();
+  });
+
+  it("sweeps everything once the user accepts the data loss", () => {
+    localStorage.setItem("token", "t");
+    enqueueBlock(blockPayload("b-1"));
+    const confirmMock = vi.fn().mockReturnValue(true);
+    vi.stubGlobal("confirm", confirmMock);
+
+    expect(signOut()).toBe(true);
+    expect(confirmMock).toHaveBeenCalledOnce();
+    expect(localStorage.getItem("token")).toBeNull();
+    expect(localStorage.getItem("clocklog_block_queue")).toBeNull();
+  });
+
+  it("cancelling writes nothing and wipes nothing", () => {
+    localStorage.setItem("token", "t");
+    enqueueBlock(blockPayload("b-1"));
+    const confirmMock = vi.fn().mockReturnValue(false);
+    vi.stubGlobal("confirm", confirmMock);
+
+    expect(signOut()).toBe(false);
+    expect(localStorage.getItem("token")).toBe("t");
+    expect(localStorage.getItem("clocklog_block_queue")).not.toBeNull();
+  });
+});
+
+describe("postAuth", () => {
+  it("returns { ok: true, data } on a success JSON response", async () => {
+    const res = new Response(JSON.stringify({ access_token: "tok" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
+
+    const result = await postAuth<{ access_token: string }>("/auth/login", {
+      email: "u@example.com",
+      password: "secret12",
+    });
+
+    expect(result).toEqual({ ok: true, data: { access_token: "tok" } });
+  });
+
+  it("returns { ok: false, code } on a JSON error body", async () => {
+    window.history.replaceState(null, "", "/login");
+    const res = new Response(
+      JSON.stringify({ code: "INVALID_CREDENTIALS", message: "Bad email or password" }),
+      { status: 401, headers: { "Content-Type": "application/json" } }
+    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
+
+    const result = await postAuth("/auth/login", {
+      email: "u@example.com",
+      password: "wrong",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 401,
+      code: "INVALID_CREDENTIALS",
+    });
+  });
+
+  it("maps a non-JSON error body to code UNKNOWN", async () => {
+    const res = new Response("<html>bad gateway</html>", { status: 502 });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
+
+    const result = await postAuth("/auth/login", { email: "u@example.com", password: "x" });
+
+    expect(result).toMatchObject({ ok: false, status: 502, code: "UNKNOWN" });
+  });
+
+  it("maps a rejected fetch to NETWORK_ERROR, never throwing", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    const result = await postAuth("/auth/login", { email: "u@example.com", password: "x" });
+
+    expect(result).toEqual({ ok: false, status: 0, code: "NETWORK_ERROR" });
   });
 });

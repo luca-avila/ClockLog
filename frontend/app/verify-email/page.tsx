@@ -19,8 +19,7 @@
 import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { API_BASE } from "@/lib/api/client";
-import { adoptSession } from "@/lib/api/session";
+import { adoptSession, postAuth } from "@/lib/api/session";
 import Logo from "@/components/Logo";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 
@@ -45,29 +44,22 @@ function VerifyEmailInner() {
   const attempted = useRef(false);
 
   async function verify() {
-    // Plain fetch, not apiFetch: unauthenticated screen, and its 401
-    // redirect would loop here.
-    try {
-      const res = await fetch(`${API_BASE}/auth/verify-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      if (!res.ok) {
-        setState("failed");
-        return;
-      }
-      const data: { access_token: string } = await res.json();
+    // postAuth never redirects: this screen is a public route, so apiFetch's
+    // 401 policy stops at dropping the stale token.
+    const result = await postAuth<{ access_token: string }>("/auth/verify-email", {
+      token,
+    });
+    if (!result.ok) {
+      setState("failed");
+      return;
+    }
 
-      // The fence lives in adoptSession (same as sign-in): a shared browser
-      // must not carry the previous account's state across.
-      if (await adoptSession(data.access_token)) {
-        setState("signed-in");
-        router.push("/");
-      } else {
-        setState("failed");
-      }
-    } catch {
+    // The fence lives in adoptSession (same as sign-in): a shared browser
+    // must not carry the previous account's state across.
+    if (await adoptSession(result.data.access_token)) {
+      setState("signed-in");
+      router.push("/");
+    } else {
       setState("failed");
     }
   }
@@ -86,14 +78,14 @@ function VerifyEmailInner() {
     setBusy(true);
     setError(null);
     try {
-      await fetch(`${API_BASE}/auth/resend-verification`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      setResent(true);
-    } catch {
-      setError("Could not reach the server — check your connection");
+      const result = await postAuth("/auth/resend-verification", { email });
+      if (result.ok) {
+        setResent(true);
+      } else if (result.code === "NETWORK_ERROR") {
+        setError("Could not reach the server — check your connection");
+      } else {
+        setError("Could not send the link — try again");
+      }
     } finally {
       setBusy(false);
     }

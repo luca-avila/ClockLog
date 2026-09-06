@@ -22,7 +22,12 @@ import LoginPage from "@/app/login/page";
 const push = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 const adoptSession = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api/session", () => ({ adoptSession }));
+vi.mock("@/lib/api/session", async (importOriginal) => {
+  // Only the fence is stubbed: postAuth is the real implementation, which is
+  // what makes these tests exercise apiFetch against the global fetch mock.
+  const actual = await importOriginal<typeof import("@/lib/api/session")>();
+  return { ...actual, adoptSession };
+});
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -66,7 +71,8 @@ function unverifiedFetch() {
   return {
     ok: false,
     status: 403,
-    json: async () => ({ code: "EMAIL_NOT_VERIFIED" }),
+    // apiFetch reads res.text() before parsing — the error body must be there.
+    text: async () => JSON.stringify({ code: "EMAIL_NOT_VERIFIED" }),
   };
 }
 

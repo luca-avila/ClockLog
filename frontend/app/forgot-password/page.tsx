@@ -18,7 +18,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { API_BASE } from "@/lib/api/client";
+import { postAuth } from "@/lib/api/session";
 import Logo from "@/components/Logo";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 
@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Plain fetch, not apiFetch: unauthenticated screen.
+  // postAuth never redirects: unauthenticated screen on a public route.
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -36,20 +36,16 @@ export default function ForgotPasswordPage() {
     try {
       // The answer is 204 whether or not the address exists — the screen
       // must not reveal that either.
-      const res = await fetch(`${API_BASE}/auth/forgot-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      if (res.ok || res.status === 204) {
+      const result = await postAuth("/auth/forgot-password", { email });
+      if (result.ok) {
         setSent(true);
-      } else if (res.status === 429) {
+      } else if (result.code === "RATE_LIMITED") {
         setError("Too many attempts — wait a moment and try again");
+      } else if (result.code === "NETWORK_ERROR") {
+        setError("Could not reach the server — check your connection");
       } else {
         setError("Could not send — try again");
       }
-    } catch {
-      setError("Could not reach the server — check your connection");
     } finally {
       setBusy(false);
     }

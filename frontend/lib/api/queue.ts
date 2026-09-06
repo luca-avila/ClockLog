@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { apiFetch, ApiError } from "./client";
+import { isSignedIn } from "./session";
 
 export interface BlockPayload {
   id: string;
@@ -67,7 +68,7 @@ function defaultPost(payload: BlockPayload): Promise<void> {
 
 const defaultDeps: QueueDeps = {
   post: defaultPost,
-  hasToken: () => typeof window !== "undefined" && !!localStorage.getItem("token"),
+  hasToken: () => isSignedIn(),
   isOnline: () =>
     typeof navigator === "undefined" ? true : navigator.onLine !== false,
   storage: typeof localStorage !== "undefined" ? localStorage : null,
@@ -125,14 +126,6 @@ function statusOf(err: unknown): number {
   return err instanceof ApiError ? err.status : 0;
 }
 
-const reauthListeners = new Set<() => void>();
-
-/** Fires when a sync attempt hits an expired session — sync time only, never mid-block. */
-export function onReauthNeeded(cb: () => void): () => void {
-  reauthListeners.add(cb);
-  return () => reauthListeners.delete(cb);
-}
-
 const droppedListeners = new Set<(count: number) => void>();
 
 /**
@@ -179,7 +172,6 @@ export async function flushQueue(
         if (status === 401 || status === 403) {
           remaining.push(...queue.slice(i));
           result.needsReauth = true;
-          reauthListeners.forEach((cb) => cb());
           break;
         }
         if (status >= 400 && status < 500) {

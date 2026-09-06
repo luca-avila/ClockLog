@@ -19,8 +19,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { API_BASE } from "@/lib/api/client";
-import { adoptSession } from "@/lib/api/session";
+import { adoptSession, postAuth } from "@/lib/api/session";
 import Logo from "@/components/Logo";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 
@@ -48,8 +47,8 @@ export default function LoginPage() {
     }
   }, []);
 
-  // Plain fetch, not apiFetch: a failed login is a form error, never the
-  // 401-redirect apiFetch performs for expired sessions.
+  // postAuth never redirects: apiFetch's 401 policy skips public routes
+  // (isPublicAuthPath), so a failed login is a form error, not a bounce.
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -57,39 +56,31 @@ export default function LoginPage() {
     setUnverified(false);
     setResent(false);
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const result = await postAuth<{ access_token: string }>("/auth/login", {
+        email,
+        password,
       });
-      if (!res.ok) {
-        let code: string | null = null;
-        try {
-          code = (await res.json())?.code ?? null;
-        } catch {
-          /* non-JSON error body */
-        }
-        if (code === "INVALID_CREDENTIALS") {
+      if (!result.ok) {
+        if (result.code === "NETWORK_ERROR") {
+          setError("Could not reach the server — check your connection");
+        } else if (result.code === "INVALID_CREDENTIALS") {
           setError("Invalid email or password");
-        } else if (code === "EMAIL_NOT_VERIFIED") {
+        } else if (result.code === "EMAIL_NOT_VERIFIED") {
           setError("Verify your email address first — check your inbox for the link");
           setUnverified(true);
-        } else if (code === "RATE_LIMITED") {
+        } else if (result.code === "RATE_LIMITED") {
           setError("Too many attempts — wait a moment and try again");
         } else {
           setError("Could not sign in — try again");
         }
         return;
       }
-      const data: { access_token: string } = await res.json();
 
       // The fence lives in adoptSession: a shared browser must not carry the
       // previous account's state across. Cancelling writes nothing.
-      if (await adoptSession(data.access_token)) {
+      if (await adoptSession(result.data.access_token)) {
         router.push("/");
       }
-    } catch {
-      setError("Could not reach the server — check your connection");
     } finally {
       setBusy(false);
     }
@@ -101,14 +92,14 @@ export default function LoginPage() {
     try {
       // 204 either way — but this branch only renders after the server
       // already said the address exists and is unverified.
-      await fetch(`${API_BASE}/auth/resend-verification`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      setResent(true);
-    } catch {
-      setError("Could not reach the server — check your connection");
+      const result = await postAuth("/auth/resend-verification", { email });
+      if (result.ok) {
+        setResent(true);
+      } else if (result.code === "NETWORK_ERROR") {
+        setError("Could not reach the server — check your connection");
+      } else {
+        setError("Could not send the link — try again");
+      }
     } finally {
       setBusy(false);
     }

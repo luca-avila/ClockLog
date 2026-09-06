@@ -20,7 +20,6 @@ import {
   enqueueAndSync,
   flushQueue,
   readQueue,
-  onReauthNeeded,
   onBlocksDropped,
   type QueueDeps,
   type BlockPayload,
@@ -108,8 +107,6 @@ describe("offline queue", () => {
     const post = vi.fn<(p: BlockPayload) => Promise<void>>()
       .mockRejectedValue(new ApiError(401, "INVALID_TOKEN", "Invalid or expired token"));
     const deps = makeDeps(post);
-    const reauth = vi.fn();
-    onReauthNeeded(reauth);
 
     enqueueBlock(payload("a"), localStorage);
     enqueueBlock(payload("b"), localStorage);
@@ -120,7 +117,6 @@ describe("offline queue", () => {
     const r = await flushQueue(deps);
     expect(r.needsReauth).toBe(true);
     expect(r.pending).toBe(3);
-    expect(reauth).toHaveBeenCalled();
     // Each flush stops at the first 401 — one POST per attempt, not one per block.
     expect(post).toHaveBeenCalledTimes(2);
     expect(readQueue(localStorage)).toHaveLength(3);

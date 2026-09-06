@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+// Cycle with ./session is safe: every cross-module use sits in a function body,
+// never at module-evaluation time.
+import { handleUnauthorized } from "./session";
+
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 /** The account this browser was last signed in as — user id, set on sign-in. */
@@ -75,22 +79,9 @@ export async function apiFetch<T>(
     headers: { ...authHeaders(), ...options.headers },
   });
   if (!res.ok) {
-    // Expired/invalid session: drop the stale token and go sign in again.
-    // The login page posts with plain fetch, so its own 401s never loop.
-    if (
-      res.status === 401 &&
-      typeof window !== "undefined" &&
-      window.location.pathname !== "/login"
-    ) {
-      try {
-        localStorage.removeItem("token");
-      } catch {
-        /* ignore */
-      }
-      // Hard navigation on purpose: this runs outside React, mid-promise,
-      // and must tear down whatever screen made the request.
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.href = "/login";
+    // Expired/invalid session: the policy lives in session.ts — one owner (c6).
+    if (res.status === 401 && typeof window !== "undefined") {
+      handleUnauthorized();
     }
     const body = await res.text().catch(() => "");
     let code = "UNKNOWN";
