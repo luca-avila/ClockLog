@@ -16,7 +16,7 @@
 
 import type { NavIconName } from "./NavIcon";
 
-export type NavTier = "tab" | "rail" | "rail-foot" | "gear";
+export type NavTier = "tab" | "rail" | "rail-foot";
 
 export interface NavDestination {
   readonly href: string;
@@ -35,7 +35,7 @@ const DESTINATIONS: readonly NavDestination[] = [
   // Tags live under Settings' Data section (SCR-40), so this tier is about
   // the app rather than about time — it sits at the foot of the rail.
   { href: "/settings#tags", label: "Tags", icon: "tags", tiers: ["rail-foot"] },
-  { href: "/settings", label: "Settings", icon: "settings", tiers: ["rail-foot", "gear"] },
+  { href: "/settings", label: "Settings", icon: "settings", tiers: ["rail-foot"] },
 ];
 
 export function destinationsIn(tier: NavTier): readonly NavDestination[] {

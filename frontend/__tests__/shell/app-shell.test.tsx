@@ -38,10 +38,11 @@ function hrefs(markup: string): string[] {
 describe("navigation destinations", () => {
   it("the tab bar carries exactly three destinations", () => {
     const markup = renderToStaticMarkup(<TabBar />);
-    // Consumption, not content: the content is fixed in the "nav registry"
-    // describe below, and this test fails loudly if TabBar ever stops
-    // mapping the registry into its markup.
-    expect(hrefs(markup)).toEqual(destinationsIn("tab").map((d) => d.href));
+    // Consumption with a fixed expectation, not content: the registry's own
+    // content is pinned in the "nav registry" describe below, and this literal
+    // href list fails loudly if TabBar ever stops rendering one of the three
+    // (or starts rendering a fourth).
+    expect(hrefs(markup)).toEqual(["/", "/history", "/plan"]);
     expect(markup).toContain("Timer");
     expect(markup).toContain("History");
     expect(markup).toContain("Plan");
@@ -63,6 +64,7 @@ describe("navigation destinations", () => {
     // below at md: and is also legal (SCR-01); on the shell the count is
     // gear + sidebar entry.
     expect(settingsHrefs.length).toBeGreaterThanOrEqual(1);
+    expect(settingsHrefs).toContain("/settings");
     expect(shellMarkup).toContain("⚙");
   });
 
@@ -87,6 +89,19 @@ describe("navigation destinations", () => {
     );
     expect(active).toHaveLength(1);
     expect(active[0]).toContain('href="/plan"');
+    nav.pathname = "/";
+  });
+
+  it("highlights History on /history and nothing on a non-route prefix", () => {
+    nav.pathname = "/history";
+    const markup = renderToStaticMarkup(<TabBar />);
+    const active = [...markup.matchAll(/<a[^>]*aria-current="page"[^>]*>/g)].map(
+      (m) => m[0]
+    );
+    expect(active).toHaveLength(1);
+    expect(active[0]).toContain('href="/history"');
+    nav.pathname = "/planX";
+    expect(renderToStaticMarkup(<TabBar />)).not.toContain('aria-current="page"');
     nav.pathname = "/";
   });
 });
@@ -122,10 +137,6 @@ describe("nav registry", () => {
     ]);
   });
 
-  it("the gear tier is exactly Settings", () => {
-    expect(destinationsIn("gear").map((d) => d.href)).toEqual(["/settings"]);
-  });
-
   it("each href across all tiers names a single destination", () => {
     // Tiers are surfaces, not ownership: a destination legitimately appears
     // in several tiers (the primary three are "tab" and "rail"), so the
@@ -137,7 +148,6 @@ describe("nav registry", () => {
       ...destinationsIn("tab"),
       ...destinationsIn("rail"),
       ...destinationsIn("rail-foot"),
-      ...destinationsIn("gear"),
     ]) {
       const prev = byHref.get(d.href);
       if (prev) {
@@ -146,7 +156,7 @@ describe("nav registry", () => {
         byHref.set(d.href, { label: d.label, icon: d.icon });
       }
     }
-    // And the four tiers together reach every registered destination.
+    // And the three tiers together reach every registered destination.
     expect(byHref.size).toBe(5);
   });
 });

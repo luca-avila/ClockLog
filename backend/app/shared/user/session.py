@@ -61,9 +61,16 @@ async def resolve_session_user(db: AsyncSession, token: str) -> UserResponse:
             detail={"code": "INVALID_TOKEN", "message": "Invalid or expired token"},
         ) from e
     raw_sub = payload.get("sub")
+    if not isinstance(raw_sub, str):
+        # jose roundtrips any JSON type in a claim; UUID(5) dies with an
+        # AttributeError (.replace), not the caught TypeError — a 500.
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "INVALID_TOKEN", "message": "Invalid token subject"},
+        )
     try:
         user_id = UUID(raw_sub)
-    except (TypeError, ValueError):
+    except ValueError:
         raise HTTPException(
             status_code=401,
             detail={"code": "INVALID_TOKEN", "message": "Invalid token subject"},

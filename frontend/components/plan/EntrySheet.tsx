@@ -131,7 +131,7 @@ export default function EntrySheet({
       else await createEntry(payload);
       // Save/delete append a fresh tick so the screen behind refetches
       // (withTick, lib/plan/urls.ts); cancel below returns without one.
-      router.replace(withTick(returnTo));
+      router.replace(withTick(returnTo, Date.now()));
     } catch {
       setError("Could not save — try again");
       setBusy(false);
@@ -150,7 +150,7 @@ export default function EntrySheet({
     setBusy(true);
     try {
       await deleteEntry(editing.id);
-      router.replace(withTick(returnTo));
+      router.replace(withTick(returnTo, Date.now()));
     } catch {
       setError("Could not delete — try again");
       setBusy(false);

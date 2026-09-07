@@ -36,9 +36,9 @@ export function dayUrl(date: string): string {
 }
 
 /** The editor in create mode on `date`; `hour` prefills the start time.
- *  0 is written (a tap at midnight); undefined/null omit the param. */
-export function newEntryUrl(date: string, hour?: number | null): string {
-  return `${PLAN_WEEK_PATH}?new=1&date=${date}${hour != null ? `&hour=${hour}` : ""}`;
+ *  0 is written (a tap at midnight); undefined omits the param. */
+export function newEntryUrl(date: string, hour?: number): string {
+  return `${PLAN_WEEK_PATH}?new=1&date=${date}${hour !== undefined ? `&hour=${hour}` : ""}`;
 }
 
 /** The editor in edit mode for an entry: on the day screen when `date` is
@@ -50,7 +50,11 @@ export function editEntryUrl(entryId: string, date?: string): string {
 }
 
 /** Cache-buster. useOccurrences (lib/plan/hooks.ts) refetches when the `t`
- *  param changes, so save/delete append it and cancel does not. */
-export function withTick(url: string, tick: number = Date.now()): string {
-  return `${url}${url.includes("?") ? "&" : "?"}t=${tick}`;
+ *  param changes, so save/delete append it and cancel does not. The tick is
+ *  required: the builder stays pure (strings in, strings out). */
+export function withTick(url: string, tick: number): string {
+  const [path, query = ""] = url.split("?");
+  const params = new URLSearchParams(query);
+  params.set("t", String(tick)); // .set, not append: a preexisting t= is replaced
+  return `${path}?${params.toString()}`;
 }

@@ -289,6 +289,13 @@ class TestSessionRevocation:
         with pytest.raises(HTTPException):
             await resolve_session_user(db_session, token)
 
+    async def test_non_string_sub_is_401_invalid_token_not_500(self, db_session):
+        token = create_access_token({"sub": 5, "pwd": 0})  # int survives jose's JSON roundtrip
+        with pytest.raises(HTTPException) as exc:
+            await resolve_session_user(db_session, token)
+        assert exc.value.status_code == 401
+        assert exc.value.detail["code"] == "INVALID_TOKEN"
+
 
 class TestNoEnumeration:
     async def test_forgot_password_unknown_address_is_204_and_sends_nothing(

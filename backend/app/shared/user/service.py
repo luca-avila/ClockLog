@@ -191,9 +191,6 @@ async def _issue_mail_token(
 async def register_user(db: AsyncSession, background: BackgroundTasks, data: UserCreate) -> User:
     user = await create_user(db, data)
     await _issue_mail_token(db, background, user, VERIFY)
-    # expire_on_commit=False keeps the object serializable after the commit
-    # above; refresh anyway for identical behavior, the boring solution.
-    await db.refresh(user)
     return user
 
 

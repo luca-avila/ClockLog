@@ -44,7 +44,6 @@ describe("plan URL builders — exact grammar pins (the strings the hand-rolled 
     expect(newEntryUrl("2026-08-03")).toBe("/plan?new=1&date=2026-08-03");
     expect(newEntryUrl("2026-08-03", 14)).toBe("/plan?new=1&date=2026-08-03&hour=14");
     expect(newEntryUrl("2026-08-03", 0)).toBe("/plan?new=1&date=2026-08-03&hour=0");
-    expect(newEntryUrl("2026-08-03", null)).toBe("/plan?new=1&date=2026-08-03");
   });
 
   it("editEntryUrl opens over the week without a date, over the day with one", () => {
@@ -52,9 +51,10 @@ describe("plan URL builders — exact grammar pins (the strings the hand-rolled 
     expect(editEntryUrl("e1", "2026-07-28")).toBe("/plan/day?date=2026-07-28&edit=e1");
   });
 
-  it("withTick appends t after whichever separator the URL already has", () => {
+  it("withTick sets t, replacing any existing one", () => {
     expect(withTick("/plan", 42)).toBe("/plan?t=42");
     expect(withTick("/plan/day?date=x", 42)).toBe("/plan/day?date=x&t=42");
+    expect(withTick("/plan?t=1", 42)).toBe("/plan?t=42");
   });
 });
 
