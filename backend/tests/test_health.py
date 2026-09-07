@@ -14,38 +14,28 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from httpx import ASGITransport, AsyncClient
 
-from app.main import app
-
-
-async def test_health_returns_200():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/health")
+async def test_health_returns_200(client):
+    response = await client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
 
-async def test_cors_allows_configured_origin():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        preflight = await client.options(
-            "/auth/login",
-            headers={
-                "Origin": "http://localhost:3000",
-                "Access-Control-Request-Method": "POST",
-            },
-        )
-        simple = await client.get("/health", headers={"Origin": "http://localhost:3000"})
+async def test_cors_allows_configured_origin(client):
+    preflight = await client.options(
+        "/auth/login",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    simple = await client.get("/health", headers={"Origin": "http://localhost:3000"})
     assert preflight.status_code == 200
     assert preflight.headers["access-control-allow-origin"] == "http://localhost:3000"
     assert simple.headers["access-control-allow-origin"] == "http://localhost:3000"
 
 
-async def test_cors_rejects_unknown_origin():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/health", headers={"Origin": "http://evil.example"})
+async def test_cors_rejects_unknown_origin(client):
+    response = await client.get("/health", headers={"Origin": "http://evil.example"})
     assert response.status_code == 200  # request itself is fine
     assert "access-control-allow-origin" not in response.headers

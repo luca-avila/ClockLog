@@ -17,9 +17,7 @@
 import uuid
 
 import pytest
-from httpx import ASGITransport, AsyncClient, Headers
-
-from app.main import app
+from httpx import AsyncClient, Headers
 
 
 async def _auth_and_post_block(
@@ -49,20 +47,17 @@ async def _auth_and_post_block(
 
 class TestHistory:
     @pytest.mark.asyncio
-    async def test_blocks_in_range_ordered_by_time(self, verified_user):
+    async def test_blocks_in_range_ordered_by_time(self, client, verified_user):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
+        await _auth_and_post_block(client, headers, "first", "2026-08-05T09:00:00+00:00")
+        await _auth_and_post_block(client, headers, "second", "2026-08-05T10:00:00+00:00")
+        await _auth_and_post_block(client, headers, "outside", "2026-08-06T09:00:00+00:00")
 
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            await _auth_and_post_block(client, headers, "first", "2026-08-05T09:00:00+00:00")
-            await _auth_and_post_block(client, headers, "second", "2026-08-05T10:00:00+00:00")
-            await _auth_and_post_block(client, headers, "outside", "2026-08-06T09:00:00+00:00")
-
-            resp = await client.get(
-                "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
-                headers=Headers(headers),
-            )
+        resp = await client.get(
+            "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+            headers=Headers(headers),
+        )
         assert resp.status_code == 200
         blocks = resp.json()
         assert len(blocks) == 2
@@ -70,23 +65,20 @@ class TestHistory:
         assert blocks[1]["label"] == "second"
 
     @pytest.mark.asyncio
-    async def test_aborted_blocks_included(self, verified_user):
+    async def test_aborted_blocks_included(self, client, verified_user):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
+        await _auth_and_post_block(
+            client, headers, "done", "2026-08-05T09:00:00+00:00", "completed"
+        )
+        await _auth_and_post_block(
+            client, headers, "aborted", "2026-08-05T09:30:00+00:00", "aborted"
+        )
 
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            await _auth_and_post_block(
-                client, headers, "done", "2026-08-05T09:00:00+00:00", "completed"
-            )  # noqa: E501
-            await _auth_and_post_block(
-                client, headers, "aborted", "2026-08-05T09:30:00+00:00", "aborted"
-            )  # noqa: E501
-
-            resp = await client.get(
-                "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
-                headers=Headers(headers),
-            )
+        resp = await client.get(
+            "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+            headers=Headers(headers),
+        )
         assert resp.status_code == 200
         blocks = resp.json()
         assert len(blocks) == 2
@@ -95,45 +87,39 @@ class TestHistory:
         assert "completed" in statuses
 
     @pytest.mark.asyncio
-    async def test_scoped_to_user(self, verified_user):
+    async def test_scoped_to_user(self, client, verified_user):
         h1, _ = await verified_user()
         h2, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
+        await _auth_and_post_block(client, h1, "u1-block", "2026-08-05T09:00:00+00:00")
+        await _auth_and_post_block(client, h2, "u2-block", "2026-08-05T09:00:00+00:00")
 
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            await _auth_and_post_block(client, h1, "u1-block", "2026-08-05T09:00:00+00:00")
-            await _auth_and_post_block(client, h2, "u2-block", "2026-08-05T09:00:00+00:00")
-
-            resp = await client.get(
-                "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
-                headers=Headers(h1),
-            )
+        resp = await client.get(
+            "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+            headers=Headers(h1),
+        )
         assert resp.status_code == 200
         blocks = resp.json()
         assert len(blocks) == 1
         assert blocks[0]["label"] == "u1-block"
 
     @pytest.mark.asyncio
-    async def test_kind_roundtrip_and_default(self, verified_user):
+    async def test_kind_roundtrip_and_default(self, client, verified_user):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
+        await _auth_and_post_block(
+            client, headers, "focus work", "2026-08-05T09:00:00+00:00", "completed", "focus"
+        )
+        await _auth_and_post_block(
+            client, headers, None, "2026-08-05T09:30:00+00:00", "completed", "short_break"
+        )
+        # No kind sent: pre-migration clients default to focus.
+        await _auth_and_post_block(client, headers, "legacy", "2026-08-05T10:00:00+00:00")
 
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            await _auth_and_post_block(
-                client, headers, "focus work", "2026-08-05T09:00:00+00:00", "completed", "focus"
-            )
-            await _auth_and_post_block(
-                client, headers, None, "2026-08-05T09:30:00+00:00", "completed", "short_break"
-            )
-            # No kind sent: pre-migration clients default to focus.
-            await _auth_and_post_block(client, headers, "legacy", "2026-08-05T10:00:00+00:00")
-
-            resp = await client.get(
-                "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
-                headers=Headers(headers),
-            )
+        resp = await client.get(
+            "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+            headers=Headers(headers),
+        )
         assert resp.status_code == 200
         blocks = resp.json()
         kinds = [b["kind"] for b in blocks]
@@ -142,50 +128,47 @@ class TestHistory:
 
 class TestSummary:
     @pytest.mark.asyncio
-    async def test_aggregates_by_tag(self, verified_user):
+    async def test_aggregates_by_tag(self, client, verified_user):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
+        # Create a tag first
+        tag_resp = await client.post(
+            "/tags",
+            json={"name": "Study", "color": "#FF0000"},
+            headers=Headers(headers),
+        )
+        tag_id = tag_resp.json()["id"]
 
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            # Create a tag first
-            tag_resp = await client.post(
-                "/tags",
-                json={"name": "Study", "color": "#FF0000"},
-                headers=Headers(headers),
-            )
-            tag_id = tag_resp.json()["id"]
+        # Post blocks: one tagged, one untagged
+        await client.post(
+            "/blocks",
+            json={
+                "id": str(uuid.uuid4()),
+                "started_at": "2026-08-05T09:00:00+00:00",
+                "ended_at": "2026-08-05T09:25:00+00:00",
+                "status": "completed",
+                "label": "tagged block",
+                "tag_id": tag_id,
+            },
+            headers=Headers(headers),
+        )
+        await client.post(
+            "/blocks",
+            json={
+                "id": str(uuid.uuid4()),
+                "started_at": "2026-08-05T09:30:00+00:00",
+                "ended_at": "2026-08-05T09:55:00+00:00",
+                "status": "completed",
+                "label": "untagged block",
+                "tag_id": None,
+            },
+            headers=Headers(headers),
+        )
 
-            # Post blocks: one tagged, one untagged
-            await client.post(
-                "/blocks",
-                json={
-                    "id": str(uuid.uuid4()),
-                    "started_at": "2026-08-05T09:00:00+00:00",
-                    "ended_at": "2026-08-05T09:25:00+00:00",
-                    "status": "completed",
-                    "label": "tagged block",
-                    "tag_id": tag_id,
-                },
-                headers=Headers(headers),
-            )
-            await client.post(
-                "/blocks",
-                json={
-                    "id": str(uuid.uuid4()),
-                    "started_at": "2026-08-05T09:30:00+00:00",
-                    "ended_at": "2026-08-05T09:55:00+00:00",
-                    "status": "completed",
-                    "label": "untagged block",
-                    "tag_id": None,
-                },
-                headers=Headers(headers),
-            )
-
-            resp = await client.get(
-                "/blocks/summary?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
-                headers=Headers(headers),
-            )
+        resp = await client.get(
+            "/blocks/summary?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+            headers=Headers(headers),
+        )
         assert resp.status_code == 200
         summary = resp.json()
         # Two buckets: "Study" and "Untagged"
@@ -195,23 +178,20 @@ class TestSummary:
         assert "Untagged" in names
 
     @pytest.mark.asyncio
-    async def test_includes_aborted_in_summary(self, verified_user):
+    async def test_includes_aborted_in_summary(self, client, verified_user):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
+        await _auth_and_post_block(
+            client, headers, "aborted", "2026-08-05T09:00:00+00:00", "aborted"
+        )
+        await _auth_and_post_block(
+            client, headers, "completed", "2026-08-05T09:30:00+00:00", "completed"
+        )
 
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            await _auth_and_post_block(
-                client, headers, "aborted", "2026-08-05T09:00:00+00:00", "aborted"
-            )  # noqa: E501
-            await _auth_and_post_block(
-                client, headers, "completed", "2026-08-05T09:30:00+00:00", "completed"
-            )  # noqa: E501
-
-            resp = await client.get(
-                "/blocks/summary?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
-                headers=Headers(headers),
-            )
+        resp = await client.get(
+            "/blocks/summary?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+            headers=Headers(headers),
+        )
         assert resp.status_code == 200
         summary = resp.json()
         assert len(summary) == 1  # "Untagged" for both
@@ -219,48 +199,45 @@ class TestSummary:
         # so duration will be 0. But the test just verifies they're included.
 
     @pytest.mark.asyncio
-    async def test_summary_excludes_breaks(self, verified_user):
+    async def test_summary_excludes_breaks(self, client, verified_user):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
+        # 25 min focus + 5 min break: the summary must report focus only.
+        await client.post(
+            "/blocks",
+            json={
+                "id": str(uuid.uuid4()),
+                "started_at": "2026-08-05T09:00:00+00:00",
+                "ended_at": "2026-08-05T09:25:00+00:00",
+                "status": "completed",
+                "kind": "focus",
+                "label": "work",
+                "tag_id": None,
+            },
+            headers=Headers(headers),
+        )
+        await client.post(
+            "/blocks",
+            json={
+                "id": str(uuid.uuid4()),
+                "started_at": "2026-08-05T09:25:00+00:00",
+                "ended_at": "2026-08-05T09:30:00+00:00",
+                "status": "completed",
+                "kind": "short_break",
+                "label": None,
+                "tag_id": None,
+            },
+            headers=Headers(headers),
+        )
 
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            # 25 min focus + 5 min break: the summary must report focus only.
-            await client.post(
-                "/blocks",
-                json={
-                    "id": str(uuid.uuid4()),
-                    "started_at": "2026-08-05T09:00:00+00:00",
-                    "ended_at": "2026-08-05T09:25:00+00:00",
-                    "status": "completed",
-                    "kind": "focus",
-                    "label": "work",
-                    "tag_id": None,
-                },
-                headers=Headers(headers),
-            )
-            await client.post(
-                "/blocks",
-                json={
-                    "id": str(uuid.uuid4()),
-                    "started_at": "2026-08-05T09:25:00+00:00",
-                    "ended_at": "2026-08-05T09:30:00+00:00",
-                    "status": "completed",
-                    "kind": "short_break",
-                    "label": None,
-                    "tag_id": None,
-                },
-                headers=Headers(headers),
-            )
-
-            resp = await client.get(
-                "/blocks/summary?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
-                headers=Headers(headers),
-            )
-            list_resp = await client.get(
-                "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
-                headers=Headers(headers),
-            )
+        resp = await client.get(
+            "/blocks/summary?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+            headers=Headers(headers),
+        )
+        list_resp = await client.get(
+            "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+            headers=Headers(headers),
+        )
         assert resp.status_code == 200
         summary = resp.json()
         assert len(summary) == 1
@@ -269,25 +246,22 @@ class TestSummary:
         assert [b["kind"] for b in list_resp.json()] == ["focus", "short_break"]
 
     @pytest.mark.asyncio
-    async def test_recent_labels_excludes_breaks(self, verified_user):
+    async def test_recent_labels_excludes_breaks(self, client, verified_user):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
+        # A mislabeled break must not surface in focus autocomplete.
+        await _auth_and_post_block(
+            client, headers, "focus label", "2026-08-05T09:00:00+00:00", "completed", "focus"
+        )
+        await _auth_and_post_block(
+            client,
+            headers,
+            "break label",
+            "2026-08-05T09:30:00+00:00",
+            "completed",
+            "long_break",
+        )
 
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            # A mislabeled break must not surface in focus autocomplete.
-            await _auth_and_post_block(
-                client, headers, "focus label", "2026-08-05T09:00:00+00:00", "completed", "focus"
-            )
-            await _auth_and_post_block(
-                client,
-                headers,
-                "break label",
-                "2026-08-05T09:30:00+00:00",
-                "completed",
-                "long_break",
-            )
-
-            resp = await client.get("/blocks/recent-labels", headers=Headers(headers))
+        resp = await client.get("/blocks/recent-labels", headers=Headers(headers))
         assert resp.status_code == 200
         assert resp.json() == ["focus label"]

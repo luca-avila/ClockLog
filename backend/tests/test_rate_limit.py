@@ -15,21 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
-from app.main import app
 
 pytestmark = pytest.mark.asyncio
-
-
-@pytest.fixture
-async def client():
-    from app.core import ratelimit
-
-    ratelimit.reset()
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        yield c
-    ratelimit.reset()
 
 
 @pytest.fixture

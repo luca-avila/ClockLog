@@ -17,9 +17,8 @@
 import uuid
 
 import pytest
-from httpx import ASGITransport, AsyncClient, Headers
+from httpx import Headers
 
-from app.main import app
 from app.shared.tag.schemas import TagCreate, TagUpdate
 from app.shared.tag.service import (
     create_tag,
@@ -108,33 +107,29 @@ class TestTagService:
 
 class TestTagAPI:
     @pytest.mark.asyncio
-    async def test_create_tag_via_api(self, verified_user):
+    async def test_create_tag_via_api(self, client, verified_user):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.post(
-                "/tags",
-                json={"name": "API Study", "color": "#FF0000"},
-                headers=Headers(headers),
-            )
+        resp = await client.post(
+            "/tags",
+            json={"name": "API Study", "color": "#FF0000"},
+            headers=Headers(headers),
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["name"] == "API Study"
 
     @pytest.mark.asyncio
-    async def test_list_tags_via_api(self, verified_user):
+    async def test_list_tags_via_api(self, client, verified_user):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            # Create a tag first
-            await client.post(
-                "/tags",
-                json={"name": "ListTest", "color": "#FF0000"},
-                headers=Headers(headers),
-            )
-            resp = await client.get("/tags", headers=Headers(headers))
+        # Create a tag first
+        await client.post(
+            "/tags",
+            json={"name": "ListTest", "color": "#FF0000"},
+            headers=Headers(headers),
+        )
+        resp = await client.get("/tags", headers=Headers(headers))
         assert resp.status_code == 200
         tags = resp.json()
         assert len(tags) >= 1
@@ -143,33 +138,29 @@ class TestTagAPI:
 
 class TestTagAPIPathIdValidation:
     @pytest.mark.asyncio
-    async def test_malformed_tag_id_is_422_not_500(self, verified_user):
+    async def test_malformed_tag_id_is_422_not_500(self, client, verified_user):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.patch(
-                "/tags/nope",
-                json={"name": "x"},
-                headers=Headers(headers),
-            )
-            gone = await client.delete("/tags/nope", headers=Headers(headers))
+        resp = await client.patch(
+            "/tags/nope",
+            json={"name": "x"},
+            headers=Headers(headers),
+        )
+        gone = await client.delete("/tags/nope", headers=Headers(headers))
         assert resp.status_code == 422
         assert gone.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_unknown_tag_id_is_still_404(self, verified_user):
+    async def test_unknown_tag_id_is_still_404(self, client, verified_user):
         headers, _ = await verified_user()
 
         fake_id = str(uuid.uuid4())
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.patch(
-                f"/tags/{fake_id}",
-                json={"name": "x"},
-                headers=Headers(headers),
-            )
-            gone = await client.delete(f"/tags/{fake_id}", headers=Headers(headers))
+        resp = await client.patch(
+            f"/tags/{fake_id}",
+            json={"name": "x"},
+            headers=Headers(headers),
+        )
+        gone = await client.delete(f"/tags/{fake_id}", headers=Headers(headers))
         assert resp.status_code == 404
         assert resp.json()["code"] == "TAG_NOT_FOUND"
         assert gone.status_code == 404

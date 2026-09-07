@@ -15,19 +15,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import pytest
-from httpx import ASGITransport, AsyncClient, Headers
-
-from app.main import app
+from httpx import Headers
 
 
 class TestSettings:
     @pytest.mark.asyncio
-    async def test_get_defaults(self, verified_user):
+    async def test_get_defaults(self, verified_user, client):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/settings", headers=Headers(headers))
+        resp = await client.get("/settings", headers=Headers(headers))
         assert resp.status_code == 200
         data = resp.json()
         assert data["focusDuration"] == 25
@@ -36,17 +32,15 @@ class TestSettings:
         assert data["autoStartBreaks"] is False
 
     @pytest.mark.asyncio
-    async def test_update_and_read_back(self, verified_user):
+    async def test_update_and_read_back(self, verified_user, client):
         headers, _ = await verified_user()
 
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            await client.put(
-                "/settings",
-                json={"focusDuration": 50, "autoStartBreaks": True},
-                headers=Headers(headers),
-            )
-            resp = await client.get("/settings", headers=Headers(headers))
+        await client.put(
+            "/settings",
+            json={"focusDuration": 50, "autoStartBreaks": True},
+            headers=Headers(headers),
+        )
+        resp = await client.get("/settings", headers=Headers(headers))
         assert resp.status_code == 200
         data = resp.json()
         assert data["focusDuration"] == 50

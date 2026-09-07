@@ -20,7 +20,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
-from httpx import ASGITransport, AsyncClient, Headers
+from httpx import Headers
 from jose import JWTError
 
 from app.core.security import (
@@ -30,15 +30,10 @@ from app.core.security import (
     hash_email_token,
     verify_password,
 )
-from app.main import app
 from app.shared.user.models import EmailToken
 from app.shared.user.schemas import UserCreate
 from app.shared.user.service import create_user, get_user_by_email
 from app.shared.user.session import issue_session_token, resolve_session_user
-
-
-async def _client() -> AsyncClient:
-    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
 class TestPasswordHashing:
@@ -134,55 +129,46 @@ class TestUserService:
             )
 
     @pytest.mark.asyncio
-    async def test_duplicate_race_returns_409_not_500(self, monkeypatch, mail_outbox):
+    async def test_duplicate_race_returns_409_not_500(self, client, monkeypatch, mail_outbox):
         """Both requests pass the SELECT (simulated: the check is made to
         miss) and the loser hits the unique constraint at flush — it must
         surface as the same 409, never a 500."""
         email = f"race-{uuid.uuid4()}@example.com"
-        async with await _client() as client:
-            first = await client.post(
-                "/auth/register", json={"email": email, "password": "secret12"}
-            )
-            assert first.status_code == 201
+        first = await client.post("/auth/register", json={"email": email, "password": "secret12"})
+        assert first.status_code == 201
 
-            async def _miss(db, _email):
-                return None
+        async def _miss(db, _email):
+            return None
 
-            monkeypatch.setattr("app.shared.user.service.get_user_by_email", _miss)
-            loser = await client.post(
-                "/auth/register", json={"email": email, "password": "secret12"}
-            )
+        monkeypatch.setattr("app.shared.user.service.get_user_by_email", _miss)
+        loser = await client.post("/auth/register", json={"email": email, "password": "secret12"})
         assert loser.status_code == 409
         assert loser.json()["code"] == "EMAIL_EXISTS"
 
 
 class TestVerificationGate:
-    async def test_unverified_login_is_403_then_verify_then_login_200(self, mail_outbox):
+    async def test_unverified_login_is_403_then_verify_then_login_200(self, client, mail_outbox):
         email = f"gate-{uuid.uuid4()}@example.com"
-        async with await _client() as client:
-            reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
-            assert reg.status_code == 201
-            assert "access_token" not in reg.json()
+        reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
+        assert reg.status_code == 201
+        assert "access_token" not in reg.json()
 
-            denied = await client.post("/auth/login", json={"email": email, "password": "secret12"})
-            assert denied.status_code == 403
-            assert denied.json()["code"] == "EMAIL_NOT_VERIFIED"
+        denied = await client.post("/auth/login", json={"email": email, "password": "secret12"})
+        assert denied.status_code == 403
+        assert denied.json()["code"] == "EMAIL_NOT_VERIFIED"
 
-            _, _, raw = mail_outbox[-1]
-            verified = await client.post("/auth/verify-email", json={"token": raw})
-            assert verified.status_code == 200
-            assert "access_token" in verified.json()
+        _, _, raw = mail_outbox[-1]
+        verified = await client.post("/auth/verify-email", json={"token": raw})
+        assert verified.status_code == 200
+        assert "access_token" in verified.json()
 
-            allowed = await client.post(
-                "/auth/login", json={"email": email, "password": "secret12"}
-            )
-            assert allowed.status_code == 200
+        allowed = await client.post("/auth/login", json={"email": email, "password": "secret12"})
+        assert allowed.status_code == 200
 
-    async def test_register_response_does_not_verify(self, mail_outbox):
+    async def test_register_response_does_not_verify(self, client, mail_outbox):
         email = f"nover-{uuid.uuid4()}@example.com"
-        async with await _client() as client:
-            reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
-            assert reg.json()["email_verified"] is False
+        reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
+        assert reg.json()["email_verified"] is False
 
 
 class TestEmailTokenLifecycle:
@@ -221,36 +207,34 @@ class TestEmailTokenLifecycle:
         codes = {(r.status_code, r.json()["code"]) for r in responses}
         assert codes == {(400, "INVALID_VERIFICATION_TOKEN")}
 
-    async def test_reissue_invalidates_previous_token(self, mail_outbox):
+    async def test_reissue_invalidates_previous_token(self, client, mail_outbox):
         email = f"reissue-{uuid.uuid4()}@example.com"
-        async with await _client() as client:
-            reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
-            assert reg.status_code == 201
-            _, _, first = mail_outbox[-1]
+        reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
+        assert reg.status_code == 201
+        _, _, first = mail_outbox[-1]
 
-            await client.post("/auth/resend-verification", json={"email": email})
-            _, _, second = mail_outbox[-1]
-            assert first != second
+        await client.post("/auth/resend-verification", json={"email": email})
+        _, _, second = mail_outbox[-1]
+        assert first != second
 
-            stale = await client.post("/auth/verify-email", json={"token": first})
-            assert stale.status_code == 400
-            fresh = await client.post("/auth/verify-email", json={"token": second})
-            assert fresh.status_code == 200
+        stale = await client.post("/auth/verify-email", json={"token": first})
+        assert stale.status_code == 400
+        fresh = await client.post("/auth/verify-email", json={"token": second})
+        assert fresh.status_code == 200
 
-    async def test_concurrent_submit_consumes_exactly_once(self, mail_outbox):
+    async def test_concurrent_submit_consumes_exactly_once(self, client, mail_outbox):
         email = f"race-{uuid.uuid4()}@example.com"
-        async with await _client() as c1, await _client() as c2:
-            reg = await c1.post("/auth/register", json={"email": email, "password": "secret12"})
-            assert reg.status_code == 201
-            _, _, raw = mail_outbox[-1]
-            results = await asyncio.gather(
-                c1.post("/auth/verify-email", json={"token": raw}),
-                c2.post("/auth/verify-email", json={"token": raw}),
-            )
-            statuses = sorted(r.status_code for r in results)
-            assert statuses == [200, 400]
-            rejected = next(r for r in results if r.status_code == 400)
-            assert rejected.json()["code"] == "INVALID_VERIFICATION_TOKEN"
+        reg = await client.post("/auth/register", json={"email": email, "password": "secret12"})
+        assert reg.status_code == 201
+        _, _, raw = mail_outbox[-1]
+        results = await asyncio.gather(
+            client.post("/auth/verify-email", json={"token": raw}),
+            client.post("/auth/verify-email", json={"token": raw}),
+        )
+        statuses = sorted(r.status_code for r in results)
+        assert statuses == [200, 400]
+        rejected = next(r for r in results if r.status_code == 400)
+        assert rejected.json()["code"] == "INVALID_VERIFICATION_TOKEN"
 
 
 class TestSessionRevocation:
@@ -307,19 +291,17 @@ class TestSessionRevocation:
 
 
 class TestNoEnumeration:
-    async def test_forgot_password_unknown_address_is_204_and_sends_nothing(self, mail_outbox):
-        async with await _client() as client:
-            res = await client.post("/auth/forgot-password", json={"email": "ghost@example.com"})
-            assert res.status_code == 204
-            assert mail_outbox == []
+    async def test_forgot_password_unknown_address_is_204_and_sends_nothing(
+        self, client, mail_outbox
+    ):
+        res = await client.post("/auth/forgot-password", json={"email": "ghost@example.com"})
+        assert res.status_code == 204
+        assert mail_outbox == []
 
-    async def test_resend_unknown_address_is_204_and_sends_nothing(self, mail_outbox):
-        async with await _client() as client:
-            res = await client.post(
-                "/auth/resend-verification", json={"email": "ghost@example.com"}
-            )
-            assert res.status_code == 204
-            assert mail_outbox == []
+    async def test_resend_unknown_address_is_204_and_sends_nothing(self, client, mail_outbox):
+        res = await client.post("/auth/resend-verification", json={"email": "ghost@example.com"})
+        assert res.status_code == 204
+        assert mail_outbox == []
 
     async def test_resend_verified_address_sends_nothing(self, client, verified_user, mail_outbox):
         _, email = await verified_user()
@@ -363,21 +345,19 @@ class TestEmailRateLimit:
 
 
 class TestPasswordLength:
-    async def test_73_byte_password_is_422(self):
-        async with await _client() as client:
-            res = await client.post(
-                "/auth/register",
-                json={"email": f"long-{uuid.uuid4()}@example.com", "password": "a" * 73},
-            )
-            assert res.status_code == 422
+    async def test_73_byte_password_is_422(self, client):
+        res = await client.post(
+            "/auth/register",
+            json={"email": f"long-{uuid.uuid4()}@example.com", "password": "a" * 73},
+        )
+        assert res.status_code == 422
 
-    async def test_72_byte_password_is_accepted(self, mail_outbox):
-        async with await _client() as client:
-            res = await client.post(
-                "/auth/register",
-                json={
-                    "email": f"exact-{uuid.uuid4()}@example.com",
-                    "password": "a" * 72,
-                },
-            )
-            assert res.status_code == 201
+    async def test_72_byte_password_is_accepted(self, client, mail_outbox):
+        res = await client.post(
+            "/auth/register",
+            json={
+                "email": f"exact-{uuid.uuid4()}@example.com",
+                "password": "a" * 72,
+            },
+        )
+        assert res.status_code == 201

@@ -24,9 +24,7 @@ a second account can look.
 import uuid
 
 import pytest
-from httpx import ASGITransport, AsyncClient, Headers
-
-from app.main import app
+from httpx import AsyncClient, Headers
 
 pytestmark = pytest.mark.asyncio
 
@@ -44,21 +42,20 @@ async def _make_verified_user(client: AsyncClient, email: str, mail_outbox) -> s
 
 
 @pytest.fixture
-async def two_users(mail_outbox):
+async def two_users(client, mail_outbox):
     """A and B, both verified, sharing one AsyncClient."""
     from app.core import ratelimit
 
     # Each test registers two accounts; without this the per-IP window
     # accumulates across tests and register starts answering 429.
     ratelimit.reset()
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        a = await _make_verified_user(client, f"a-{uuid.uuid4().hex[:8]}@example.com", mail_outbox)
-        b = await _make_verified_user(client, f"b-{uuid.uuid4().hex[:8]}@example.com", mail_outbox)
-        yield (
-            client,
-            Headers({"Authorization": f"Bearer {a}"}),
-            Headers({"Authorization": f"Bearer {b}"}),
-        )
+    a = await _make_verified_user(client, f"a-{uuid.uuid4().hex[:8]}@example.com", mail_outbox)
+    b = await _make_verified_user(client, f"b-{uuid.uuid4().hex[:8]}@example.com", mail_outbox)
+    yield (
+        client,
+        Headers({"Authorization": f"Bearer {a}"}),
+        Headers({"Authorization": f"Bearer {b}"}),
+    )
     ratelimit.reset()
 
 

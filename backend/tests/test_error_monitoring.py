@@ -20,17 +20,10 @@ import uuid
 
 import pytest
 from fastapi import APIRouter
-from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 
 pytestmark = pytest.mark.asyncio
-
-
-@pytest.fixture
-async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        yield c
 
 
 @pytest.fixture
