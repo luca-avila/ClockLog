@@ -17,6 +17,7 @@
 import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
@@ -290,9 +291,15 @@ class TestSessionRevocation:
             await resolve_session_user(db_session, token)
 
     async def test_non_string_sub_is_401_invalid_token_not_500(self, db_session):
-        token = create_access_token({"sub": 5, "pwd": 0})  # int survives jose's JSON roundtrip
-        with pytest.raises(HTTPException) as exc:
-            await resolve_session_user(db_session, token)
+        # jose 3.x rejects a non-string sub at decode time (JWTClaimsError), so
+        # this test patches the decode to feed the guard: a decode that ever skips
+        # that validation must still map a garbage subject to 401, never a 500.
+        with patch(
+            "app.shared.user.session.decode_access_token",
+            return_value={"sub": 5, "pwd": 0},
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await resolve_session_user(db_session, "not-a-real-token")
         assert exc.value.status_code == 401
         assert exc.value.detail["code"] == "INVALID_TOKEN"
 

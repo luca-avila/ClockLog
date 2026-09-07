@@ -62,8 +62,11 @@ async def resolve_session_user(db: AsyncSession, token: str) -> UserResponse:
         ) from e
     raw_sub = payload.get("sub")
     if not isinstance(raw_sub, str):
-        # jose roundtrips any JSON type in a claim; UUID(5) dies with an
-        # AttributeError (.replace), not the caught TypeError — a 500.
+        # jose 3.x already rejects a non-string subject at decode (JWTClaimsError,
+        # caught above), so this guard is defense in depth: if decode_access_token
+        # ever drops that validation (an options change in core/security.py) or the
+        # library changes, a non-string sub must still 401 — UUID() would die with
+        # an AttributeError, a 500.
         raise HTTPException(
             status_code=401,
             detail={"code": "INVALID_TOKEN", "message": "Invalid token subject"},
