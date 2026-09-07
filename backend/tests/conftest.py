@@ -14,7 +14,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import os
+import shutil
+import subprocess
 import uuid
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -52,9 +56,67 @@ if settings.resend_api_key:
     raise RuntimeError("RESEND_API_KEY must be empty when running tests")
 
 
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+
+
+async def _ensure_test_database(test_url: str) -> None:
+    """Create the test database on first use, so a fresh clone — or CI's
+    ephemeral postgres, which starts with only the dev database — can run
+    pytest with no manual setup.
+
+    Only ever creates a *_test database: _test_database_url() asserted the
+    suffix before this runs, so the dev and prod databases are unreachable.
+    """
+    base, _, name = test_url.rstrip("/").rpartition("/")
+    if not base or not name:
+        raise RuntimeError(f"Cannot parse a database name from {test_url!r}")
+    quoted = '"' + name.replace('"', '""') + '"'
+    eng = create_async_engine(f"{base}/postgres", poolclass=NullPool, isolation_level="AUTOCOMMIT")
+    try:
+        async with eng.connect() as conn:
+            exists = await conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = :name"), {"name": name}
+            )
+            if exists.first() is None:
+                await conn.execute(text(f"CREATE DATABASE {quoted}"))
+    finally:
+        await eng.dispose()
+
+
+def _upgrade_test_database(test_url: str) -> None:
+    """Migrate the test database through the real chain (`alembic upgrade
+    head`), in a subprocess with DATABASE_URL pointed at it — the same
+    command deploy runs, so the suite always matches the checked-out
+    migrations.
+
+    Skipped when there is no alembic project next to the tests: the
+    deletability proof runs a pruned copy without one, and reuses the
+    database the full tree already migrated.
+    """
+    if not (BACKEND_DIR / "alembic.ini").exists():
+        return
+    alembic_bin = shutil.which("alembic")
+    if alembic_bin is None:
+        raise RuntimeError("alembic not found on PATH — cannot migrate the test database")
+    env = dict(os.environ)
+    env["DATABASE_URL"] = test_url
+    res = subprocess.run(
+        [alembic_bin, "upgrade", "head"],
+        cwd=BACKEND_DIR,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if res.returncode != 0:
+        raise RuntimeError(f"alembic upgrade head failed:\n{res.stdout}\n{res.stderr}")
+
+
 @pytest_asyncio.fixture(scope="session")
 async def engine():
-    eng = create_async_engine(_test_database_url(), poolclass=NullPool)
+    url = _test_database_url()
+    await _ensure_test_database(url)
+    _upgrade_test_database(url)
+    eng = create_async_engine(url, poolclass=NullPool)
     yield eng
     await eng.dispose()
 
