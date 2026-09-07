@@ -45,7 +45,7 @@ export function destinationsIn(tier: NavTier): readonly NavDestination[] {
 export function isActivePath(pathname: string, href: string): boolean {
   // A hash href jumps to a section of another item's page, so it is never
   // a destination of its own — otherwise /settings lights up twice.
-  // Sub-routes like /plan/day belong to Plan; / must stay exact.
+  // Sub-routes match only on a "/" segment boundary; / must stay exact.
   if (href.includes("#")) return false;
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
 }

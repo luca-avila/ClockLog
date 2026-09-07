@@ -98,6 +98,10 @@ describe("nav registry", () => {
     ["/plan/day", "/plan", true],
     ["/history", "/history", true],
     ["/settings", "/settings#tags", false],
+    ["/historyX", "/history", false],
+    ["/planX", "/plan", false],
+    ["/plan/day/edit", "/plan", true],
+    ["/settings", "/settings", true],
   ] as const)(
     "isActivePath(%s, %s) is %s",
     (pathname, href, expected) => {
