@@ -59,18 +59,13 @@ import PrimaryButton from "@/components/shared/PrimaryButton";
 const subscribeNever = () => () => {};
 
 // The START button and the Space shortcut must build the identical event, or
-// they drift apart: a pending break keeps its break `type` and drops the
-// label, while an idle focus takes the draft label. Pure — the caller owns
-// `dispatch`.
-function buildStartEvent(
-  type: BlockType,
-  pendingBreak: boolean,
-  draftLabel: string
-): TimerEvent {
+// they drift apart. `currentType` already reflects a pending break, and the
+// engine starts every block unlabelled (no pre-block label). Pure — the
+// caller owns `dispatch`.
+function buildStartEvent(type: BlockType): TimerEvent {
   return {
     kind: "start",
     type,
-    label: pendingBreak ? null : draftLabel || null,
     tagId: null,
   };
 }
@@ -266,7 +261,6 @@ function reducer(m: Machine, action: Action): Machine {
 export default function TimerScreen() {
   const [machine, rawDispatch] = useReducer(reducer, undefined, initMachine);
   const { settings } = useSettings();
-  const [label, setLabel] = useState(() => machine.timer?.label ?? "");
   const [now, setNow] = useState(() => Date.now());
   // initMachine reads localStorage, which the server cannot: rendering the
   // restored machine during hydration makes the server's default disagree
@@ -311,10 +305,6 @@ export default function TimerScreen() {
   useEffect(() => {
     if (machine.timer) localStorage.setItem(STORAGE_KEY, serializeState(machine.timer));
     else localStorage.removeItem(STORAGE_KEY);
-  }, [machine.timer]);
-
-  useEffect(() => {
-    if (machine.timer === null) setLabel(""); // eslint-disable-line react-hooks/set-state-in-effect -- label is a draft input, not machine state
   }, [machine.timer]);
 
   useEffect(() => {
@@ -370,8 +360,9 @@ export default function TimerScreen() {
   const isRunning = machine.timer?.phase === "running";
 
   // Space starts (idle) or resumes (paused) from anywhere on the Timer
-  // screen — but never while typing, never when a native button owns the
-  // key (that would double-fire), and never under the label sheet. The
+  // screen — but never when a native button owns the key (that would
+  // double-fire) and never under the label sheet. The sheet holds the only
+  // inputs on this screen, and the early return above covers them. The
   // engine stays pure: this listener just reaches the click handlers
   // through the keyboard, then lets the browser's default handle every
   // key it does not claim (no scroll breakage, normal typing).
@@ -381,24 +372,14 @@ export default function TimerScreen() {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       if (machine.labelSheetOpen) return;
       const target = e.target;
-      // Space inside an editable field types a space; Space on a focused
-      // button activates it natively. Claim neither.
-      if (target instanceof Element) {
-        if (
-          target.closest(
-            "input, textarea, select, [contenteditable='true'], [contenteditable='']"
-          )
-        ) {
-          return;
-        }
-        if (target.closest("button, a, [role='button']")) {
-          return;
-        }
+      // Space on a focused button activates it natively. Claim neither.
+      if (target instanceof Element && target.closest("button, a, [role='button']")) {
+        return;
       }
       if (machine.timer === null) {
         // Idle — same payload as the START button, pending break included.
         e.preventDefault();
-        dispatch(buildStartEvent(currentType, machine.pendingBreak, label));
+        dispatch(buildStartEvent(currentType));
         return;
       }
       if (machine.timer.phase === "paused") {
@@ -417,7 +398,6 @@ export default function TimerScreen() {
     machine.pendingBreak,
     machine.labelSheetOpen,
     currentType,
-    label,
   ]);
 
   const idleDuration = nextDuration(currentType, settings) * 1000;
@@ -482,34 +462,11 @@ export default function TimerScreen() {
                   </span>
                 </Dial>
 
-                {/* What is being recorded. Blank in a break: a break has no label. */}
-                {machine.timer && !isBreakNow && machine.timer.label && (
-                  <p className="flex max-w-full items-center gap-2 text-sm text-neutral-600">
-                    <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-neutral-700" aria-hidden />
-                    <span className="truncate">{machine.timer.label}</span>
-                  </p>
-                )}
-
-                {!machine.timer && !machine.pendingBreak && (
-                  <div className="flex w-full max-w-sm flex-col items-center gap-3">
-                    <input
-                      type="text"
-                      value={label}
-                      onChange={(e) => setLabel(e.target.value)}
-                      placeholder="What are you working on? (optional)"
-                      aria-label="Block label"
-                      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-center text-sm text-neutral-700 outline-none transition-colors placeholder:text-neutral-400 focus:border-neutral-400"
-                    />
-                  </div>
-                )}
-
                 <div className="mt-1 flex flex-col items-center gap-3">
                   {!machine.timer ? (
                     <>
                       <PrimaryButton
-                        onClick={() =>
-                          dispatch(buildStartEvent(currentType, machine.pendingBreak, label))
-                        }
+                        onClick={() => dispatch(buildStartEvent(currentType))}
                       >
                         START
                       </PrimaryButton>
@@ -615,17 +572,6 @@ export default function TimerScreen() {
                       : TYPE_NAME.focus}
                 </span>
               </p>
-
-              {label && !machine.timer && !machine.pendingBreak && (
-                <button
-                  onClick={() =>
-                    dispatch({ kind: "start", type: "focus", label, tagId: null })
-                  }
-                  className="mt-4 w-full truncate rounded-xl border border-neutral-200 px-3 py-2 text-left text-xs text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-800"
-                >
-                  ↺ Start again: &quot;{label}&quot;
-                </button>
-              )}
             </aside>
           </div>
         </>

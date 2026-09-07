@@ -274,7 +274,7 @@ function closeBlock(
 // ─── State machine ─────────────────────────────────────────────────
 
 export type TimerEvent =
-  | { kind: "start"; type: BlockType; label: string | null; tagId: string | null }
+  | { kind: "start"; type: BlockType; tagId: string | null }
   | { kind: "pause" }
   | { kind: "resume" }
   | { kind: "stop" }
@@ -322,7 +322,8 @@ export function transition(
         type: event.type,
         phase: "running",
         startedAt: now,
-        label: event.label,
+        // No pre-block label: label is set only by labelSave.
+        label: null,
         tagId: event.tagId,
         focusBlocksCompleted: completed,
         intervals: [{ startedAt: now }],

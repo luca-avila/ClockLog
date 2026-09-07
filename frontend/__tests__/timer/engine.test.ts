@@ -445,7 +445,7 @@ describe("transition — start", () => {
     const clock = makeClock(1_000_000);
     const result = transition(
       null,
-      { kind: "start", type: "focus", label: "test", tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -454,7 +454,7 @@ describe("transition — start", () => {
     expect(result.state).not.toBeNull();
     expect(result.state!.type).toBe("focus");
     expect(result.state!.phase).toBe("running");
-    expect(result.state!.label).toBe("test");
+    expect(result.state!.label).toBeNull();
     expect(result.state!.targetMs).toBe(25 * 60 * 1000);
     expect(result.state!.intervals).toHaveLength(1);
     expect(result.state!.intervals[0].startedAt).toBe(1_000_000);
@@ -464,7 +464,7 @@ describe("transition — start", () => {
     const clock = makeClock(1_000_000);
     const result = transition(
       null,
-      { kind: "start", type: "short_break", label: null, tagId: null },
+      { kind: "start", type: "short_break", tagId: null },
       clock,
       settings,
       4,
@@ -481,7 +481,7 @@ describe("transition — start", () => {
     const clock = makeClock(1_000_000);
     const result = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -496,7 +496,7 @@ describe("transition — pause and resume", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -513,7 +513,7 @@ describe("transition — pause and resume", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -533,7 +533,7 @@ describe("transition — pause and resume", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -549,7 +549,7 @@ describe("transition — pause and resume", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -564,7 +564,7 @@ describe("transition — pause and resume", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -583,7 +583,7 @@ describe("transition — stop", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       2,
@@ -606,7 +606,7 @@ describe("transition — stop", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       3,
@@ -621,7 +621,7 @@ describe("transition — stop", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -640,7 +640,7 @@ describe("transition — stop", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "short_break", label: null, tagId: null },
+      { kind: "start", type: "short_break", tagId: null },
       clock,
       settings,
       4,
@@ -658,7 +658,7 @@ describe("transition — stop", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -676,7 +676,7 @@ describe("transition — stop", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -696,7 +696,7 @@ describe("transition — stop", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -714,7 +714,7 @@ describe("transition — stop", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -735,7 +735,7 @@ describe("transition — tick", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -751,7 +751,7 @@ describe("transition — tick", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -772,7 +772,7 @@ describe("transition — tick", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       3,
@@ -790,7 +790,7 @@ describe("transition — tick", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -806,7 +806,7 @@ describe("transition — tick", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "short_break", label: null, tagId: null },
+      { kind: "start", type: "short_break", tagId: null },
       clock,
       settings,
       4,
@@ -823,7 +823,7 @@ describe("transition — tick", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "short_break", label: null, tagId: null },
+      { kind: "start", type: "short_break", tagId: null },
       clock,
       settings,
       4,
@@ -841,7 +841,7 @@ describe("transition — tick", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -859,7 +859,7 @@ describe("transition — tick", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -880,7 +880,7 @@ describe("transition — labelSave", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -913,7 +913,7 @@ describe("transition — labelSave", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -939,7 +939,7 @@ describe("transition — labelSave", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -992,7 +992,7 @@ describe("transition — skipBreak", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "short_break", label: null, tagId: null },
+      { kind: "start", type: "short_break", tagId: null },
       clock,
       settings,
       4,
@@ -1013,7 +1013,7 @@ describe("transition — skipBreak", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -1030,7 +1030,7 @@ describe("transition — elapsed time (drift-proof)", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -1046,7 +1046,7 @@ describe("transition — elapsed time (drift-proof)", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -1064,7 +1064,7 @@ describe("transition — cycle integration", () => {
     const clock = makeClock(1_000_000);
     const result = transition(
       null,
-      { kind: "start", type: "long_break", label: null, tagId: null },
+      { kind: "start", type: "long_break", tagId: null },
       clock,
       settings,
       4,
@@ -1081,7 +1081,7 @@ describe("transition — cycle integration", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       3,
@@ -1101,7 +1101,7 @@ describe("transition — purity", () => {
     const clock = makeClock(1_000_000);
     const input = null;
     const snapshot = input;
-    transition(input, { kind: "start", type: "focus", label: null, tagId: null }, clock, settings, 0, false);
+    transition(input, { kind: "start", type: "focus", tagId: null }, clock, settings, 0, false);
     expect(input).toBe(snapshot);
   });
 
@@ -1109,7 +1109,7 @@ describe("transition — purity", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -1124,7 +1124,7 @@ describe("transition — purity", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -1141,7 +1141,7 @@ describe("transition — purity", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -1157,7 +1157,7 @@ describe("transition — purity", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -1173,7 +1173,7 @@ describe("transition — purity", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "focus", label: null, tagId: null },
+      { kind: "start", type: "focus", tagId: null },
       clock,
       settings,
       0,
@@ -1195,7 +1195,7 @@ describe("transition — purity", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
-      { kind: "start", type: "short_break", label: null, tagId: null },
+      { kind: "start", type: "short_break", tagId: null },
       clock,
       settings,
       4,

@@ -124,13 +124,6 @@ describe("idle screen (SCR-10)", () => {
     expect(container.textContent).toContain("25:00");
     expect(container.textContent).toContain("Focus");
   });
-
-  it("renders the optional label input", () => {
-    const { container } = render();
-    const input = container.querySelector('input[type="text"]');
-    expect(input).toBeTruthy();
-    expect((input as HTMLInputElement).placeholder).toContain("optional");
-  });
 });
 
 describe("starting a block", () => {
@@ -320,29 +313,6 @@ describe("space shortcut (SCR-11)", () => {
     pressSpace();
     expect(container.textContent).toContain("of 25:00");
     expect(container.textContent).toContain("PAUSE");
-  });
-
-  it("does not start when Space is pressed inside the label input", () => {
-    const { container } = render();
-    const input = container.querySelector('input[aria-label="Block label"]') as HTMLInputElement;
-    expect(input).toBeTruthy();
-    // Simulate a typed space reaching the controlled input (React 19 listens
-    // for the native `input` event after the value setter).
-    const setter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      "value"
-    )?.set;
-    act(() => {
-      setter!.call(input, "groceries ");
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    expect(input.value).toBe("groceries ");
-
-    pressSpace(input);
-    // Still idle, and the typed space was not swallowed.
-    expect(container.textContent).toContain("START");
-    expect(container.textContent).not.toContain("of 25:00");
-    expect(input.value).toBe("groceries ");
   });
 
   it("ignores Space while a block is running", () => {
