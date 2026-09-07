@@ -58,6 +58,23 @@ import PrimaryButton from "@/components/shared/PrimaryButton";
 // without React treating the difference as a mismatch.
 const subscribeNever = () => () => {};
 
+// The START button and the Space shortcut must build the identical event, or
+// they drift apart: a pending break keeps its break `type` and drops the
+// label, while an idle focus takes the draft label. Pure — the caller owns
+// `dispatch`.
+function buildStartEvent(
+  type: BlockType,
+  pendingBreak: boolean,
+  draftLabel: string
+): TimerEvent {
+  return {
+    kind: "start",
+    type,
+    label: pendingBreak ? null : draftLabel || null,
+    tagId: null,
+  };
+}
+
 const STORAGE_KEY = "clocklog_clock";
 const CYCLE_KEY = "clocklog_cycle";
 
@@ -352,6 +369,57 @@ export default function TimerScreen() {
   const isEnded = machine.timer?.phase === "ended";
   const isRunning = machine.timer?.phase === "running";
 
+  // Space starts (idle) or resumes (paused) from anywhere on the Timer
+  // screen — but never while typing, never when a native button owns the
+  // key (that would double-fire), and never under the label sheet. The
+  // engine stays pure: this listener just reaches the click handlers
+  // through the keyboard, then lets the browser's default handle every
+  // key it does not claim (no scroll breakage, normal typing).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent): void {
+      if (e.code !== "Space" && e.key !== " ") return;
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (machine.labelSheetOpen) return;
+      const target = e.target;
+      // Space inside an editable field types a space; Space on a focused
+      // button activates it natively. Claim neither.
+      if (target instanceof Element) {
+        if (
+          target.closest(
+            "input, textarea, select, [contenteditable='true'], [contenteditable='']"
+          )
+        ) {
+          return;
+        }
+        if (target.closest("button, a, [role='button']")) {
+          return;
+        }
+      }
+      if (machine.timer === null) {
+        // Idle — same payload as the START button, pending break included.
+        e.preventDefault();
+        dispatch(buildStartEvent(currentType, machine.pendingBreak, label));
+        return;
+      }
+      if (machine.timer.phase === "paused") {
+        // Paused is not running; RESUME is the primary action here too.
+        e.preventDefault();
+        dispatch({ kind: "resume" });
+        return;
+      }
+      // Running / ended: during focus the correct interaction is none.
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    dispatch,
+    machine.timer,
+    machine.pendingBreak,
+    machine.labelSheetOpen,
+    currentType,
+    label,
+  ]);
+
   const idleDuration = nextDuration(currentType, settings) * 1000;
   const dialTotal = machine.timer ? targetDuration : idleDuration;
   const dialValue = machine.timer
@@ -440,12 +508,7 @@ export default function TimerScreen() {
                     <>
                       <PrimaryButton
                         onClick={() =>
-                          dispatch({
-                            kind: "start",
-                            type: currentType,
-                            label: machine.pendingBreak ? null : label || null,
-                            tagId: null,
-                          })
+                          dispatch(buildStartEvent(currentType, machine.pendingBreak, label))
                         }
                       >
                         START
@@ -458,6 +521,9 @@ export default function TimerScreen() {
                           Skip break
                         </button>
                       )}
+                      <p className="hidden text-xs text-neutral-400 md:block">
+                        Press Space to start
+                      </p>
                     </>
                   ) : (
                     <>
@@ -481,6 +547,11 @@ export default function TimerScreen() {
                           ⏹ STOP
                         </button>
                       </div>
+                      {isPaused && (
+                        <p className="hidden text-xs text-neutral-400 md:block">
+                          Press Space to resume
+                        </p>
+                      )}
                       {isBreakNow && isRunning && (
                         <button
                           onClick={() => dispatch({ kind: "skipBreak" })}

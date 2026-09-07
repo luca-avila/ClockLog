@@ -281,3 +281,98 @@ describe("completed focus block shows label sheet", () => {
     expect(container.querySelector('[data-testid="label-sheet"]')).toBeTruthy();
   });
 });
+
+describe("space shortcut (SCR-11)", () => {
+  function pressSpace(target: Element = document.body) {
+    act(() => {
+      target.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: " ",
+          code: "Space",
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+    });
+  }
+
+  function seedEndedFocusBlock() {
+    const startedAt = now - 25 * 60 * 1000;
+    const state: TimerState = {
+      id: "test-ended-space",
+      type: "focus",
+      phase: "ended",
+      startedAt,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      intervals: [{ startedAt, endedAt: now }],
+      blockStatus: "completed",
+      targetMs: 25 * 60 * 1000,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(CYCLE_KEY, JSON.stringify({ completed: 0, pendingBreak: false }));
+  }
+
+  it("starts a focus block from idle", () => {
+    const { container } = render();
+    expect(container.textContent).toContain("Press Space to start");
+    pressSpace();
+    expect(container.textContent).toContain("of 25:00");
+    expect(container.textContent).toContain("PAUSE");
+  });
+
+  it("does not start when Space is pressed inside the label input", () => {
+    const { container } = render();
+    const input = container.querySelector('input[aria-label="Block label"]') as HTMLInputElement;
+    expect(input).toBeTruthy();
+    // Simulate a typed space reaching the controlled input (React 19 listens
+    // for the native `input` event after the value setter).
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value"
+    )?.set;
+    act(() => {
+      setter!.call(input, "groceries ");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(input.value).toBe("groceries ");
+
+    pressSpace(input);
+    // Still idle, and the typed space was not swallowed.
+    expect(container.textContent).toContain("START");
+    expect(container.textContent).not.toContain("of 25:00");
+    expect(input.value).toBe("groceries ");
+  });
+
+  it("ignores Space while a block is running", () => {
+    const { container } = render();
+    clickButton(container, "START");
+    expect(container.textContent).not.toContain("Press Space to start");
+    pressSpace();
+    expect(container.textContent).toContain("PAUSE");
+    expect(container.textContent).not.toContain("PAUSED");
+  });
+
+  it("resumes a paused block on Space", () => {
+    const { container } = render();
+    clickButton(container, "START");
+    clickButton(container, "PAUSE");
+    expect(container.textContent).toContain("PAUSED");
+    expect(container.textContent).toContain("Press Space to resume");
+    pressSpace();
+    expect(container.textContent).not.toContain("PAUSED");
+    expect(container.textContent).toContain("PAUSE");
+  });
+
+  it("does not start another block while the label sheet is open", () => {
+    seedEndedFocusBlock();
+    const { container } = render();
+    expect(container.querySelector('[data-testid="label-sheet"]')).toBeTruthy();
+    pressSpace();
+    // The recovered ended block is still awaiting its label, not replaced by
+    // a fresh running block.
+    expect(container.querySelector('[data-testid="label-sheet"]')).toBeTruthy();
+    expect(container.textContent).not.toContain("of 25:00");
+  });
+});
