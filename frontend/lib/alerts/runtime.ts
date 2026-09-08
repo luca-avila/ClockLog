@@ -66,6 +66,10 @@ export function browserPermission(): NotificationPermissionState {
   return Notification.permission as NotificationPermissionState;
 }
 
+const BEEP_COUNT = 3;
+const BEEP_GAP_S = 0.22; // start-to-start spacing between ticks
+const BEEP_LEN_S = 0.18; // audible length of each tick
+
 function defaultPlaySound(): void {
   if (typeof window === "undefined") return;
   try {
@@ -75,19 +79,28 @@ function defaultPlaySound(): void {
         .webkitAudioContext;
     if (!Ctx) return;
     const ctx = new Ctx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = 880;
-    gain.gain.value = 0.15;
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-    osc.stop(ctx.currentTime + 0.45);
-    osc.onended = () => {
-      void ctx.close();
-    };
+    const t0 = ctx.currentTime;
+    // Three short ticks on one context — no setTimeout/async, so the
+    // `() => void` signature and fireAlert's no-block guarantee survive.
+    for (let i = 0; i < BEEP_COUNT; i++) {
+      const start = t0 + i * BEEP_GAP_S;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.15, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + BEEP_LEN_S);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + BEEP_LEN_S + 0.05);
+      // Only the last tick's end releases the context.
+      if (i === BEEP_COUNT - 1) {
+        osc.onended = () => {
+          void ctx.close();
+        };
+      }
+    }
   } catch {
     /* autoplay policy or missing Web Audio — degrade silently */
   }

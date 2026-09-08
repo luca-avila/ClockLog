@@ -14,10 +14,11 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   planAlert,
   fireAlert,
+  createBrowserDeps,
   readHasCompletedBlock,
   markBlockCompleted,
   type AlertDeps,
@@ -288,6 +289,133 @@ describe("fireAlert channel independence", () => {
     expect(plan.changeTitle).toBe(true);
     expect(playSound).toHaveBeenCalledOnce();
     expect(setTitle).toHaveBeenCalledWith("Break over");
+  });
+});
+
+// happy-dom does not ship Web Audio, so defaultPlaySound (reached through
+// createBrowserDeps().playSound) is exercised against a recording stub.
+describe("defaultPlaySound triple beep", () => {
+  class FakeOscillator {
+    type = "";
+    frequency = { value: 0 };
+    onended: (() => void) | null = null;
+    startCalls: number[] = [];
+    stopCalls: number[] = [];
+    connect(): void {}
+    start(when: number): void {
+      this.startCalls.push(when);
+    }
+    stop(when: number): void {
+      this.stopCalls.push(when);
+    }
+  }
+
+  class FakeGain {
+    gain = {
+      setValueAtTime: vi.fn(),
+      exponentialRampToValueAtTime: vi.fn(),
+    };
+    connect(): void {}
+  }
+
+  function buildStub() {
+    const contexts: FakeAudioContext[] = [];
+    class FakeAudioContext {
+      currentTime = 100.0;
+      destination = {};
+      close = vi.fn();
+      oscillators: FakeOscillator[] = [];
+      gains: FakeGain[] = [];
+      constructor() {
+        contexts.push(this);
+      }
+      createOscillator(): FakeOscillator {
+        const osc = new FakeOscillator();
+        this.oscillators.push(osc);
+        return osc;
+      }
+      createGain(): FakeGain {
+        const gain = new FakeGain();
+        this.gains.push(gain);
+        return gain;
+      }
+    }
+    return { FakeAudioContext, contexts };
+  }
+
+  let previousCtx: unknown;
+  let hadAudioContext = false;
+
+  beforeEach(() => {
+    previousCtx = window.AudioContext;
+    hadAudioContext = "AudioContext" in window;
+  });
+
+  afterEach(() => {
+    if (hadAudioContext) {
+      window.AudioContext = previousCtx as typeof AudioContext;
+    } else {
+      delete (window as { AudioContext?: unknown }).AudioContext;
+    }
+  });
+
+  function install(Ctor: new () => unknown): void {
+    (window as { AudioContext?: unknown }).AudioContext = Ctor;
+  }
+
+  it("plays three identical ticks scheduled on one AudioContext", () => {
+    const { FakeAudioContext, contexts } = buildStub();
+    install(FakeAudioContext);
+
+    createBrowserDeps().playSound();
+
+    expect(contexts).toHaveLength(1);
+    const ctx = contexts[0];
+    const t0 = ctx.currentTime;
+    expect(ctx.oscillators).toHaveLength(3);
+    const starts = ctx.oscillators.map((o) => o.startCalls[0]);
+    expect(starts).toEqual([t0, t0 + 0.22, t0 + 0.44]);
+
+    ctx.oscillators.forEach((o, i) => {
+      expect(o.startCalls).toHaveLength(1);
+      expect(o.stopCalls).toHaveLength(1);
+      expect(o.type).toBe("sine");
+      expect(o.frequency.value).toBe(880);
+      // Each tick is a 0.18 s beep plus a 0.05 s tail.
+      expect(o.stopCalls[0] - o.startCalls[0]).toBeCloseTo(0.23, 9);
+      expect(ctx.gains[i].gain.setValueAtTime).toHaveBeenCalledWith(
+        0.15,
+        t0 + i * 0.22
+      );
+      expect(
+        ctx.gains[i].gain.exponentialRampToValueAtTime
+      ).toHaveBeenCalledWith(0.001, t0 + i * 0.22 + 0.18);
+    });
+  });
+
+  it("closes the context only when the third tick ends", () => {
+    const { FakeAudioContext, contexts } = buildStub();
+    install(FakeAudioContext);
+
+    createBrowserDeps().playSound();
+
+    const ctx = contexts[0];
+    const [first, second, third] = ctx.oscillators;
+    // Only the last oscillator carries an onended handler.
+    expect(first.onended).toBeNull();
+    expect(second.onended).toBeNull();
+    expect(third.onended).not.toBeNull();
+
+    ctx.close.mockClear();
+    first.onended?.();
+    second.onended?.();
+    expect(ctx.close).not.toHaveBeenCalled();
+    third.onended?.();
+    expect(ctx.close).toHaveBeenCalledOnce();
+  });
+
+  it("degrades silently when Web Audio is unavailable", () => {
+    expect(() => createBrowserDeps().playSound()).not.toThrow();
   });
 });
 
