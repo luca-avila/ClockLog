@@ -29,6 +29,11 @@ clocklog/clocklog credentials and an empty `RESEND_API_KEY`, so the placeholders
 only have to exist for interpolation. A missing required variable fails fast:
 `docker compose config` exits non-zero with a `... requerida en .env` message.
 
+Interpolation covers profile-excluded services too: `NEXT_PUBLIC_API_URL` must exist
+in `.env` even though the frontend does not run in Compose in dev (it runs on the
+host via `npm run dev`), and the `backup` sidecar only starts in prod. The GitHub
+workflow injects the same values as step-level `env` because a runner has no `.env`.
+
 Postgres is not published to the host — uncomment the `ports` block under `db` if you
 need `psql` from outside.
 
@@ -159,11 +164,11 @@ nginx and TLS (certbot) run on the VPS itself, outside Compose. Compose services
 ```bash
 # First time
 cp .env.example .env      # then fill in every value
-docker compose -f docker-compose.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 # Subsequent deploys
 git pull
-docker compose -f docker-compose.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
 `docker-compose.yml` alone is the full prod stack: backend (prod stage, non-root),
@@ -172,9 +177,44 @@ JSON-file logging (10 MB × 3), loopback-only ports and `${VAR:?}` fail-fast. Pa
 an explicit `-f` means Compose does **not** auto-load the dev override, so prod is
 clean by construction rather than by undoing dev values.
 
-The legacy `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
---build` still works: `docker-compose.prod.yml` is now a compatibility shim that only
-requires `RESEND_API_KEY` (see below). Prefer the single-file command above.
+`docker-compose.prod.yml` adds the one prod-only gate the base cannot carry:
+`RESEND_API_KEY` is empty by design in dev and CI (tests assert it), so only the
+prod layer can require it with `:?`. Deploy with the two-file command above; running
+the base alone (`-f docker-compose.yml`) boots the same services but without that
+gate — a missing key would silently degrade email to dev log mode, which is the
+failure this handoff exists to prevent.
+
+### Verifying the fail-fast and a prod boot
+
+The `:?` gates are reproducible without relying on the checkout's `.env`. To prove
+each one, point Compose at an env file that has every required variable except the
+one under test:
+
+```bash
+cp .env.example /tmp/prod-env-complete
+sed -i 's/^RESEND_API_KEY=.*/RESEND_API_KEY=test-only-not-a-real-key/' /tmp/prod-env-complete
+for v in SECRET_KEY DATABASE_URL CORS_ORIGINS EMAIL_FROM APP_BASE_URL \
+         POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB NEXT_PUBLIC_API_URL; do
+  grep -v "^$v=" /tmp/prod-env-complete > "/tmp/prod-env-sin-$v"
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+    --env-file "/tmp/prod-env-sin-$v" config >/dev/null 2>&1 \
+    && echo "FALLO: $v no exigida" || echo "ok: $v exigida"
+done
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  --env-file /tmp/prod-env-sin-RESEND_API_KEY config >/dev/null 2>&1 \
+  && echo "FALLO: RESEND_API_KEY no exigida" || echo "ok: RESEND_API_KEY exigida"
+```
+
+Smoke-boot prod in a throwaway project before a real deploy (it builds the prod-stage
+images and starts all four services on loopback ports):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  --env-file /tmp/prod-env-complete -p clocklog-prodcheck up -d --build
+curl -fsS http://localhost:8000/health
+docker compose -p clocklog-prodcheck ps
+docker compose -p clocklog-prodcheck down -v
+```
 
 ### Generating the secret
 
@@ -222,9 +262,10 @@ config` exits non-zero naming the variable — the stack will not boot half-conf
 
 `RESEND_API_KEY` is the deliberate exception: dev and CI leave it empty so the sender
 logs the verification/reset link instead of mailing (that is what `tests/conftest.py`
-asserts). In prod, leave it empty and sign-ups can never complete. The single-file
-command keeps it optional-by-design; the legacy two-file command enforces it via
-`docker-compose.prod.yml` (`:?`). Keep the `.env.example` comment in mind either way.
+asserts), so the base keeps it optional (`:-`) and the prod layer
+`docker-compose.prod.yml` requires it (`:?`) in the deploy command. In prod, leave it
+empty and sign-ups can never complete — and the deploy command above will refuse to
+start rather than degrade silently.
 
 ### nginx sketch
 
@@ -257,6 +298,11 @@ keeps `BACKUP_KEEP` local copies (default 14), and — when `BACKUP_RCLONE_REMOT
 set — copies each dump off-site with rclone. An upload failure logs a warning and
 keeps the local copy; it never stops the loop. Rotation runs regardless of upload
 outcome.
+
+The compose defaults only apply while the variable is absent from `.env`. A real
+`.env` that sets `BACKUP_KEEP=2` wins over the default, so check (and raise, if
+needed) the value in the production `.env` — editing the compose default alone does
+not change retention on a host that already sets the variable.
 
 For an off-site remote, mount `rclone.conf` read-only into the container (the line is
 already in `docker-compose.yml`, commented). Leaving `BACKUP_RCLONE_REMOTE` empty is a
@@ -315,6 +361,8 @@ Liveness: `curl -fsS http://localhost:8000/health`.
 | Backend code changes have no effect | The bind mount covers `.py` files, so this usually means a dependency or Dockerfile change: `docker compose up -d --build backend`. |
 | `docker compose config` fails with `... requerida en .env` | A required variable is missing from `.env` (or the shell). Fill it in; in dev, `cp .env.example .env` provides placeholders the override then replaces at runtime. |
 | `./backend:/app` or `target: dev` shows up in a prod compose config | The dev override was auto-loaded — the command must pass an explicit `-f`, e.g. `docker compose -f docker-compose.yml config`. |
+| Prod boots but verification/reset emails are only logged | The base was run without `docker-compose.prod.yml`, so `RESEND_API_KEY` was never required. Deploy with `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build` — that command refuses to start without the key. |
+| Backups keep fewer copies than the compose default | The production `.env` sets `BACKUP_KEEP` (e.g. `2`), which overrides the compose default. Raise it in `.env`. |
 | Async test hangs or raises "attached to a different loop" | asyncpg binds a connection to its creating loop. Keep the session-scoped loop settings in `pyproject.toml`. |
 | A 500 with no detail | Grep the logs for the `X-Request-ID` from the response. |
 | `429` on every login attempt | The sliding window is per IP and in memory; wait out `Retry-After`, or restart the backend to clear it. |

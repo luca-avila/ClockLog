@@ -1,9 +1,15 @@
 # Base Compose file — prod-safe by construction.
 #
 # docker-compose.override.yml is auto-loaded only when no `-f` is passed, so
-# `docker compose up -d` is the dev stack and `docker compose -f
-# docker-compose.yml up -d --build` is production: passing `-f` skips the
-# override, so prod inherits nothing dev — it never has to "undo" it.
+# `docker compose up -d` is the dev stack. Production deploys with the prod
+# layer, which is where the one prod-only gate lives:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Any explicit `-f` skips the override, so prod inherits nothing dev — it
+# never has to "undo" it. The prod layer only requires RESEND_API_KEY (dev/CI
+# leave it empty on purpose); running the base alone boots, but silently
+# degrades transactional email to dev log mode — not a prod deploy path.
 # Required variables interpolate with ${VAR:?message}, so a missing value
 # fails at `docker compose config`, not at runtime.
 
@@ -34,8 +40,9 @@ services:
       AUTH_EMAIL_RATE_WINDOW_SECONDS: ${AUTH_EMAIL_RATE_WINDOW_SECONDS:-3600}
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS requerida en .env}
       # Vacía en dev/CI: el sender loguea el link en vez de enviar.
-      # docker-compose.prod.yml la exige en prod; el override dev la fuerza
-      # vacía para que el conftest (RESEND_API_KEY vacía obligatoria) siga verde.
+      # docker-compose.prod.yml la exige en el comando de deploy (base +
+      # prod.yml); el override dev la fuerza vacía para que el conftest
+      # (RESEND_API_KEY vacía obligatoria) siga verde.
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM requerida en .env}
       APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL requerida en .env}

@@ -21,10 +21,14 @@ Runs on a single VPS: Docker Compose, nginx, certbot. AGPL-3.0.
 Requirements: Docker + Docker Compose, Node 20+.
 
 ```bash
-# 1. Backend + Postgres. Applies migrations on boot.
+# 1. Env file for Compose interpolation (gitignored; placeholders are fine in dev —
+#    docker-compose.override.yml replaces runtime values with local credentials)
+cp .env.example .env
+
+# 2. Backend + Postgres. Applies migrations on boot.
 docker compose up -d
 
-# 2. Frontend (runs on the host for hot reload)
+# 3. Frontend (runs on the host for hot reload)
 cd frontend && npm install && npm run dev
 ```
 
@@ -34,8 +38,11 @@ In development `RESEND_API_KEY` is unset, so no mail is sent — the verificatio
 written to the backend log instead. Fish it out with `docker compose logs backend`, open
 it, and you are signed in.
 
-No `.env` is needed for development — `docker-compose.yml` hard-codes dev values.
-`.env` is production-only.
+The base `docker-compose.yml` is prod-safe and requires its variables via
+`${VAR:?}`, so dev, CI and prod all read `.env` (or the shell) for interpolation.
+The auto-loaded `docker-compose.override.yml` then pins the runtime values dev
+actually uses. Production fills every `.env` value and deploys with
+`docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`.
 
 | URL | What |
 | --- | --- |

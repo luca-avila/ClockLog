@@ -15,13 +15,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # Dev-only. Auto-cargado por 'docker compose up' cuando no se pasa -f.
-# Nunca incluirlo en prod: prod usa `docker compose -f docker-compose.yml`,
-# que NO auto-carga este archivo, así que prod queda limpio por construcción.
+# Nunca incluirlo en prod: los comandos de deploy pasan `-f` explícito (base +
+# docker-compose.prod.yml), que NO auto-cargan este archivo, así que prod
+# queda limpio por construcción.
 #
 # La base interpola ${VAR:?...} desde .env / el shell (por eso hace falta un
 # .env, p. ej. copiando .env.example); este archivo fuerza encima los valores
 # de runtime dev, para que el stack local use siempre credenciales
 # clocklog/clocklog y RESEND_API_KEY vacía (el conftest la exige vacía).
+# La interpolación aplica también a los servicios excluidos por profile, así
+# que dev necesita en .env la NEXT_PUBLIC_API_URL requerida por la base aunque
+# el frontend no corra en Compose en dev.
 
 services:
   backend:

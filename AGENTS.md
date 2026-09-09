@@ -79,7 +79,13 @@ docker compose up -d
 cd frontend && npm install
 ```
 
-There is no `.env` needed for development — `docker-compose.yml` hard-codes dev values. `.env` is only for production; copy `.env.example` and fill it in.
+Development also needs an env file: `docker-compose.yml` is prod-safe and
+interpolates its required variables from `.env` / the shell, so a missing value
+fails at `docker compose config` instead of degrading at runtime. `cp .env.example
+.env` works as-is for dev — `docker-compose.override.yml` (auto-loaded when no `-f`
+is passed) replaces the runtime values with local credentials, so the placeholders
+only need to exist for interpolation. `.env` is gitignored; for production, fill in
+every value.
 
 ### Ports and endpoints
 
@@ -361,11 +367,19 @@ cp .env.example .env      # then fill in every value
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
+`docker-compose.yml` is the prod-safe base (prod stage, no bind mounts, required
+`${VAR:?}`, loopback ports, full healthchecks, backup sidecar) and
+`docker-compose.prod.yml` is the prod layer that additionally requires
+`RESEND_API_KEY` — the one variable dev/CI leave empty on purpose. Passing an
+explicit `-f` means the dev override (`docker-compose.override.yml`) is never
+auto-loaded. Do not deploy from the base alone: it boots without the key and email
+would silently degrade to log mode.
+
 The backend container applies migrations on boot (`alembic upgrade head && fastapi run …`), so deploys are unattended.
 
 ### Images
 
-- `backend/Dockerfile` is multi-stage: `dev` (adds pytest, ruff, httpx) and `prod` (runtime deps only, non-root `appuser`). `docker-compose.yml` targets `dev`; the prod overlay builds the default final stage.
+- `backend/Dockerfile` is multi-stage: `dev` (adds pytest, ruff, httpx) and `prod` (runtime deps only, non-root `appuser`). The base `docker-compose.yml` targets the `prod` stage; `docker-compose.override.yml` switches it to `dev` for local work.
 - `frontend/Dockerfile` bakes `NEXT_PUBLIC_API_URL` at build time — **changing the API URL requires a frontend rebuild**, not just a restart.
 
 ### Environment variables

@@ -14,18 +14,20 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Compatibility shim for the legacy two-file production command:
+# Production-only layer. The base docker-compose.yml is already prod-safe
+# (prod stage, no bind mounts, required ${VAR:?}, loopback ports, full
+# healthchecks, backup sidecar), and the dev override is never loaded because
+# the deploy command passes an explicit `-f`.
+#
+# Deploy command:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
-# The recommended command is now a single file — `docker compose -f
-# docker-compose.yml up -d --build` — because docker-compose.yml is already
-# prod-safe (prod stage, no bind mounts, required ${VAR:?}, loopback ports,
-# full healthchecks, backup sidecar). Passing `-f` also skips the auto-loaded
-# docker-compose.override.yml, so nothing dev leaks into prod.
-#
-# This file survives only to keep the legacy two-file command working and to
-# require the one variable dev/CI leave empty on purpose.
+# This layer's only job is to require the one variable dev/CI leave empty on
+# purpose: without a RESEND_API_KEY no transactional email can complete, and a
+# prod running in silent log mode is exactly the failure this handoff removes.
+# Do not deploy from the base alone — it boots, but email degrades to dev log
+# mode without any error.
 
 services:
   backend:
