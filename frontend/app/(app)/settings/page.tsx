@@ -72,18 +72,21 @@ export default function SettingsPage() {
             options={DURATION_OPTIONS}
             value={settings.focusDuration}
             onChange={(focusDuration) => save({ focusDuration })}
+            unit="min"
           />
           <SelectRow
             label="Short break"
             options={DURATION_OPTIONS}
             value={settings.shortBreakDuration}
             onChange={(shortBreakDuration) => save({ shortBreakDuration })}
+            unit="min"
           />
           <SelectRow
             label="Long break"
             options={DURATION_OPTIONS}
             value={settings.longBreakDuration}
             onChange={(longBreakDuration) => save({ longBreakDuration })}
+            unit="min"
           />
           <SelectRow
             label="Blocks per cycle"
@@ -159,11 +162,13 @@ function SelectRow({
   options,
   value,
   onChange,
+  unit,
 }: {
   label: string;
   options: number[];
   value: number;
   onChange: (v: number) => void;
+  unit?: string;
 }) {
   return (
     <div className="flex items-center justify-between py-1">
@@ -176,7 +181,7 @@ function SelectRow({
       >
         {options.map((o) => (
           <option key={o} value={o}>
-            {o} min
+            {unit ? `${o} ${unit}` : o}
           </option>
         ))}
       </select>
