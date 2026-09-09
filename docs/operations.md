@@ -136,7 +136,7 @@ docker compose exec backend pytest                    # backend
 docker compose exec backend pytest tests/timer/test_history.py
 docker compose exec backend pytest -k aborted
 cd frontend && npm run test                           # vitest
-npx vitest run -t "recovers an in-progress block"     # one test by name
+npx vitest run -t "round-trips an in-progress"     # one test by name
 ```
 
 `.github/workflows/ci.yml` runs the same sequence on pushes and PRs to `main`: Compose
