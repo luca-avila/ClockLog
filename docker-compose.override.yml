@@ -1,0 +1,55 @@
+# ClockLog — a Pomodoro timer and weekly planner
+# Copyright (C) 2024  Luca
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# Dev-only. Auto-cargado por 'docker compose up' cuando no se pasa -f.
+# Nunca incluirlo en prod: prod usa `docker compose -f docker-compose.yml`,
+# que NO auto-carga este archivo, así que prod queda limpio por construcción.
+#
+# La base interpola ${VAR:?...} desde .env / el shell (por eso hace falta un
+# .env, p. ej. copiando .env.example); este archivo fuerza encima los valores
+# de runtime dev, para que el stack local use siempre credenciales
+# clocklog/clocklog y RESEND_API_KEY vacía (el conftest la exige vacía).
+
+services:
+  backend:
+    build:
+      target: dev
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog
+      SECRET_KEY: dev-secret-change-in-production
+      CORS_ORIGINS: http://localhost:3000
+      APP_BASE_URL: http://localhost:3000
+      EMAIL_FROM: "ClockLog <no-reply@localhost>"
+      RESEND_API_KEY: ""
+      # Tests DELETE de cada tabla — corren contra clocklog_test, nunca la DB
+      # dev. El sufijo _test lo exige tests/conftest.py.
+      TEST_DATABASE_URL: postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog_test
+
+  db:
+    environment:
+      POSTGRES_USER: clocklog
+      POSTGRES_PASSWORD: clocklog
+      POSTGRES_DB: clocklog
+
+  # Servicios que existen en la base (prod) pero no deben arrancar en dev/CI:
+  # el frontend dev corre en el host (`npm run dev`) y el backup nocturno no
+  # pinta nada en un stack local. Arrancarlos requiere --profile prod-sidecars.
+  frontend:
+    profiles: ["prod-sidecars"]
+  backup:
+    profiles: ["prod-sidecars"]

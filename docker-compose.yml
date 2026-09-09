@@ -1,46 +1,109 @@
+# Base Compose file — prod-safe by construction.
+#
+# docker-compose.override.yml is auto-loaded only when no `-f` is passed, so
+# `docker compose up -d` is the dev stack and `docker compose -f
+# docker-compose.yml up -d --build` is production: passing `-f` skips the
+# override, so prod inherits nothing dev — it never has to "undo" it.
+# Required variables interpolate with ${VAR:?message}, so a missing value
+# fails at `docker compose config`, not at runtime.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   backend:
     build:
       context: ./backend
-      target: dev
-    command: >
-      sh -c "alembic upgrade head && fastapi run app/main.py --host 0.0.0.0 --port 8000"
+      # Runtime-only stage (non-root appuser). Dev switches to `dev` in
+      # docker-compose.override.yml — never point this at dev.
+      target: prod
+    image: clocklog-backend:${TAG:-latest}
+    command: sh -c "alembic upgrade head && fastapi run app/main.py --host 0.0.0.0 --port 8000"
     ports:
-      # 127.0.0.1 only: the prod overlay inherits this binding, and old Compose
-      # versions concatenate (not replace) ports across files, so defining a
-      # second mapping in the overlay would double-bind host port 8000.
+      # Loopback only: nginx on the host fronts both services.
       - "127.0.0.1:8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog
-      - SECRET_KEY=dev-secret-change-in-production
-      # Tests DELETE from every table — they run against clocklog_test, never
-      # the dev DB. The name must end in _test (conftest enforces it).
-      - TEST_DATABASE_URL=postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog_test
-      # Emailed links point at the frontend. RESEND_API_KEY is deliberately
-      # unset in dev: the sender then logs the link instead of sending.
-      - APP_BASE_URL=http://localhost:3000
-      - EMAIL_FROM=ClockLog <no-reply@localhost>
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL requerida en .env}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY requerida en .env}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
+      LOGIN_RATE_WINDOW_SECONDS: ${LOGIN_RATE_WINDOW_SECONDS:-60}
+      AUTH_EMAIL_RATE_LIMIT: ${AUTH_EMAIL_RATE_LIMIT:-3}
+      AUTH_EMAIL_RATE_WINDOW_SECONDS: ${AUTH_EMAIL_RATE_WINDOW_SECONDS:-3600}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS requerida en .env}
+      # Vacía en dev/CI: el sender loguea el link en vez de enviar.
+      # docker-compose.prod.yml la exige en prod; el override dev la fuerza
+      # vacía para que el conftest (RESEND_API_KEY vacía obligatoria) siga verde.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM requerida en .env}
+      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL requerida en .env}
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
+    restart: unless-stopped
+    logging: *default-logging
 
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER=clocklog
-      - POSTGRES_PASSWORD=clocklog
-      - POSTGRES_DB=clocklog
-    # ports:  # uncomment to expose on host
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER requerida en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requerida en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB requerida en .env}
+    # ports:  # descomentar para cliente directo (psql desde el host)
     #   - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U clocklog"]
-      interval: 2s
+      # -d pincha la DB real, no solo "el server acepta conexiones": el
+      # chequeo viejo pasaba por coincidencia de nombres de usuario/DB.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:?} -d $${POSTGRES_DB:?}"]
+      interval: 5s
       timeout: 3s
       retries: 5
+      start_period: 10s
+    logging: *default-logging
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Build-time: cambiar NEXT_PUBLIC_API_URL exige rebuild, no restart.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL requerida en .env}
+    image: clocklog-frontend:${TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3000"
+    logging: *default-logging
+
+  # Nightly pg_dump with local rotation; uploads off-site when
+  # BACKUP_RCLONE_REMOTE is set (see .env.example for the tradeoff).
+  backup:
+    build: ./infra/backup
+    image: clocklog-backup:${TAG:-latest}
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:?POSTGRES_USER requerida en .env}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requerida en .env}
+      PGDATABASE: ${POSTGRES_DB:?POSTGRES_DB requerida en .env}
+      BACKUP_DIR: /backups
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      # Retención local: 14 copias diarias ≈ dos semanas.
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      # Vacío = solo local (aceptado conscientemente; verificar a mano).
+      BACKUP_RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
+    volumes:
+      - backups:/backups
+      # Off-site: descomentar y montar rclone.conf (ver .env.example).
+      # - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *default-logging
 
 volumes:
   pgdata:
+  backups:

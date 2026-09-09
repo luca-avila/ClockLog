@@ -13,14 +13,22 @@ docker compose logs -f backend    # follow backend logs
 cd frontend && npm run dev        # frontend on :3000, hot reload
 ```
 
-`./backend` is bind-mounted into the container, so Python edits reload without a
-rebuild. **Rebuild only when `pyproject.toml` or the Dockerfile changes:**
+`docker compose up` auto-loads `docker-compose.override.yml` (dev-only: `dev` stage,
+`./backend` bind mount, local credentials, no prod sidecars), so the container
+serves the checkout and Python edits reload without a rebuild. **Rebuild only when
+`pyproject.toml` or the Dockerfile changes:**
 
 ```bash
 docker compose up -d --build backend
 ```
 
-Dev values are hard-coded in `docker-compose.yml`; there is no `.env` in development.
+The base `docker-compose.yml` is prod-safe and interpolates its required variables
+from `.env` / the shell, so development also needs an env file. `cp .env.example
+.env` works as-is: the override replaces the runtime values with local
+clocklog/clocklog credentials and an empty `RESEND_API_KEY`, so the placeholders
+only have to exist for interpolation. A missing required variable fails fast:
+`docker compose config` exits non-zero with a `... requerida en .env` message.
+
 Postgres is not published to the host — uncomment the `ports` block under `db` if you
 need `psql` from outside.
 
@@ -130,8 +138,8 @@ eslint, `tsc --noEmit`.
 ### Test database safety
 
 Backend tests `DELETE FROM` every table. They run against a **separate `clocklog_test`
-database**, never the dev one. `TEST_DATABASE_URL` is set in `docker-compose.yml`; if
-unset it is derived from `DATABASE_URL` by swapping in `clocklog_test`.
+database**, never the dev one. `TEST_DATABASE_URL` is set by `docker-compose.override.yml`;
+if unset the backend derives it from `DATABASE_URL` by swapping in `clocklog_test`.
 
 `tests/conftest.py` raises unless the resolved URL ends in `_test`. **That assertion is
 the safety mechanism, not a formality — do not weaken it to make a test run.**
@@ -151,15 +159,22 @@ nginx and TLS (certbot) run on the VPS itself, outside Compose. Compose services
 ```bash
 # First time
 cp .env.example .env      # then fill in every value
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml up -d --build
 
 # Subsequent deploys
 git pull
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml up -d --build
 ```
 
-The prod overlay adds the `frontend` and `backup` services, `restart: unless-stopped`,
-and capped JSON-file logging (10 MB × 3).
+`docker-compose.yml` alone is the full prod stack: backend (prod stage, non-root),
+Postgres, frontend and the backup sidecar, with `restart: unless-stopped`, capped
+JSON-file logging (10 MB × 3), loopback-only ports and `${VAR:?}` fail-fast. Passing
+an explicit `-f` means Compose does **not** auto-load the dev override, so prod is
+clean by construction rather than by undoing dev values.
+
+The legacy `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+--build` still works: `docker-compose.prod.yml` is now a compatibility shim that only
+requires `RESEND_API_KEY` (see below). Prefer the single-file command above.
 
 ### Generating the secret
 
@@ -194,9 +209,22 @@ rebuilding the frontend image — restarting the container does nothing.
 ### Images
 
 - `backend/Dockerfile` is multi-stage: `dev` (adds pytest, ruff, httpx) and `prod`
-  (runtime deps only, non-root `appuser`). `docker-compose.yml` targets `dev`; the prod
-  overlay builds the final stage.
+  (runtime deps only, non-root `appuser`). The base `docker-compose.yml` targets
+  `prod`; `docker-compose.override.yml` switches it to `dev` for local work.
 - `frontend/Dockerfile` builds a Next.js standalone server on `node:20-alpine`.
+
+### Required variables and fail-fast
+
+The base file requires `SECRET_KEY`, `DATABASE_URL`, `CORS_ORIGINS`, `EMAIL_FROM`,
+`APP_BASE_URL`, `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` and
+`NEXT_PUBLIC_API_URL`. While one is missing, `docker compose -f docker-compose.yml
+config` exits non-zero naming the variable — the stack will not boot half-configured.
+
+`RESEND_API_KEY` is the deliberate exception: dev and CI leave it empty so the sender
+logs the verification/reset link instead of mailing (that is what `tests/conftest.py`
+asserts). In prod, leave it empty and sign-ups can never complete. The single-file
+command keeps it optional-by-design; the legacy two-file command enforces it via
+`docker-compose.prod.yml` (`:?`). Keep the `.env.example` comment in mind either way.
 
 ### nginx sketch
 
@@ -223,20 +251,22 @@ the only proxy: if another hop ever sits in between, that hop must overwrite the
 
 ## Backups
 
-The `backup` sidecar (prod overlay only) loops: `pg_dump -Fc` into the `backups` volume
-every `BACKUP_INTERVAL_SECONDS` (default 24 h), keeps `BACKUP_KEEP` local copies
-(default 14), and — when `BACKUP_RCLONE_REMOTE` is set — copies each dump off-site with
-rclone. An upload failure logs a warning and keeps the local copy; it never stops the
-loop. Rotation runs regardless of upload outcome.
+The `backup` sidecar (defined in the base compose file, running in prod) loops:
+`pg_dump -Fc` into the `backups` volume every `BACKUP_INTERVAL_SECONDS` (default 24 h),
+keeps `BACKUP_KEEP` local copies (default 14), and — when `BACKUP_RCLONE_REMOTE` is
+set — copies each dump off-site with rclone. An upload failure logs a warning and
+keeps the local copy; it never stops the loop. Rotation runs regardless of upload
+outcome.
 
 For an off-site remote, mount `rclone.conf` read-only into the container (the line is
-already in `docker-compose.prod.yml`, commented).
+already in `docker-compose.yml`, commented). Leaving `BACKUP_RCLONE_REMOTE` empty is a
+conscious local-only choice: verify periodically and test a restore.
 
 ### Check that backups are actually happening
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml logs backup | tail -20
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backup ls -lh /backups
+docker compose -f docker-compose.yml logs backup | tail -20
+docker compose -f docker-compose.yml exec backup ls -lh /backups
 ```
 
 A backup you have never restored is a hypothesis. Test it.
@@ -245,14 +275,14 @@ A backup you have never restored is a hypothesis. Test it.
 
 ```bash
 # 1. Stop the backend so nothing writes mid-restore
-docker compose -f docker-compose.yml -f docker-compose.prod.yml stop backend
+docker compose -f docker-compose.yml stop backend
 
 # 2. Restore into the existing database (custom format, --clean drops first)
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec backup \
+docker compose -f docker-compose.yml exec backup \
   sh -c 'pg_restore --clean --if-exists -d "$PGDATABASE" /backups/clocklog-<stamp>.dump'
 
 # 3. Bring the backend back (it will run `alembic upgrade head` on boot)
-docker compose -f docker-compose.yml -f docker-compose.prod.yml start backend
+docker compose -f docker-compose.yml start backend
 ```
 
 If the dump predates a migration, step 3 brings the schema forward. If it *postdates*
@@ -283,6 +313,8 @@ Liveness: `curl -fsS http://localhost:8000/health`.
 | Frontend fetches fail with a CORS error | `CORS_ORIGINS` does not list the browser's origin. Dev default is `http://localhost:3000`. |
 | Frontend still calls the old API host | `NEXT_PUBLIC_API_URL` is baked in at build time — rebuild the frontend image. |
 | Backend code changes have no effect | The bind mount covers `.py` files, so this usually means a dependency or Dockerfile change: `docker compose up -d --build backend`. |
+| `docker compose config` fails with `... requerida en .env` | A required variable is missing from `.env` (or the shell). Fill it in; in dev, `cp .env.example .env` provides placeholders the override then replaces at runtime. |
+| `./backend:/app` or `target: dev` shows up in a prod compose config | The dev override was auto-loaded — the command must pass an explicit `-f`, e.g. `docker compose -f docker-compose.yml config`. |
 | Async test hangs or raises "attached to a different loop" | asyncpg binds a connection to its creating loop. Keep the session-scoped loop settings in `pyproject.toml`. |
 | A 500 with no detail | Grep the logs for the `X-Request-ID` from the response. |
 | `429` on every login attempt | The sliding window is per IP and in memory; wait out `Retry-After`, or restart the backend to clear it. |
@@ -300,7 +332,7 @@ Liveness: `curl -fsS http://localhost:8000/health`.
   before committing.
 - **Disk:** `docker system prune` after repeated rebuilds; the `backups` volume is
   self-rotating.
-- **Logs:** capped in prod at 10 MB × 3 per service by the overlay's logging block.
+- **Logs:** capped at 10 MB × 3 per service by the compose file's logging block.
 - **Certificates:** certbot on the host; verify renewal with `certbot renew --dry-run`.
 - **Disk growth is now other people's data.** Accounts are unmetered by decision (G-6),
   so blocks and entries accumulate at a rate you do not control. Watch the volume rather
