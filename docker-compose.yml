@@ -12,9 +12,7 @@
 # config`, not at runtime, in every mode. Dev and CI satisfy the RESEND
 # interpolation with a non-secret placeholder in .env (or the shell) and
 # docker-compose.override.yml pins the container's runtime value back to
-# empty, where the sender logs the link instead of mailing. For a legacy
-# two-file command, docker-compose.prod.yml exists and merges to a
-# byte-identical config; it adds no gate the base lacks.
+# empty, where the sender logs the link instead of mailing.
 
 x-logging: &default-logging
   driver: json-file

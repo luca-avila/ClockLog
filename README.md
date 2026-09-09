@@ -45,8 +45,7 @@ The auto-loaded `docker-compose.override.yml` then pins the runtime values dev
 actually uses (including an empty `RESEND_API_KEY`). Production fills every `.env`
 value — real Resend key included — and deploys with
 `docker compose -f docker-compose.yml up -d --build`; an explicit `-f` never loads
-the dev override. `docker-compose.prod.yml` is kept only for the legacy two-file
-command and adds nothing (the merged config is identical to the base).
+the dev override.
 
 | URL | What |
 | --- | --- |

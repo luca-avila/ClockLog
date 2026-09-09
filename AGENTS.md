@@ -378,11 +378,6 @@ construction: a missing value fails `config`, never at runtime. Dev/CI keep a
 non-secret placeholder in `.env` and the override empties the runtime key, which is
 how "empty key in dev/CI" coexists with "required in the base".
 
-`docker-compose.prod.yml` survives only for the legacy two-file command
-(`docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`).
-It is a documentation shim: with a complete `.env` the merged config is
-byte-identical to the base, because every gate now lives in the base file.
-
 The backend container applies migrations on boot (`alembic upgrade head && fastapi run …`), so deploys are unattended.
 
 ### Images

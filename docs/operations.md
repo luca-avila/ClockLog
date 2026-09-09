@@ -181,13 +181,6 @@ JSON-file logging (10 MB × 3), loopback-only ports and `${VAR:?}` fail-fast for
 means Compose does **not** auto-load the dev override, so prod is clean by
 construction rather than by undoing dev values.
 
-`docker-compose.prod.yml` still exists only for the legacy two-file command
-(`docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`).
-It is a documentation shim: with a complete `.env`, the merged config is
-byte-identical to the base (the diff is empty), because every gate now lives in
-the base. New deploys use the single-file command above; the two-file form is kept
-so scripts written before this handoff keep working with unchanged behavior.
-
 ### Verifying the fail-fast and a prod boot
 
 The `:?` gates are reproducible without relying on the checkout's `.env`. To prove
@@ -205,17 +198,6 @@ for v in SECRET_KEY DATABASE_URL CORS_ORIGINS EMAIL_FROM APP_BASE_URL \
     config >/dev/null 2>&1 \
     && echo "FAIL: $v not required" || echo "ok: $v required"
 done
-```
-
-The legacy two-file command is equivalent, not stricter: with the key present both
-commands render the same config, and without it both refuse to start.
-
-```bash
-docker compose -f docker-compose.yml --env-file /tmp/prod-env-complete \
-  config > /tmp/p1.yml
-docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-  --env-file /tmp/prod-env-complete config > /tmp/p2.yml
-diff /tmp/p1.yml /tmp/p2.yml      # empty: prod.yml adds no structural delta
 ```
 
 Smoke-boot prod in a throwaway project before a real deploy (it builds the prod-stage
@@ -381,7 +363,7 @@ Liveness: `curl -fsS http://localhost:8000/health`.
 | `docker compose config` fails with `... required in .env` | A required variable is missing from `.env` (or the shell). Fill it in; in dev, `cp .env.example .env` provides placeholders the override then replaces at runtime. |
 | `./backend:/app` or `target: dev` shows up in a prod compose config | The dev override was auto-loaded — the command must pass an explicit `-f`, e.g. `docker compose -f docker-compose.yml config`. |
 | `docker compose config` fails with `RESEND_API_KEY required in .env` | The `.env` (or shell) carries a missing/empty key — e.g. an `.env` copied from a pre-handoff `.env.example`. Set the non-secret placeholder (dev) or the real key (prod); `cp .env.example .env` restores the placeholder. |
-| Prod boots but verification/reset emails are only logged | The dev override was auto-loaded: the deploy command omitted `-f`, so the override emptied `RESEND_API_KEY` at runtime. Deploy with `docker compose -f docker-compose.yml up -d --build` (or the legacy two-file form) — an explicit `-f` never loads the override. |
+| Prod boots but verification/reset emails are only logged | The dev override was auto-loaded: the deploy command omitted `-f`, so the override emptied `RESEND_API_KEY` at runtime. Deploy with `docker compose -f docker-compose.yml up -d --build` — an explicit `-f` never loads the override. |
 | Prod boots but Resend rejects sends with an auth error | The `.env` still has the non-secret placeholder instead of a real key. Replace it and redeploy — like `SECRET_KEY`, the placeholder passes interpolation but fails in production. |
 | Backups keep fewer copies than the compose default | The production `.env` sets `BACKUP_KEEP` (e.g. `2`), which overrides the compose default. Raise it in `.env`. |
 | Async test hangs or raises "attached to a different loop" | asyncpg binds a connection to its creating loop. Keep the session-scoped loop settings in `pyproject.toml`. |

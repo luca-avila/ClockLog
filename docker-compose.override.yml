@@ -15,8 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # Dev-only. Auto-loaded by 'docker compose up' when no -f is passed.
-# Never include it in prod: the deploy passes `-f docker-compose.yml` explicitly
-# (docker-compose.prod.yml is only added for the legacy two-file command),
+# Never include it in prod: the deploy passes `-f docker-compose.yml` explicitly,
 # which does NOT auto-load this file, so prod stays clean by construction.
 #
 # The base interpolates ${VAR:?...} from .env / the shell (which is why an
