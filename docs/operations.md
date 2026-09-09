@@ -29,7 +29,7 @@ clocklog/clocklog credentials and an empty runtime `RESEND_API_KEY`, so the
 placeholders only have to exist for interpolation — including a non-secret
 `RESEND_API_KEY` placeholder, which the base's `${RESEND_API_KEY:?}` requires but
 the override empties at runtime. A missing required variable fails fast: `docker
-compose config` exits non-zero with a `... requerida en .env` message.
+compose config` exits non-zero with a `... required in .env` message.
 
 Interpolation covers profile-excluded services too: `NEXT_PUBLIC_API_URL` must exist
 in `.env` even though the frontend does not run in Compose in dev (it runs on the
@@ -200,10 +200,10 @@ sed -i 's/^RESEND_API_KEY=.*/RESEND_API_KEY=test-only-not-a-real-key/' /tmp/prod
 for v in SECRET_KEY DATABASE_URL CORS_ORIGINS EMAIL_FROM APP_BASE_URL \
          POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB NEXT_PUBLIC_API_URL \
          RESEND_API_KEY; do
-  grep -v "^$v=" /tmp/prod-env-complete > "/tmp/prod-env-sin-$v"
-  docker compose -f docker-compose.yml --env-file "/tmp/prod-env-sin-$v" \
+  grep -v "^$v=" /tmp/prod-env-complete > "/tmp/prod-env-without-$v"
+  docker compose -f docker-compose.yml --env-file "/tmp/prod-env-without-$v" \
     config >/dev/null 2>&1 \
-    && echo "FALLO: $v no exigida" || echo "ok: $v exigida"
+    && echo "FAIL: $v not required" || echo "ok: $v required"
 done
 ```
 
@@ -282,7 +282,7 @@ placeholder (`.env` locally, step-level `env` in CI), and
 `docker-compose.override.yml` pins the *runtime* value to empty, which is what the
 container sees: the sender logs the verification/reset link and `tests/conftest.py`
 keeps asserting an empty runtime key. Prod uses the real key. Leaving it empty in
-the prod `.env` fails `config` with `RESEND_API_KEY requerida en .env`; leaving the
+the prod `.env` fails `config` with `RESEND_API_KEY required in .env`; leaving the
 placeholder boots but Resend rejects every send at runtime (auth error in the
 logs) — replace it, like `SECRET_KEY`.
 
@@ -378,9 +378,9 @@ Liveness: `curl -fsS http://localhost:8000/health`.
 | Frontend fetches fail with a CORS error | `CORS_ORIGINS` does not list the browser's origin. Dev default is `http://localhost:3000`. |
 | Frontend still calls the old API host | `NEXT_PUBLIC_API_URL` is baked in at build time — rebuild the frontend image. |
 | Backend code changes have no effect | The bind mount covers `.py` files, so this usually means a dependency or Dockerfile change: `docker compose up -d --build backend`. |
-| `docker compose config` fails with `... requerida en .env` | A required variable is missing from `.env` (or the shell). Fill it in; in dev, `cp .env.example .env` provides placeholders the override then replaces at runtime. |
+| `docker compose config` fails with `... required in .env` | A required variable is missing from `.env` (or the shell). Fill it in; in dev, `cp .env.example .env` provides placeholders the override then replaces at runtime. |
 | `./backend:/app` or `target: dev` shows up in a prod compose config | The dev override was auto-loaded — the command must pass an explicit `-f`, e.g. `docker compose -f docker-compose.yml config`. |
-| `docker compose config` fails with `RESEND_API_KEY requerida en .env` | The `.env` (or shell) carries a missing/empty key — e.g. an `.env` copied from a pre-handoff `.env.example`. Set the non-secret placeholder (dev) or the real key (prod); `cp .env.example .env` restores the placeholder. |
+| `docker compose config` fails with `RESEND_API_KEY required in .env` | The `.env` (or shell) carries a missing/empty key — e.g. an `.env` copied from a pre-handoff `.env.example`. Set the non-secret placeholder (dev) or the real key (prod); `cp .env.example .env` restores the placeholder. |
 | Prod boots but verification/reset emails are only logged | The dev override was auto-loaded: the deploy command omitted `-f`, so the override emptied `RESEND_API_KEY` at runtime. Deploy with `docker compose -f docker-compose.yml up -d --build` (or the legacy two-file form) — an explicit `-f` never loads the override. |
 | Prod boots but Resend rejects sends with an auth error | The `.env` still has the non-secret placeholder instead of a real key. Replace it and redeploy — like `SECRET_KEY`, the placeholder passes interpolation but fails in production. |
 | Backups keep fewer copies than the compose default | The production `.env` sets `BACKUP_KEEP` (e.g. `2`), which overrides the compose default. Raise it in `.env`. |

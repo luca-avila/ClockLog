@@ -35,21 +35,21 @@ services:
       # Loopback only: nginx on the host fronts both services.
       - "127.0.0.1:8000:8000"
     environment:
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL requerida en .env}
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY requerida en .env}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL required in .env}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY required in .env}
       LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
       LOGIN_RATE_WINDOW_SECONDS: ${LOGIN_RATE_WINDOW_SECONDS:-60}
       AUTH_EMAIL_RATE_LIMIT: ${AUTH_EMAIL_RATE_LIMIT:-3}
       AUTH_EMAIL_RATE_WINDOW_SECONDS: ${AUTH_EMAIL_RATE_WINDOW_SECONDS:-3600}
-      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS requerida en .env}
-      # Requerida como el resto: un valor ausente/vacío hace fallar `config`
-      # en cualquier modo. Dev/CI satisfacen la interpolación con un
-      # placeholder NO secreto en .env y el override fija el runtime a vacío,
-      # así el sender sigue logueando el link y el conftest (key vacía
-      # obligatoria en tests) queda verde.
-      RESEND_API_KEY: ${RESEND_API_KEY:?RESEND_API_KEY requerida en .env}
-      EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM requerida en .env}
-      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL requerida en .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS required in .env}
+      # Required like the rest: a missing/empty value fails `config` in any
+      # mode. Dev/CI satisfy interpolation with a NON-secret placeholder in
+      # .env and the override pins the runtime to empty, so the sender keeps
+      # logging the link and conftest (empty key mandatory in tests) stays
+      # green.
+      RESEND_API_KEY: ${RESEND_API_KEY:?RESEND_API_KEY required in .env}
+      EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM required in .env}
+      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL required in .env}
     depends_on:
       db:
         condition: service_healthy
@@ -60,16 +60,16 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER requerida en .env}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requerida en .env}
-      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB requerida en .env}
-    # ports:  # descomentar para cliente directo (psql desde el host)
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER required in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB required in .env}
+    # ports:  # uncomment for a direct client (psql from the host)
     #   - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      # -d pincha la DB real, no solo "el server acepta conexiones": el
-      # chequeo viejo pasaba por coincidencia de nombres de usuario/DB.
+      # -d probes the real DB, not just "the server accepts connections": the
+      # old check passed on matching user/DB names by coincidence.
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:?} -d $${POSTGRES_DB:?}"]
       interval: 5s
       timeout: 3s
@@ -81,8 +81,8 @@ services:
     build:
       context: ./frontend
       args:
-        # Build-time: cambiar NEXT_PUBLIC_API_URL exige rebuild, no restart.
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL requerida en .env}
+        # Build-time: changing NEXT_PUBLIC_API_URL requires a rebuild, not a restart.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL required in .env}
     image: clocklog-frontend:${TAG:-latest}
     restart: unless-stopped
     ports:
@@ -97,18 +97,18 @@ services:
     restart: unless-stopped
     environment:
       PGHOST: db
-      PGUSER: ${POSTGRES_USER:?POSTGRES_USER requerida en .env}
-      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requerida en .env}
-      PGDATABASE: ${POSTGRES_DB:?POSTGRES_DB requerida en .env}
+      PGUSER: ${POSTGRES_USER:?POSTGRES_USER required in .env}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required in .env}
+      PGDATABASE: ${POSTGRES_DB:?POSTGRES_DB required in .env}
       BACKUP_DIR: /backups
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
-      # Retención local: 14 copias diarias ≈ dos semanas.
+      # Local retention: 14 daily copies ≈ two weeks.
       BACKUP_KEEP: ${BACKUP_KEEP:-14}
-      # Vacío = solo local (aceptado conscientemente; verificar a mano).
+      # Empty = local-only (a conscious choice; verify by hand).
       BACKUP_RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
     volumes:
       - backups:/backups
-      # Off-site: descomentar y montar rclone.conf (ver .env.example).
+      # Off-site: uncomment and mount rclone.conf (see .env.example).
       # - ./rclone.conf:/root/.config/rclone/rclone.conf:ro
     depends_on:
       db:

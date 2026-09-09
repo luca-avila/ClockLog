@@ -14,20 +14,20 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Dev-only. Auto-cargado por 'docker compose up' cuando no se pasa -f.
-# Nunca incluirlo en prod: el deploy pasa `-f docker-compose.yml` explícito
-# (docker-compose.prod.yml solo se agrega para el comando legacy de dos -f),
-# que NO auto-cargan este archivo, así que prod queda limpio por construcción.
+# Dev-only. Auto-loaded by 'docker compose up' when no -f is passed.
+# Never include it in prod: the deploy passes `-f docker-compose.yml` explicitly
+# (docker-compose.prod.yml is only added for the legacy two-file command),
+# which does NOT auto-load this file, so prod stays clean by construction.
 #
-# La base interpola ${VAR:?...} desde .env / el shell (por eso hace falta un
-# .env, p. ej. copiando .env.example). La base exige RESEND_API_KEY como
-# cualquier otra requerida; dev/CI la satisfacen con un placeholder NO secreto
-# en .env y este archivo fuerza el runtime dev a vacío, para que el sender
-# siga logueando el link y el conftest (RESEND_API_KEY vacía obligatoria en
-# tests) quede verde. Este archivo también pisa las credenciales dev de
-# runtime (clocklog/clocklog). La interpolación aplica a los servicios
-# excluidos por profile, así que dev necesita en .env la NEXT_PUBLIC_API_URL
-# requerida por la base aunque el frontend no corra en Compose en dev.
+# The base interpolates ${VAR:?...} from .env / the shell (which is why an
+# .env is needed, e.g. by copying .env.example). The base requires RESEND_API_KEY
+# like any other required var; dev/CI satisfy it with a NON-secret placeholder
+# in .env and this file forces the dev runtime to empty, so the sender keeps
+# logging the link and conftest (empty RESEND_API_KEY mandatory in tests) stays
+# green. This file also pins the dev runtime credentials (clocklog/clocklog).
+# Interpolation applies to profile-excluded services, so dev needs the
+# NEXT_PUBLIC_API_URL required by the base in .env even though the frontend does
+# not run in Compose in dev.
 
 services:
   backend:
@@ -42,8 +42,8 @@ services:
       APP_BASE_URL: http://localhost:3000
       EMAIL_FROM: "ClockLog <no-reply@localhost>"
       RESEND_API_KEY: ""
-      # Tests DELETE de cada tabla — corren contra clocklog_test, nunca la DB
-      # dev. El sufijo _test lo exige tests/conftest.py.
+      # Tests DELETE every table — they run against clocklog_test, never the
+      # dev DB. The _test suffix is enforced by tests/conftest.py.
       TEST_DATABASE_URL: postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog_test
 
   db:
@@ -52,9 +52,9 @@ services:
       POSTGRES_PASSWORD: clocklog
       POSTGRES_DB: clocklog
 
-  # Servicios que existen en la base (prod) pero no deben arrancar en dev/CI:
-  # el frontend dev corre en el host (`npm run dev`) y el backup nocturno no
-  # pinta nada en un stack local. Arrancarlos requiere --profile prod-sidecars.
+  # Services present in the base (prod) that must not start in dev/CI:
+  # the dev frontend runs on the host (`npm run dev`) and the nightly backup
+  # has no business in a local stack. Starting them requires --profile prod-sidecars.
   frontend:
     profiles: ["prod-sidecars"]
   backup:

@@ -485,7 +485,7 @@ All decision gates are closed; resolutions and consequences live in `docs/DECISI
 | Frontend fetches fail with a CORS error | `CORS_ORIGINS` does not include the origin the browser is on. Dev default is `http://localhost:3000`. |
 | Frontend still calls the old API host after changing `NEXT_PUBLIC_API_URL` | It is baked in at build time — rebuild the frontend image. |
 | Backend code changes have no effect | The container bind-mounts `./backend`, so this usually means a dependency or Dockerfile change. `docker compose up -d --build backend`. |
-| `docker compose config` fails with `RESEND_API_KEY requerida en .env` | The `.env` (or shell) has a missing/empty key (e.g. copied from a pre-handoff `.env.example`). Set the non-secret placeholder in dev or the real key in prod. |
+| `docker compose config` fails with `RESEND_API_KEY required in .env` | The `.env` (or shell) has a missing/empty key (e.g. copied from a pre-handoff `.env.example`). Set the non-secret placeholder in dev or the real key in prod. |
 | Prod boots but verification/reset emails are only logged | The dev override was auto-loaded (the deploy command omitted `-f`) and emptied the runtime key. Deploy with `docker compose -f docker-compose.yml up -d --build`. |
 | Prod boots but Resend rejects sends with an auth error | The `.env` still has the non-secret placeholder. Replace it with a real key and redeploy. |
 | Async test hangs or raises "attached to a different loop" | An asyncpg connection is bound to its creating loop. Keep the session-scoped loop settings in `pyproject.toml`. |
