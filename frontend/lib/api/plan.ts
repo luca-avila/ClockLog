@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 // Dates are plain "YYYY-MM-DD" strings and times "HH:MM:SS" — the plan API
-// speaks wall-clock calendar data, never UTC instants (docs/DECISIONS.md).
+// speaks wall-clock calendar data, never UTC instants (see docs/decisions/008-plan-dates-not-instants.md).
 
 import { apiFetch } from "./client";
 

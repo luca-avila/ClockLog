@@ -8,7 +8,7 @@ trusting a page.
 | [architecture.md](architecture.md) | How the system works | Current |
 | [api.md](api.md) | Endpoint reference | Current |
 | [operations.md](operations.md) | Runbook | Current |
-| [DECISIONS.md](DECISIONS.md) | Closed decision log | Current |
+| [decisions/](decisions/) | Architecture decision records (ADRs 001–010) | Current |
 | [../AGENTS.md](../AGENTS.md) | Contributor / agent operating manual | Current |
 
 Everything here describes the app as built. There is no separate design spec — the code
@@ -26,4 +26,4 @@ table in `AGENTS.md` defines them.
   `architecture.md`, then the invariants in `AGENTS.md`
 - **"What should this screen look like?"** → the shipped screen under `frontend/`, and
   the frontend conventions in `AGENTS.md`
-- **"Why is it like this?"** → `DECISIONS.md`
+- **"Why is it like this?"** → `decisions/` (ADR index: [decisions/](decisions/))

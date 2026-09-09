@@ -42,7 +42,7 @@ These describe the shipped system. The code is the source of truth for *what the
 | `docs/architecture.md` | How the shipped system works: module boundaries and their enforcement, data model, the instants-vs-dates split, the timer engine and offline queue |
 | `docs/api.md` | Endpoint reference with examples, PATCH semantics, and the full error-code table |
 | `docs/operations.md` | Runbook: dev setup, first run, migrations, deploy, backup/restore, troubleshooting |
-| `docs/DECISIONS.md` | Closed decision log — every resolved gate and its consequences |
+| `docs/decisions/` | Architecture decision records (ADR-001…ADR-010) — every resolved gate and its consequences |
 | `docs/README.md` | Index of the above, with each document's status. **Check it before trusting a page**: sections written ahead of the code are flagged there and inline |
 
 Screens keep stable IDs — the table below is their definition. Cite the screen ID in issues, commits, and component docstrings. `SCR-02`…`SCR-05` are the unauthenticated screens.
@@ -152,7 +152,7 @@ frontend/
     plan/            # PlanWeekScreen, PlanDayScreen, WeekView, DayView, EntrySheet, EmptyWeek
   lib/               # api client, timer engine, date helpers, alerts
   __tests__/
-docs/                # architecture.md, api.md, operations.md, DECISIONS.md
+docs/                # architecture.md, api.md, operations.md, decisions/ (ADR-001…010)
   plans/             # in-flight change plans; deleted once the change lands
 infra/backup/        # nightly pg_dump container
 scripts/ci.sh        # run the full CI suite locally
@@ -239,7 +239,7 @@ Non-negotiable. Violating these causes bugs that are painful to diagnose after t
 ### Time and dates
 
 5. **All timestamps are UTC** in the database and over the wire. Convert only at render time, in the frontend. **The API speaks instants, never dates:** history endpoints take a `from`/`to` UTC range that the client computed from its own local day boundaries. The server never reasons about "days" and stores no timezone — otherwise day-bucketed aggregation would need one, and this invariant would be a lie.
-   > The plan API is the one deliberate exception: it takes **dates**, not instants. An entry is wall-clock calendar data — a 09:00 class is 09:00 whatever the offset — so `plan` stores a naive `date` + `time`. Invariant 5 governs blocks (recorded events), not entries. See `docs/DECISIONS.md`. Do not "fix" the plan toward instants, and do not copy its date params into any history endpoint.
+   > The plan API is the one deliberate exception: it takes **dates**, not instants. An entry is wall-clock calendar data — a 09:00 class is 09:00 whatever the offset — so `plan` stores a naive `date` + `time`. Invariant 5 governs blocks (recorded events), not entries. See [ADR-008](docs/decisions/008-plan-dates-not-instants.md). Do not "fix" the plan toward instants, and do not copy its date params into any history endpoint.
 6. **Store timestamps, never durations.** Duration is always derived. A stored duration cannot reconstruct a timeline.
 7. A block that crosses midnight belongs to the day it **started**.
 
@@ -302,7 +302,7 @@ Other conventions:
 - **The palette lives in `app/globals.css`, and only there.** Every screen is authored in `neutral-*` plus `white`, so the app's color is set by overriding the Tailwind scale (`--color-neutral-50` … `--color-neutral-900`, `--color-white`) in one `@theme` block. The shipped palette is **sepia** — a warm cream ground with brown ink, so `bg-neutral-900` reads as espresso rather than black. Repaint by editing those tokens; never hard-code a hex or reach for another Tailwind color family in a component, or the palette stops being one revertable edit. The tint is low-chroma on purpose: it keeps tag colors the only saturated color in the app.
 - The cycle indicator (`● ● ○ ○`) appears only on the timer, never in the Plan.
 - Density differs by module on purpose: the timer is sparse, the plan grid is dense. They are used in different mental states.
-- **Empty states are honest and literal** ("No blocks yet"), never fabricated encouragement. The Plan empty state mentions the timer not at all — gate G-5 dropped the "Timers are optional." line, and invariant 13 stands unscoped (`docs/DECISIONS.md`).
+- **Empty states are honest and literal** ("No blocks yet"), never fabricated encouragement. The Plan empty state mentions the timer not at all — gate G-5 dropped the "Timers are optional." line, and invariant 13 stands unscoped ([ADR-005](docs/decisions/005-plan-empty-state-copy.md)).
 - **One filled button, one size.** `components/shared/PrimaryButton` is the only filled `bg-neutral-900` treatment in the app, and every action that commits something — START, RESUME, SAVE, SIGN IN — routes through it. It takes no `className`: a per-call-site override is how seven divergent copies of it happened the first time. It lives in `shared/` because both feature modules need it and neither may import the other (invariant 11), so its name, props, and copy stay free of Pomodoro vocabulary (invariant 13).
 - Secondary actions **during a running block** (Pause, Stop, Skip) are deliberately low-contrast. During focus, the correct interaction is none. **Resume, in the paused state, is primary** — it carries the same filled treatment as START, because paused is not running and the correct interaction there is precisely to resume.
 
@@ -400,7 +400,7 @@ The two facts agents act on without opening the runbook:
 
 **Shipped (phase 2):** the weekly planner as an **isolated dated calendar** — week list, day timeline, entry editor with `repeat_weekly`, planner-only empty states. Zero timer coupling.
 
-**Shipped (G-6):** open registration — multi-user sign-up with verified email addresses and password recovery, replacing the single-account model. Decided in `docs/DECISIONS.md` § G-6. Registration is open unconditionally; a private deployment is restricted at nginx, not in application code.
+**Shipped (G-6):** open registration — multi-user sign-up with verified email addresses and password recovery, replacing the single-account model. Decided in [ADR-006](docs/decisions/006-open-registration.md). Registration is open unconditionally; a private deployment is restricted at nginx, not in application code.
 
 **Phase 3+, not started:** timer integration with the plan (`Use focus timer for this`, `Start a timer` on an entry). Requires renegotiating invariants 12 and 13 **in writing, up front** — not feature by feature. **Do not resolve this unilaterally; ask.**
 
@@ -411,7 +411,7 @@ The two facts agents act on without opening the runbook:
 - This app records time and describes weeks. **It is not a task manager.** Reject scope drift in that direction.
 - Any feature that only makes sense if the user uses both modules. If a proposed feature would break when one module is deleted, it is out of scope until the phase-3 integration is explicitly scheduled. Even then, the planner must stay fully usable with the timer deleted.
 
-All decision gates are closed; resolutions and consequences live in `docs/DECISIONS.md`.
+All decision gates are closed; resolutions and consequences live in `docs/decisions/` (ADR-001…ADR-010).
 
 ---
 

@@ -56,7 +56,7 @@ async def create(
 @router.get("", response_model=list[EntryOccurrence])
 async def list_range(
     db: DBSession,
-    # Dates, not instants — wall-clock calendar data (docs/DECISIONS.md).
+    # Dates, not instants — wall-clock calendar data (docs/decisions/008-plan-dates-not-instants.md).
     from_date: date = Query(alias="from"),  # noqa: B008
     to_date: date = Query(alias="to"),  # noqa: B008
     current_user: UserResponse = Depends(current_user_dependency),  # noqa: B008

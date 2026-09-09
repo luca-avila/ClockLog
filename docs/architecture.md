@@ -2,7 +2,7 @@
 
 How ClockLog is put together, and why. For the rules a contributor must follow see
 [`../AGENTS.md`](../AGENTS.md); for closed design questions see
-[`DECISIONS.md`](DECISIONS.md).
+the [decision records](decisions/).
 
 ---
 
@@ -65,7 +65,7 @@ Two consequences worth knowing before you touch shared code:
 
 **Known, deliberate gap:** frontend *routes* still hard-import timer components, so
 frontend deletability is not proven the way the backend's is. Recorded in
-`DECISIONS.md`; closing it would be its own change.
+[ADR-009](decisions/009-module-deletability.md); closing it would be its own change.
 
 ---
 

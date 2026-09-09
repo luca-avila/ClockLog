@@ -67,7 +67,7 @@ deliberately left unconfigured in development.
 There is no switch to close registration. If you are hosting this for yourself alone,
 restrict it at nginx; the application does not carry an instance-policy flag. See
 [docs/operations.md](docs/operations.md#first-run) and
-[docs/DECISIONS.md](docs/DECISIONS.md) § G-6.
+[docs/decisions/006-open-registration.md](docs/decisions/006-open-registration.md).
 
 ---
 
@@ -91,7 +91,7 @@ cd frontend && npm run lint && npx tsc --noEmit
 | [docs/architecture.md](docs/architecture.md) | How the system is put together, the data model, and why the two modules stay apart |
 | [docs/api.md](docs/api.md) | Endpoint reference, request/response examples, error codes |
 | [docs/operations.md](docs/operations.md) | Deploying, migrations, backup and restore, troubleshooting |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Closed decision log |
+| [docs/decisions/](docs/decisions/) | Architecture decision records |
 | [AGENTS.md](AGENTS.md) | Operating manual for contributors and coding agents |
 
 ## Stack
