@@ -1,17 +1,20 @@
 # Base Compose file — prod-safe by construction.
 #
 # docker-compose.override.yml is auto-loaded only when no `-f` is passed, so
-# `docker compose up -d` is the dev stack. Production deploys with the prod
-# layer, which is where the one prod-only gate lives:
+# `docker compose up -d` is the dev stack. Production deploys from this file
+# alone; an explicit `-f` skips the override, so prod inherits nothing dev and
+# never has to "undo" it:
 #
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.yml up -d --build
 #
-# Any explicit `-f` skips the override, so prod inherits nothing dev — it
-# never has to "undo" it. The prod layer only requires RESEND_API_KEY (dev/CI
-# leave it empty on purpose); running the base alone boots, but silently
-# degrades transactional email to dev log mode — not a prod deploy path.
-# Required variables interpolate with ${VAR:?message}, so a missing value
-# fails at `docker compose config`, not at runtime.
+# Every required variable — RESEND_API_KEY included — interpolates with
+# ${VAR:?message}, so a missing or empty value fails at `docker compose
+# config`, not at runtime, in every mode. Dev and CI satisfy the RESEND
+# interpolation with a non-secret placeholder in .env (or the shell) and
+# docker-compose.override.yml pins the container's runtime value back to
+# empty, where the sender logs the link instead of mailing. For a legacy
+# two-file command, docker-compose.prod.yml exists and merges to a
+# byte-identical config; it adds no gate the base lacks.
 
 x-logging: &default-logging
   driver: json-file
@@ -39,11 +42,12 @@ services:
       AUTH_EMAIL_RATE_LIMIT: ${AUTH_EMAIL_RATE_LIMIT:-3}
       AUTH_EMAIL_RATE_WINDOW_SECONDS: ${AUTH_EMAIL_RATE_WINDOW_SECONDS:-3600}
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS requerida en .env}
-      # Vacía en dev/CI: el sender loguea el link en vez de enviar.
-      # docker-compose.prod.yml la exige en el comando de deploy (base +
-      # prod.yml); el override dev la fuerza vacía para que el conftest
-      # (RESEND_API_KEY vacía obligatoria) siga verde.
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      # Requerida como el resto: un valor ausente/vacío hace fallar `config`
+      # en cualquier modo. Dev/CI satisfacen la interpolación con un
+      # placeholder NO secreto en .env y el override fija el runtime a vacío,
+      # así el sender sigue logueando el link y el conftest (key vacía
+      # obligatoria en tests) queda verde.
+      RESEND_API_KEY: ${RESEND_API_KEY:?RESEND_API_KEY requerida en .env}
       EMAIL_FROM: ${EMAIL_FROM:?EMAIL_FROM requerida en .env}
       APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL requerida en .env}
     depends_on:

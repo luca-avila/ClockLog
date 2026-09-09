@@ -34,15 +34,19 @@ cd frontend && npm install && npm run dev
 
 Then open <http://localhost:3000> and create an account from the sign-up screen.
 
-In development `RESEND_API_KEY` is unset, so no mail is sent — the verification link is
-written to the backend log instead. Fish it out with `docker compose logs backend`, open
-it, and you are signed in.
+In development `RESEND_API_KEY` is empty at runtime in the container (the dev
+override empties the placeholder `.env` value), so no mail is sent — the verification
+link is written to the backend log instead. Fish it out with `docker compose logs
+backend`, open it, and you are signed in.
 
 The base `docker-compose.yml` is prod-safe and requires its variables via
 `${VAR:?}`, so dev, CI and prod all read `.env` (or the shell) for interpolation.
 The auto-loaded `docker-compose.override.yml` then pins the runtime values dev
-actually uses. Production fills every `.env` value and deploys with
-`docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`.
+actually uses (including an empty `RESEND_API_KEY`). Production fills every `.env`
+value — real Resend key included — and deploys with
+`docker compose -f docker-compose.yml up -d --build`; an explicit `-f` never loads
+the dev override. `docker-compose.prod.yml` is kept only for the legacy two-file
+command and adds nothing (the merged config is identical to the base).
 
 | URL | What |
 | --- | --- |

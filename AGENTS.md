@@ -84,8 +84,11 @@ interpolates its required variables from `.env` / the shell, so a missing value
 fails at `docker compose config` instead of degrading at runtime. `cp .env.example
 .env` works as-is for dev — `docker-compose.override.yml` (auto-loaded when no `-f`
 is passed) replaces the runtime values with local credentials, so the placeholders
-only need to exist for interpolation. `.env` is gitignored; for production, fill in
-every value.
+only need to exist for interpolation. That includes `RESEND_API_KEY`: the base
+requires a non-empty value (`:?`), dev/CI keep a non-secret placeholder, and the
+override empties the runtime value so mail is logged instead of sent (the test
+suite asserts the empty runtime key). `.env` is gitignored; for production, fill in
+every value — real Resend key included.
 
 ### Ports and endpoints
 
@@ -364,16 +367,21 @@ nginx and TLS (certbot) run on the VPS itself, outside Compose. Services bind to
 
 ```bash
 cp .env.example .env      # then fill in every value
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml up -d --build
 ```
 
-`docker-compose.yml` is the prod-safe base (prod stage, no bind mounts, required
-`${VAR:?}`, loopback ports, full healthchecks, backup sidecar) and
-`docker-compose.prod.yml` is the prod layer that additionally requires
-`RESEND_API_KEY` — the one variable dev/CI leave empty on purpose. Passing an
-explicit `-f` means the dev override (`docker-compose.override.yml`) is never
-auto-loaded. Do not deploy from the base alone: it boots without the key and email
-would silently degrade to log mode.
+`docker-compose.yml` is the full prod stack (prod stage, no bind mounts, required
+`${VAR:?}` for every variable — `RESEND_API_KEY` included — loopback ports, full
+healthchecks, backup sidecar). Passing an explicit `-f` means the dev override
+(`docker-compose.override.yml`) is never auto-loaded, so prod is clean by
+construction: a missing value fails `config`, never at runtime. Dev/CI keep a
+non-secret placeholder in `.env` and the override empties the runtime key, which is
+how "empty key in dev/CI" coexists with "required in the base".
+
+`docker-compose.prod.yml` survives only for the legacy two-file command
+(`docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`).
+It is a documentation shim: with a complete `.env` the merged config is
+byte-identical to the base, because every gate now lives in the base file.
 
 The backend container applies migrations on boot (`alembic upgrade head && fastapi run …`), so deploys are unattended.
 
@@ -392,7 +400,7 @@ The backend container applies migrations on boot (`alembic upgrade head && fasta
 | `CORS_ORIGINS` | backend | Comma-separated allowlist. Credentials are off, so the list is an explicit allow |
 | `LOGIN_RATE_LIMIT`, `LOGIN_RATE_WINDOW_SECONDS` | backend | Per-IP sliding window on the credential endpoints |
 | `AUTH_EMAIL_RATE_LIMIT`, `AUTH_EMAIL_RATE_WINDOW_SECONDS` | backend | Tighter window on the endpoints that send mail |
-| `RESEND_API_KEY` | backend | Resend key. **Empty in dev and CI**, which logs the link instead of sending |
+| `RESEND_API_KEY` | backend | Resend key. **Required** in the base (`:?`); dev/CI interpolate a non-secret placeholder while the override empties the runtime value, which logs the link instead of sending |
 | `EMAIL_FROM` | backend | Verified sender, e.g. `ClockLog <no-reply@example.com>` |
 | `APP_BASE_URL` | backend | Origin the emailed links point at — the frontend, not the API |
 | `NEXT_PUBLIC_API_URL` | frontend | Build-time |
@@ -477,6 +485,9 @@ All decision gates are closed; resolutions and consequences live in `docs/DECISI
 | Frontend fetches fail with a CORS error | `CORS_ORIGINS` does not include the origin the browser is on. Dev default is `http://localhost:3000`. |
 | Frontend still calls the old API host after changing `NEXT_PUBLIC_API_URL` | It is baked in at build time — rebuild the frontend image. |
 | Backend code changes have no effect | The container bind-mounts `./backend`, so this usually means a dependency or Dockerfile change. `docker compose up -d --build backend`. |
+| `docker compose config` fails with `RESEND_API_KEY requerida en .env` | The `.env` (or shell) has a missing/empty key (e.g. copied from a pre-handoff `.env.example`). Set the non-secret placeholder in dev or the real key in prod. |
+| Prod boots but verification/reset emails are only logged | The dev override was auto-loaded (the deploy command omitted `-f`) and emptied the runtime key. Deploy with `docker compose -f docker-compose.yml up -d --build`. |
+| Prod boots but Resend rejects sends with an auth error | The `.env` still has the non-secret placeholder. Replace it with a real key and redeploy. |
 | Async test hangs or raises "attached to a different loop" | An asyncpg connection is bound to its creating loop. Keep the session-scoped loop settings in `pyproject.toml`. |
 | A 500 with no detail | Grep the logs for the `request_id` from the `X-Request-ID` response header: `docker compose logs backend \| grep <id>`. |
 | Timer under-reports elapsed time in a background tab | Invariant 1 was violated somewhere — a counter is accumulating instead of deriving from `startedAt`. |

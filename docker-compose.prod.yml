@@ -14,24 +14,21 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Production-only layer. The base docker-compose.yml is already prod-safe
-# (prod stage, no bind mounts, required ${VAR:?}, loopback ports, full
-# healthchecks, backup sidecar), and the dev override is never loaded because
-# the deploy command passes an explicit `-f`.
+# Production compatibility shim for the legacy two-file command.
 #
-# Deploy command:
+# The base docker-compose.yml IS the complete prod stack: prod stage, no bind
+# mounts, required ${VAR:?} for every variable including RESEND_API_KEY,
+# loopback-only ports, full healthchecks and the backup sidecar. The dev
+# override is never loaded when `-f` is passed, so this file adds no
+# structural delta — with a complete .env, `docker compose config` for the
+# two-file command below is byte-identical to the base (diff is empty by
+# design).
+#
+# Deploy (canonical):
+#
+#   docker compose -f docker-compose.yml up -d --build
+#
+# Legacy equivalent, kept so existing scripts keep working; behavior is
+# unchanged because prod safety now lives entirely in the base:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-#
-# This layer's only job is to require the one variable dev/CI leave empty on
-# purpose: without a RESEND_API_KEY no transactional email can complete, and a
-# prod running in silent log mode is exactly the failure this handoff removes.
-# Do not deploy from the base alone — it boots, but email degrades to dev log
-# mode without any error.
-
-services:
-  backend:
-    environment:
-      # Vacía = sender en modo log (dev/CI). En prod sin key ningún registro
-      # puede completarse: que falle el config, no el runtime.
-      RESEND_API_KEY: ${RESEND_API_KEY:?RESEND_API_KEY requerida en prod}

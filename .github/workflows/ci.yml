@@ -18,13 +18,16 @@ jobs:
           # Dev composition: docker-compose.yml + auto-loaded override. The
           # override pins runtime values to local dev credentials; these envs
           # satisfy the base file's required ${VAR:?} interpolation on a
-          # runner with no .env file.
+          # runner with no .env file. RESEND_API_KEY is a non-secret
+          # placeholder for interpolation only — the override forces the
+          # container's runtime value to empty, keeping tests in log mode.
           DATABASE_URL: postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog
           TEST_DATABASE_URL: postgresql+asyncpg://clocklog:clocklog@db:5432/clocklog_test
           SECRET_KEY: dev-secret-change-in-production
           CORS_ORIGINS: http://localhost:3000
           APP_BASE_URL: http://localhost:3000
           EMAIL_FROM: "ClockLog <no-reply@localhost>"
+          RESEND_API_KEY: change-me-resend-placeholder
           POSTGRES_USER: clocklog
           POSTGRES_PASSWORD: clocklog
           POSTGRES_DB: clocklog

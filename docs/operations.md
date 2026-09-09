@@ -25,9 +25,11 @@ docker compose up -d --build backend
 The base `docker-compose.yml` is prod-safe and interpolates its required variables
 from `.env` / the shell, so development also needs an env file. `cp .env.example
 .env` works as-is: the override replaces the runtime values with local
-clocklog/clocklog credentials and an empty `RESEND_API_KEY`, so the placeholders
-only have to exist for interpolation. A missing required variable fails fast:
-`docker compose config` exits non-zero with a `... requerida en .env` message.
+clocklog/clocklog credentials and an empty runtime `RESEND_API_KEY`, so the
+placeholders only have to exist for interpolation — including a non-secret
+`RESEND_API_KEY` placeholder, which the base's `${RESEND_API_KEY:?}` requires but
+the override empties at runtime. A missing required variable fails fast: `docker
+compose config` exits non-zero with a `... requerida en .env` message.
 
 Interpolation covers profile-excluded services too: `NEXT_PUBLIC_API_URL` must exist
 in `.env` even though the frontend does not run in Compose in dev (it runs on the
@@ -42,8 +44,9 @@ need `psql` from outside.
 Registration is open — sign up from the app at <http://localhost:3000>. An address must
 be verified before it can sign in.
 
-**In development no mail is sent.** `RESEND_API_KEY` is unset, so the sender writes the
-email content — including the link — to the log instead:
+**In development no mail is sent.** The override leaves `RESEND_API_KEY` empty at
+runtime in the container, so the sender writes the email content — including the
+link — to the log instead:
 
 ```bash
 docker compose logs backend | grep 'not sent, no RESEND_API_KEY'
@@ -51,7 +54,7 @@ docker compose logs backend | grep 'not sent, no RESEND_API_KEY'
 
 Open that URL and you are verified and signed in. The same applies to password-reset
 links. This is also how CI runs: no test may touch the network, and `conftest.py`
-asserts the key is unset before the suite starts.
+asserts the key is empty before the suite starts.
 
 **Lost a password?** Use the app's own recovery flow — that is what it is for. The
 manual override still exists for the case where mail delivery itself is broken:
@@ -82,7 +85,7 @@ Transactional mail goes through [Resend](https://resend.com) as a single authent
 
 | Variable | Notes |
 | --- | --- |
-| `RESEND_API_KEY` | From the Resend dashboard. Leave **empty** in dev and CI |
+| `RESEND_API_KEY` | From the Resend dashboard. Required in `.env` (base `:?`); the dev/CI override empties it at runtime |
 | `EMAIL_FROM` | Must be an address on a domain verified in Resend, e.g. `ClockLog <no-reply@example.com>` |
 | `APP_BASE_URL` | Origin the links point at — the **frontend** origin, not the API |
 
@@ -164,25 +167,26 @@ nginx and TLS (certbot) run on the VPS itself, outside Compose. Compose services
 ```bash
 # First time
 cp .env.example .env      # then fill in every value
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml up -d --build
 
 # Subsequent deploys
 git pull
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml up -d --build
 ```
 
-`docker-compose.yml` alone is the full prod stack: backend (prod stage, non-root),
+`docker-compose.yml` is the full prod stack: backend (prod stage, non-root),
 Postgres, frontend and the backup sidecar, with `restart: unless-stopped`, capped
-JSON-file logging (10 MB × 3), loopback-only ports and `${VAR:?}` fail-fast. Passing
-an explicit `-f` means Compose does **not** auto-load the dev override, so prod is
-clean by construction rather than by undoing dev values.
+JSON-file logging (10 MB × 3), loopback-only ports and `${VAR:?}` fail-fast for
+**every** required variable — `RESEND_API_KEY` included. Passing an explicit `-f`
+means Compose does **not** auto-load the dev override, so prod is clean by
+construction rather than by undoing dev values.
 
-`docker-compose.prod.yml` adds the one prod-only gate the base cannot carry:
-`RESEND_API_KEY` is empty by design in dev and CI (tests assert it), so only the
-prod layer can require it with `:?`. Deploy with the two-file command above; running
-the base alone (`-f docker-compose.yml`) boots the same services but without that
-gate — a missing key would silently degrade email to dev log mode, which is the
-failure this handoff exists to prevent.
+`docker-compose.prod.yml` still exists only for the legacy two-file command
+(`docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`).
+It is a documentation shim: with a complete `.env`, the merged config is
+byte-identical to the base (the diff is empty), because every gate now lives in
+the base. New deploys use the single-file command above; the two-file form is kept
+so scripts written before this handoff keep working with unchanged behavior.
 
 ### Verifying the fail-fast and a prod boot
 
@@ -194,22 +198,31 @@ one under test:
 cp .env.example /tmp/prod-env-complete
 sed -i 's/^RESEND_API_KEY=.*/RESEND_API_KEY=test-only-not-a-real-key/' /tmp/prod-env-complete
 for v in SECRET_KEY DATABASE_URL CORS_ORIGINS EMAIL_FROM APP_BASE_URL \
-         POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB NEXT_PUBLIC_API_URL; do
+         POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB NEXT_PUBLIC_API_URL \
+         RESEND_API_KEY; do
   grep -v "^$v=" /tmp/prod-env-complete > "/tmp/prod-env-sin-$v"
-  docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-    --env-file "/tmp/prod-env-sin-$v" config >/dev/null 2>&1 \
+  docker compose -f docker-compose.yml --env-file "/tmp/prod-env-sin-$v" \
+    config >/dev/null 2>&1 \
     && echo "FALLO: $v no exigida" || echo "ok: $v exigida"
 done
+```
+
+The legacy two-file command is equivalent, not stricter: with the key present both
+commands render the same config, and without it both refuse to start.
+
+```bash
+docker compose -f docker-compose.yml --env-file /tmp/prod-env-complete \
+  config > /tmp/p1.yml
 docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-  --env-file /tmp/prod-env-sin-RESEND_API_KEY config >/dev/null 2>&1 \
-  && echo "FALLO: RESEND_API_KEY no exigida" || echo "ok: RESEND_API_KEY exigida"
+  --env-file /tmp/prod-env-complete config > /tmp/p2.yml
+diff /tmp/p1.yml /tmp/p2.yml      # empty: prod.yml adds no structural delta
 ```
 
 Smoke-boot prod in a throwaway project before a real deploy (it builds the prod-stage
 images and starts all four services on loopback ports):
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+docker compose -f docker-compose.yml \
   --env-file /tmp/prod-env-complete -p clocklog-prodcheck up -d --build
 curl -fsS http://localhost:8000/health
 docker compose -p clocklog-prodcheck ps
@@ -235,7 +248,7 @@ change, which moves `password_changed_at`.
 | `CORS_ORIGINS` | backend | Comma-separated allowlist. Credentials are off, so this is an explicit allow |
 | `LOGIN_RATE_LIMIT` / `LOGIN_RATE_WINDOW_SECONDS` | backend | Per-IP sliding window on the credential endpoints (defaults 10 / 60) |
 | `AUTH_EMAIL_RATE_LIMIT` / `AUTH_EMAIL_RATE_WINDOW_SECONDS` | backend | Tighter window on endpoints that send mail, keyed per IP **and** per address (defaults 3 / 3600) |
-| `RESEND_API_KEY` | backend | Empty disables sending and logs the link instead |
+| `RESEND_API_KEY` | backend | Required (`:?` in the base). In dev/CI the runtime value is empty (override), which disables sending and logs the link instead |
 | `EMAIL_FROM` | backend | Verified sender address |
 | `APP_BASE_URL` | backend | Frontend origin the emailed links point at |
 | `TEST_DATABASE_URL` | backend (dev/CI) | Must end in `_test` |
@@ -256,16 +269,22 @@ rebuilding the frontend image — restarting the container does nothing.
 ### Required variables and fail-fast
 
 The base file requires `SECRET_KEY`, `DATABASE_URL`, `CORS_ORIGINS`, `EMAIL_FROM`,
-`APP_BASE_URL`, `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` and
-`NEXT_PUBLIC_API_URL`. While one is missing, `docker compose -f docker-compose.yml
-config` exits non-zero naming the variable — the stack will not boot half-configured.
+`APP_BASE_URL`, `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`,
+`NEXT_PUBLIC_API_URL` and `RESEND_API_KEY`. While one is missing or empty,
+`docker compose -f docker-compose.yml config` exits non-zero naming the variable —
+the stack will not boot half-configured, in dev or in prod.
 
-`RESEND_API_KEY` is the deliberate exception: dev and CI leave it empty so the sender
-logs the verification/reset link instead of mailing (that is what `tests/conftest.py`
-asserts), so the base keeps it optional (`:-`) and the prod layer
-`docker-compose.prod.yml` requires it (`:?`) in the deploy command. In prod, leave it
-empty and sign-ups can never complete — and the deploy command above will refuse to
-start rather than degrade silently.
+`RESEND_API_KEY` looks like a contradiction ("empty in dev/CI" vs "required") and
+isn't: Compose interpolates each file's `${VAR:?}` *before* the override merges, so
+an override cannot rescue a `:?` from the base — the base must require the key in
+every mode. Dev and CI therefore satisfy the *interpolation* with a non-secret
+placeholder (`.env` locally, step-level `env` in CI), and
+`docker-compose.override.yml` pins the *runtime* value to empty, which is what the
+container sees: the sender logs the verification/reset link and `tests/conftest.py`
+keeps asserting an empty runtime key. Prod uses the real key. Leaving it empty in
+the prod `.env` fails `config` with `RESEND_API_KEY requerida en .env`; leaving the
+placeholder boots but Resend rejects every send at runtime (auth error in the
+logs) — replace it, like `SECRET_KEY`.
 
 ### nginx sketch
 
@@ -361,7 +380,9 @@ Liveness: `curl -fsS http://localhost:8000/health`.
 | Backend code changes have no effect | The bind mount covers `.py` files, so this usually means a dependency or Dockerfile change: `docker compose up -d --build backend`. |
 | `docker compose config` fails with `... requerida en .env` | A required variable is missing from `.env` (or the shell). Fill it in; in dev, `cp .env.example .env` provides placeholders the override then replaces at runtime. |
 | `./backend:/app` or `target: dev` shows up in a prod compose config | The dev override was auto-loaded — the command must pass an explicit `-f`, e.g. `docker compose -f docker-compose.yml config`. |
-| Prod boots but verification/reset emails are only logged | The base was run without `docker-compose.prod.yml`, so `RESEND_API_KEY` was never required. Deploy with `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build` — that command refuses to start without the key. |
+| `docker compose config` fails with `RESEND_API_KEY requerida en .env` | The `.env` (or shell) carries a missing/empty key — e.g. an `.env` copied from a pre-handoff `.env.example`. Set the non-secret placeholder (dev) or the real key (prod); `cp .env.example .env` restores the placeholder. |
+| Prod boots but verification/reset emails are only logged | The dev override was auto-loaded: the deploy command omitted `-f`, so the override emptied `RESEND_API_KEY` at runtime. Deploy with `docker compose -f docker-compose.yml up -d --build` (or the legacy two-file form) — an explicit `-f` never loads the override. |
+| Prod boots but Resend rejects sends with an auth error | The `.env` still has the non-secret placeholder instead of a real key. Replace it and redeploy — like `SECRET_KEY`, the placeholder passes interpolation but fails in production. |
 | Backups keep fewer copies than the compose default | The production `.env` sets `BACKUP_KEEP` (e.g. `2`), which overrides the compose default. Raise it in `.env`. |
 | Async test hangs or raises "attached to a different loop" | asyncpg binds a connection to its creating loop. Keep the session-scoped loop settings in `pyproject.toml`. |
 | A 500 with no detail | Grep the logs for the `X-Request-ID` from the response. |
