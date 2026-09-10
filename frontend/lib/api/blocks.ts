@@ -19,19 +19,23 @@ import { enqueueAndSync, type BlockPayload, type FlushResult } from "./queue";
 
 function stateToPayload(state: TimerState, endedAt: number): BlockPayload {
   // The wire carries the engine's real segments. closeBlock() already closes
-  // the final interval before a save effect fires, but an open tail is
-  // closed here too so the payload is never wall-to-wall (pause gaps must
-  // not be counted as work).
+  // the final interval before a save effect fires, but an open tail is closed
+  // here too so the payload is never wall-to-wall (pause gaps must not be
+  // counted as work). Only an open interval gets `endedAt`: one already
+  // closed keeps its own end and nothing is appended, because a fabricated
+  // zero-length segment is exactly what POST /blocks rejects — and a rejected
+  // save is a dropped block.
+  const intervals = state.intervals.map((interval) => ({
+    started_at: new Date(interval.startedAt).toISOString(),
+    ended_at: new Date(interval.endedAt ?? endedAt).toISOString(),
+  }));
   return {
     id: state.id,
     status: state.blockStatus,
     kind: state.type,
     label: state.label ?? null,
     tag_id: state.tagId ?? null,
-    intervals: state.intervals.map((interval) => ({
-      started_at: new Date(interval.startedAt).toISOString(),
-      ended_at: new Date(interval.endedAt ?? endedAt).toISOString(),
-    })),
+    intervals,
   };
 }
 

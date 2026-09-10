@@ -54,6 +54,8 @@ class TestPostBlocks:
 
     @pytest.mark.asyncio
     async def test_rejects_missing_intervals(self, client, verified_user):
+        """Form errors on the interval contract carry the same code as the
+        semantic ones — the client branches on `code`, not on a 422 body."""
         headers, _ = await verified_user()
 
         resp = await client.post(
@@ -62,6 +64,7 @@ class TestPostBlocks:
             headers=Headers(headers),
         )
         assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
 
     @pytest.mark.asyncio
     async def test_rejects_legacy_envelope_payload(self, client, verified_user):
@@ -81,6 +84,7 @@ class TestPostBlocks:
             headers=Headers(headers),
         )
         assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
 
     @pytest.mark.asyncio
     async def test_post_persists_all_intervals(self, client, verified_user):
@@ -118,6 +122,7 @@ class TestPostBlocks:
             headers=Headers(headers),
         )
         assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
 
     @pytest.mark.asyncio
     async def test_rejects_open_interval(self, client, verified_user):
@@ -138,6 +143,7 @@ class TestPostBlocks:
             headers=Headers(headers),
         )
         assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
 
     @pytest.mark.asyncio
     async def test_rejects_inverted_interval(self, client, verified_user):
@@ -157,6 +163,20 @@ class TestPostBlocks:
         )
         assert resp.status_code == 422
         assert resp.json()["code"] == "INVALID_INTERVAL"
+
+    @pytest.mark.asyncio
+    async def test_non_interval_validation_keeps_generic_422(self, client, verified_user):
+        """Only the interval contract is re-labelled: a bad `status` is still
+        FastAPI's own 422 body, which carries no `code`."""
+        headers, _ = await verified_user()
+
+        resp = await client.post(
+            "/blocks",
+            json=_block_body(status="siesta"),
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+        assert "code" not in resp.json()
 
     @pytest.mark.asyncio
     async def test_rejects_overlapping_intervals(self, client, verified_user):
@@ -198,6 +218,7 @@ class TestPostBlocks:
             headers=Headers(headers),
         )
         assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
 
     @pytest.mark.asyncio
     async def test_same_uuid_is_idempotent(self, client, verified_user):
@@ -371,6 +392,9 @@ class TestPatchBlocks:
             headers=Headers(headers),
         )
         assert resp.status_code == 422
+        # The model-level "cannot be cleared" guard names the field in its
+        # message, so the interval-contract handler still re-labels it.
+        assert resp.json()["code"] == "INVALID_INTERVAL"
         blocks = {b["id"]: b for b in after.json()}
         assert blocks[block_id]["started_at"] == "2026-08-05T12:00:00Z"
 
@@ -455,6 +479,7 @@ class TestPatchBlocks:
             headers=Headers(headers),
         )
         assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
 
     @pytest.mark.asyncio
     async def test_patch_rejects_intervals(self, client, verified_user):
@@ -481,6 +506,7 @@ class TestPatchBlocks:
             headers=Headers(headers),
         )
         assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
 
     @pytest.mark.asyncio
     async def test_patch_end_moves_the_last_interval(self, client, verified_user):
@@ -627,6 +653,9 @@ class TestHistoryQueryValidation:
         )
         assert resp.status_code == 422
         assert summary.status_code == 422
+        # Interval-contract relabelling is scoped to the body fields on
+        # /blocks — a bad query parameter keeps FastAPI's own body.
+        assert "code" not in resp.json()
 
     @pytest.mark.asyncio
     async def test_naive_datetime_is_422(self, client, verified_user):

@@ -104,4 +104,27 @@ describe("stateToPayload (through saveBlock)", () => {
       { started_at: new Date(START).toISOString(), ended_at: new Date(stopAt).toISOString() },
     ]);
   });
+
+  it("aborting while paused keeps the closed intervals and appends nothing", async () => {
+    // Pause closes the last interval, so stop() hands over an already-closed
+    // list and an `endedAt` later than every end. Fabricating a zero-length
+    // tail here would make the server 422 and the block would be dropped.
+    const abortedWhilePaused: TimerState = {
+      ...baseState(),
+      blockStatus: "aborted",
+      intervals: [{ startedAt: START, endedAt: PAUSE }],
+    };
+    const stopAt = PAUSE + 5 * 60 * 1000;
+
+    await saveBlock(abortedWhilePaused, stopAt);
+
+    const payload = enqueueAndSyncMock.mock.calls[0][0] as {
+      status: string;
+      intervals: { started_at: string; ended_at: string }[];
+    };
+    expect(payload.status).toBe("aborted");
+    expect(payload.intervals).toEqual([
+      { started_at: new Date(START).toISOString(), ended_at: new Date(PAUSE).toISOString() },
+    ]);
+  });
 });

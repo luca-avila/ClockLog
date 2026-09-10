@@ -296,14 +296,17 @@ block's **segments**, not a wall-to-wall envelope: a paused gap is simply absent
   block records 16 minutes of work, not 28.
 - No top-level `started_at`/`ended_at` on the wire. The server derives the block's
   `started_at` from `intervals[0]` — the instant history filters and day-buckets on
-  (invariant 7). Legacy envelope-only payloads are rejected (`422`), never silently
-  collapsed into one wall-to-wall interval.
+  (invariant 7). Legacy envelope-only payloads are rejected, never silently collapsed
+  into one wall-to-wall interval.
 - `kind` defaults to `"focus"`.
 - **Idempotent:** an id that already exists returns the stored block unchanged (still
   `201`), even when the retried body's intervals differ — the first write wins, which
   is what makes the offline queue safe.
-- `422 INVALID_INTERVAL` — a zero-length or inverted interval, or intervals that
-  overlap or arrive out of order.
+- `422 INVALID_INTERVAL` — the whole interval contract: `intervals` missing or empty,
+  an open (`ended_at: null`) or naive interval, a zero-length or inverted interval, or
+  intervals that overlap or arrive out of order. Form errors on those fields are
+  re-labelled from FastAPI's generic `422` (see § Error codes), so a client can always
+  branch on `code`.
 - `403 BLOCK_OWNED_BY_OTHER` — that id belongs to another user.
 - **Aborted blocks are saved too**, with `status: "aborted"` and their real elapsed
   time (invariant 9).
@@ -320,7 +323,11 @@ Interval lists are **not** editable — `intervals` is rejected like any unknown
   `block.started_at` (so day bucketing stays correct); `ended_at` moves the last
   interval's end. Pause gaps inside are never rewritten.
 - `422 INVALID_INTERVAL` — the edit inverts a segment (its end would precede its
-  start) or makes intervals overlap.
+  start) or makes intervals overlap. `intervals` in the body, a naive time, or
+  `started_at: null` hit the same code.
+- Deliberate asymmetry with create: an edit that lands a moved border exactly on its
+  neighbour (`start == end`) is accepted, while POST rejects zero-length intervals.
+  Tightening it belongs with the editor refusing to collapse a segment.
 - `400 NO_INTERVALS`, `404 BLOCK_NOT_FOUND`.
 
 ### `DELETE /blocks/{block_id}` → `204`
@@ -410,7 +417,7 @@ Deletes the entry and therefore all its occurrences. `404 ENTRY_NOT_FOUND`.
 | `BLOCK_NOT_FOUND` | 404 | |
 | `BLOCK_OWNED_BY_OTHER` | 403 | Client-generated id collides with another user's block |
 | `NO_INTERVALS` | 400 | Time edit on a block with no interval rows |
-| `INVALID_INTERVAL` | 422 | Zero-length/inverted/overlapping intervals on create; inverted time edit on PATCH |
+| `INVALID_INTERVAL` | 422 | The interval contract on `/blocks`: missing/empty/open/naive/zero-length/inverted/overlapping intervals on create, interval edits or inverted times on PATCH |
 | `NAIVE_DATETIME` | 422 | `from`/`to` not timezone-aware |
 | `INVALID_RANGE` | 422 | `from` after `to` |
 | `RANGE_TOO_LARGE` | 422 | Plan range over 366 days |
@@ -421,6 +428,8 @@ Deletes the entry and therefore all its occurrences. `404 ENTRY_NOT_FOUND`.
 | `INTERNAL_ERROR` | 500 | Unhandled exception; carries `request_id` |
 
 Pydantic validation failures return FastAPI's own `422` body, which has no `code` field.
+One exception: on `/blocks` a body error naming `intervals`, `started_at` or `ended_at`
+is normalized to `422 INVALID_INTERVAL`, so that contract is branchable end to end.
 
 ---
 

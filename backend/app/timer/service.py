@@ -82,7 +82,13 @@ def _validate_create_intervals(intervals: list[BlockIntervalIn]) -> None:
 
 
 def _validate_stored_intervals(intervals: list[BlockInterval]) -> None:
-    """Re-check order after an envelope edit moved an outer edge."""
+    """Re-check order after an envelope edit moved an outer edge.
+
+    Deliberate asymmetry with create: an edit that lands a border exactly on
+    its neighbour (`start == end`) passes here while POST rejects zero-length
+    intervals. Tightening it means the editor must refuse to collapse a
+    segment; until then the divergence is documented in docs/api.md § PATCH.
+    """
     previous_end: datetime | None = None
     for interval in sorted(intervals, key=lambda iv: iv.started_at):
         if interval.ended_at is not None and interval.ended_at < interval.started_at:

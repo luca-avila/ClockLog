@@ -100,9 +100,10 @@ export function readQueue(
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    // Malformed entries are dropped silently here, as readQueue is called on
-    // every enqueue and every flush — firing onBlocksDropped from a read path
-    // would double-report. Only the flush path reports drops.
+    // Malformed entries — including the pre-interval envelope shape — are
+    // dropped silently here: no toast and no dropped count. readQueue runs on
+    // every enqueue and every flush, so firing onBlocksDropped from a read
+    // path would double-report; only the flush path reports drops.
     return parsed.filter(isBlockPayload);
   } catch {
     // Corrupt queue is worse than an empty one — reset rather than block sync.

@@ -21,6 +21,8 @@ import traceback
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -69,6 +71,43 @@ async def http_exception_handler(_request: Request, exc: HTTPException):
         content={"code": "ERROR", "message": str(detail)},
         headers=exc.headers,
     )
+
+
+# The interval contract is one protocol: a payload the engine cannot have
+# produced must carry the same code whichever layer catches it. Pydantic field
+# errors for `intervals`/`started_at`/`ended_at` on /blocks are therefore
+# re-labelled INVALID_INTERVAL; every other route and field keeps FastAPI's own
+# 422 body (docs/api.md § Error codes).
+_INTERVAL_CONTRACT_FIELDS = ("intervals", "started_at", "ended_at")
+
+
+def _is_interval_contract_error(request: Request, exc: RequestValidationError) -> bool:
+    path = request.url.path
+    if path != "/blocks" and not path.startswith("/blocks/"):
+        return False
+    for error in exc.errors():
+        if any(part in _INTERVAL_CONTRACT_FIELDS for part in error.get("loc", ())):
+            return True
+        # Model-level validators (BlockUpdate's non-clearable guard) report
+        # loc ("body",) and name the offending field in the message instead.
+        message = str(error.get("msg", ""))
+        if any(field in message for field in _INTERVAL_CONTRACT_FIELDS):
+            return True
+    return False
+
+
+@app.exception_handler(RequestValidationError)
+async def interval_validation_exception_handler(request: Request, exc: RequestValidationError):
+    if _is_interval_contract_error(request, exc):
+        return JSONResponse(
+            status_code=422,
+            content={
+                "code": "INVALID_INTERVAL",
+                "message": "intervals must be a non-empty list of ordered, closed, "
+                "timezone-aware segments",
+            },
+        )
+    return await request_validation_exception_handler(request, exc)
 
 
 @app.middleware("http")
