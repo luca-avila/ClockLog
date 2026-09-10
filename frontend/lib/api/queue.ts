@@ -42,7 +42,12 @@ function isIntervalPayload(v: unknown): v is BlockIntervalPayload {
   if (typeof iv.started_at !== "string" || typeof iv.ended_at !== "string") return false;
   const start = Date.parse(iv.started_at);
   const end = Date.parse(iv.ended_at);
-  // Closed and ordered; a stale envelope-shaped entry never passes.
+  // Closed and ordered; a stale envelope-shaped entry never passes. One notch
+  // looser than the server's strict `end > start`: a zero-length tail can only
+  // come from resume+stop in the same millisecond, and letting it reach the
+  // server turns that into a *visible* drop (flushQueue counts it and fires
+  // onBlocksDropped) instead of the silent filtering readQueue does for
+  // malformed and legacy shapes (invariant 9).
   return Number.isFinite(start) && Number.isFinite(end) && end >= start;
 }
 

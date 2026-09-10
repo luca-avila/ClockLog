@@ -179,6 +179,27 @@ class TestPostBlocks:
         assert "code" not in resp.json()
 
     @pytest.mark.asyncio
+    async def test_rejects_zero_length_interval(self, client, verified_user):
+        """POST and PATCH agree: a segment must be strictly positive. The
+        contract is `end > start` on both write paths."""
+        headers, _ = await verified_user()
+
+        resp = await client.post(
+            "/blocks",
+            json=_block_body(
+                intervals=[
+                    {
+                        "started_at": "2026-08-05T12:00:00+00:00",
+                        "ended_at": "2026-08-05T12:00:00+00:00",
+                    }
+                ]
+            ),
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
+
+    @pytest.mark.asyncio
     async def test_rejects_overlapping_intervals(self, client, verified_user):
         headers, _ = await verified_user()
 
@@ -435,6 +456,9 @@ class TestPatchBlocks:
             headers=Headers(headers),
         )
         assert resp.status_code == 422
+        # An unrelated unknown key stays FastAPI's own body — only the interval
+        # contract is re-labelled (no `code`).
+        assert "code" not in resp.json()
 
     @pytest.mark.asyncio
     async def test_patch_cannot_clear_status(self, client, verified_user):
@@ -458,6 +482,10 @@ class TestPatchBlocks:
             headers=Headers(headers),
         )
         assert resp.status_code == 422
+        # `status` is not part of the interval contract, so the relabelling
+        # handler must leave its body as FastAPI's own (no `code`): the
+        # message-name heuristic is not a blanket for every /blocks error.
+        assert "code" not in resp.json()
         blocks = {b["id"]: b for b in after.json()}
         assert blocks[block_id]["status"] == "completed"
 

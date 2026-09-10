@@ -277,4 +277,43 @@ describe("offline queue", () => {
       expect.objectContaining({ id: "valid-1" })
     );
   });
+
+  it("keeps a zero-length interval locally, then drops it visibly on 422", async () => {
+    // Deliberate client/server asymmetry: readQueue tolerates `start == end`
+    // (the engine can only emit one from resume+stop in the same millisecond),
+    // the stricter POST rejects it, and the flush path surfaces the loss
+    // instead of discarding the block silently (invariant 9).
+    const zeroLength: BlockPayload = {
+      id: "zero-1",
+      status: "completed",
+      kind: "focus",
+      label: null,
+      tag_id: null,
+      intervals: [
+        {
+          started_at: "2026-08-15T10:00:00.000Z",
+          ended_at: "2026-08-15T10:00:00.000Z",
+        },
+      ],
+    };
+    enqueueBlock(zeroLength, localStorage);
+    expect(readQueue(localStorage)).toHaveLength(1);
+
+    const post = vi
+      .fn<(p: BlockPayload) => Promise<void>>()
+      .mockRejectedValue(new ApiError(422, "INVALID_INTERVAL", "zero-length"));
+    const dropped = vi.fn();
+    const off = onBlocksDropped(dropped);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const r = await flushQueue(makeDeps(post));
+
+    expect(r).toMatchObject({ synced: 0, dropped: 1, pending: 0 });
+    expect(readQueue(localStorage)).toHaveLength(0);
+    expect(dropped).toHaveBeenCalledExactlyOnceWith(1);
+    expect(warn).toHaveBeenCalled();
+
+    warn.mockRestore();
+    off();
+  });
 });

@@ -413,7 +413,7 @@ class TestUpdateBlock:
             intervals=[
                 {
                     "started_at": datetime(2026, 8, 5, 23, 50, tzinfo=UTC),
-                    "ended_at": datetime(2026, 8, 6, 0, 10, tzinfo=UTC),
+                    "ended_at": datetime(2026, 8, 6, 0, 30, tzinfo=UTC),
                 }
             ],
         )
@@ -436,6 +436,51 @@ class TestUpdateBlock:
         assert moved is not None
         assert moved.started_at.date() == date(2026, 8, 6)
         assert moved.intervals[0].started_at == moved.started_at
+        # The segment stays strictly positive: PATCH applies the same
+        # `end > start` rule as POST, so the moved start may not swallow the end.
+        assert moved.intervals[0].ended_at == datetime(2026, 8, 6, 0, 30, tzinfo=UTC)
+
+    async def test_zero_length_time_edit_is_rejected(self, db_session):
+        """A PATCH may not persist what a POST would reject: collapsing a
+        segment onto `start == end` leaves a zero-length interval whose
+        duration is not a real elapsed time (invariant 6)."""
+        from app.timer.service import update_block
+
+        user = await _create_test_user(db_session)
+        user_id = user.id
+        data = BlockCreate(
+            id=uuid.uuid4(),
+            status="completed",
+            label="collapse me",
+            tag_id=None,
+            intervals=[
+                {
+                    "started_at": make_utc(hour=9),
+                    "ended_at": make_utc(hour=9, minute=25),
+                }
+            ],
+        )
+        block = await create_block(db_session, data, user_id)
+        await db_session.commit()
+        block_id = block.id
+
+        with pytest.raises(HTTPException) as exc:
+            await update_block(
+                db_session,
+                block_id,
+                user_id,
+                BlockUpdate(started_at=make_utc(hour=9, minute=25)),
+            )
+        assert exc.value.status_code == 422
+        assert exc.value.detail["code"] == "INVALID_INTERVAL"
+
+        # Nothing was written: the stored block keeps its original start.
+        # Ids are captured before the rollback — afterwards the ORM instances
+        # are expired and even `block.id` would lazy-load outside a greenlet.
+        await db_session.rollback()
+        unchanged = await get_block_by_id(db_session, block_id, user_id)
+        assert unchanged is not None
+        assert unchanged.started_at == make_utc(hour=9)
 
 
 async def _create_test_user(db_session: AsyncSession) -> User:

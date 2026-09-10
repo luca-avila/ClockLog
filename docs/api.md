@@ -322,12 +322,11 @@ Interval lists are **not** editable — `intervals` is rejected like any unknown
 - Times are envelope edits: `started_at` moves the first interval's start **and**
   `block.started_at` (so day bucketing stays correct); `ended_at` moves the last
   interval's end. Pause gaps inside are never rewritten.
-- `422 INVALID_INTERVAL` — the edit inverts a segment (its end would precede its
-  start) or makes intervals overlap. `intervals` in the body, a naive time, or
+- `422 INVALID_INTERVAL` — the edit collapses a segment to zero length
+  (`end == start`), inverts one (its end would precede its start), or makes intervals
+  overlap. Editing applies the same `end > start` rule as POST, so a PATCH can never
+  persist a block that create would reject. `intervals` in the body, a naive time, or
   `started_at: null` hit the same code.
-- Deliberate asymmetry with create: an edit that lands a moved border exactly on its
-  neighbour (`start == end`) is accepted, while POST rejects zero-length intervals.
-  Tightening it belongs with the editor refusing to collapse a segment.
 - `400 NO_INTERVALS`, `404 BLOCK_NOT_FOUND`.
 
 ### `DELETE /blocks/{block_id}` → `204`
@@ -417,7 +416,7 @@ Deletes the entry and therefore all its occurrences. `404 ENTRY_NOT_FOUND`.
 | `BLOCK_NOT_FOUND` | 404 | |
 | `BLOCK_OWNED_BY_OTHER` | 403 | Client-generated id collides with another user's block |
 | `NO_INTERVALS` | 400 | Time edit on a block with no interval rows |
-| `INVALID_INTERVAL` | 422 | The interval contract on `/blocks`: missing/empty/open/naive/zero-length/inverted/overlapping intervals on create, interval edits or inverted times on PATCH |
+| `INVALID_INTERVAL` | 422 | The interval contract on `/blocks`: missing/empty/open/naive/zero-length/inverted/overlapping intervals on create, or a time edit that zero-lengths, inverts or overlaps a segment |
 | `NAIVE_DATETIME` | 422 | `from`/`to` not timezone-aware |
 | `INVALID_RANGE` | 422 | `from` after `to` |
 | `RANGE_TOO_LARGE` | 422 | Plan range over 366 days |

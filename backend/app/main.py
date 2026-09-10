@@ -80,6 +80,12 @@ async def http_exception_handler(_request: Request, exc: HTTPException):
 # 422 body (docs/api.md § Error codes).
 _INTERVAL_CONTRACT_FIELDS = ("intervals", "started_at", "ended_at")
 
+# The app's own model validators (BlockUpdate's "cannot be cleared" guard)
+# report loc = ("body",) and name the field only in the raised message, so those
+# messages are listed explicitly. Pydantic's built-in wording is never pattern
+# matched — a library message change must not be able to re-label an error.
+_INTERVAL_GUARD_MESSAGES = frozenset({"started_at cannot be cleared"})
+
 
 def _is_interval_contract_error(request: Request, exc: RequestValidationError) -> bool:
     path = request.url.path
@@ -88,10 +94,8 @@ def _is_interval_contract_error(request: Request, exc: RequestValidationError) -
     for error in exc.errors():
         if any(part in _INTERVAL_CONTRACT_FIELDS for part in error.get("loc", ())):
             return True
-        # Model-level validators (BlockUpdate's non-clearable guard) report
-        # loc ("body",) and name the offending field in the message instead.
-        message = str(error.get("msg", ""))
-        if any(field in message for field in _INTERVAL_CONTRACT_FIELDS):
+        guard = (error.get("ctx") or {}).get("error")
+        if guard is not None and str(guard) in _INTERVAL_GUARD_MESSAGES:
             return True
     return False
 
