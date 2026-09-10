@@ -8,7 +8,7 @@ trusting a page.
 | [architecture.md](architecture.md) | How the system works | Current |
 | [api.md](api.md) | Endpoint reference | Current |
 | [operations.md](operations.md) | Runbook | Current |
-| [decisions/](decisions/) | Architecture decision records (ADRs 001–010) | Current |
+| [decisions/](decisions/) | Architecture decision records (ADRs 001–011) | Current |
 | [../AGENTS.md](../AGENTS.md) | Contributor / agent operating manual | Current |
 
 Everything here describes the app as built. There is no separate design spec — the code

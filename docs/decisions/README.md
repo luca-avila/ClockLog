@@ -25,6 +25,7 @@ a redirect.
 | [008](008-plan-dates-not-instants.md) | Plan API speaks dates, not instants | Accepted | 2026-08-15 |
 | [009](009-module-deletability.md) | Module deletability is enforced by tests | Accepted | 2026-08-15 |
 | [010](010-no-recurrence-engine.md) | No recurrence engine; `repeat_weekly` flag only | Accepted | 2026-08-15 |
+| [011](011-pause-contract-followups.md) | Pause-contract follow-ups: queue discard, PATCH day moves, envelope rejection | Accepted | 2026-09-09 |
 
 The one standing decision point is not an ADR: phase 3 (timer↔plan
 integration) requires renegotiating invariants 12 and 13 in writing before
