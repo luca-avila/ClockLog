@@ -38,11 +38,17 @@ class TestRecentLabels:
                 "/blocks",
                 json={
                     "id": str(uuid.uuid4()),
-                    "started_at": started,
-                    "ended_at": None,
                     "status": "completed",
                     "label": label,
                     "tag_id": None,
+                    "intervals": [
+                        {
+                            "started_at": started,
+                            # Ends don't matter for label autocomplete, but a
+                            # finished block must carry a closed interval.
+                            "ended_at": "2026-08-05T23:59:00+00:00",
+                        }
+                    ],
                 },
                 headers=Headers(headers),
             )
@@ -66,11 +72,15 @@ class TestRecentLabels:
             "/blocks",
             json={
                 "id": str(uuid.uuid4()),
-                "started_at": "2026-08-05T12:00:00+00:00",
-                "ended_at": "2026-08-05T12:25:00+00:00",
                 "status": "completed",
                 "label": "user1-label",
                 "tag_id": None,
+                "intervals": [
+                    {
+                        "started_at": "2026-08-05T12:00:00+00:00",
+                        "ended_at": "2026-08-05T12:25:00+00:00",
+                    }
+                ],
             },
             headers=Headers(headers1),
         )

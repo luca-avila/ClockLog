@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import uuid
+from datetime import datetime, timedelta
 
 import pytest
 from httpx import AsyncClient, Headers
@@ -30,11 +31,19 @@ async def _auth_and_post_block(
 ):
     payload = {
         "id": str(uuid.uuid4()),
-        "started_at": started_at,
-        "ended_at": None,
         "status": status,
         "label": label,
         "tag_id": None,
+        "intervals": [
+            {
+                "started_at": started_at,
+                # A closed 25-minute interval; history sorts by started_at and
+                # never reasons about the end.
+                "ended_at": (
+                    datetime.fromisoformat(started_at) + timedelta(minutes=25)
+                ).isoformat(),
+            }
+        ],
     }
     if kind is not None:
         payload["kind"] = kind
@@ -113,7 +122,7 @@ class TestHistory:
         await _auth_and_post_block(
             client, headers, None, "2026-08-05T09:30:00+00:00", "completed", "short_break"
         )
-        # No kind sent: pre-migration clients default to focus.
+        # No kind sent: defaults to focus.
         await _auth_and_post_block(client, headers, "legacy", "2026-08-05T10:00:00+00:00")
 
         resp = await client.get(
@@ -144,11 +153,15 @@ class TestSummary:
             "/blocks",
             json={
                 "id": str(uuid.uuid4()),
-                "started_at": "2026-08-05T09:00:00+00:00",
-                "ended_at": "2026-08-05T09:25:00+00:00",
                 "status": "completed",
                 "label": "tagged block",
                 "tag_id": tag_id,
+                "intervals": [
+                    {
+                        "started_at": "2026-08-05T09:00:00+00:00",
+                        "ended_at": "2026-08-05T09:25:00+00:00",
+                    }
+                ],
             },
             headers=Headers(headers),
         )
@@ -156,11 +169,15 @@ class TestSummary:
             "/blocks",
             json={
                 "id": str(uuid.uuid4()),
-                "started_at": "2026-08-05T09:30:00+00:00",
-                "ended_at": "2026-08-05T09:55:00+00:00",
                 "status": "completed",
                 "label": "untagged block",
                 "tag_id": None,
+                "intervals": [
+                    {
+                        "started_at": "2026-08-05T09:30:00+00:00",
+                        "ended_at": "2026-08-05T09:55:00+00:00",
+                    }
+                ],
             },
             headers=Headers(headers),
         )
@@ -195,8 +212,8 @@ class TestSummary:
         assert resp.status_code == 200
         summary = resp.json()
         assert len(summary) == 1  # "Untagged" for both
-        # Both blocks have one interval of 0 duration (ended_at is null),
-        # so duration will be 0. But the test just verifies they're included.
+        # Aborted blocks carry their real elapsed time (invariant 9); the
+        # summary includes both rows regardless of their duration.
 
     @pytest.mark.asyncio
     async def test_summary_excludes_breaks(self, client, verified_user):
@@ -207,12 +224,16 @@ class TestSummary:
             "/blocks",
             json={
                 "id": str(uuid.uuid4()),
-                "started_at": "2026-08-05T09:00:00+00:00",
-                "ended_at": "2026-08-05T09:25:00+00:00",
                 "status": "completed",
                 "kind": "focus",
                 "label": "work",
                 "tag_id": None,
+                "intervals": [
+                    {
+                        "started_at": "2026-08-05T09:00:00+00:00",
+                        "ended_at": "2026-08-05T09:25:00+00:00",
+                    }
+                ],
             },
             headers=Headers(headers),
         )
@@ -220,12 +241,16 @@ class TestSummary:
             "/blocks",
             json={
                 "id": str(uuid.uuid4()),
-                "started_at": "2026-08-05T09:25:00+00:00",
-                "ended_at": "2026-08-05T09:30:00+00:00",
                 "status": "completed",
                 "kind": "short_break",
                 "label": None,
                 "tag_id": None,
+                "intervals": [
+                    {
+                        "started_at": "2026-08-05T09:25:00+00:00",
+                        "ended_at": "2026-08-05T09:30:00+00:00",
+                    }
+                ],
             },
             headers=Headers(headers),
         )

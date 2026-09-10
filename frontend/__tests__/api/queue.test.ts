@@ -29,12 +29,16 @@ import { ApiError } from "@/lib/api/client";
 function payload(id: string, label = "Work"): BlockPayload {
   return {
     id,
-    started_at: "2026-08-15T10:00:00.000Z",
-    ended_at: "2026-08-15T10:25:00.000Z",
     status: "completed",
     kind: "focus",
     label,
     tag_id: null,
+    intervals: [
+      {
+        started_at: "2026-08-15T10:00:00.000Z",
+        ended_at: "2026-08-15T10:25:00.000Z",
+      },
+    ],
   };
 }
 
@@ -201,10 +205,14 @@ describe("offline queue", () => {
   it("filters out a stored entry missing status/kind", () => {
     const incomplete = {
       id: "inc-1",
-      started_at: "2026-08-15T10:00:00.000Z",
-      ended_at: null,
       label: null,
       tag_id: null,
+      intervals: [
+        {
+          started_at: "2026-08-15T10:00:00.000Z",
+          ended_at: "2026-08-15T10:25:00.000Z",
+        },
+      ],
     };
     localStorage.setItem("clocklog_block_queue", JSON.stringify([incomplete]));
     expect(readQueue(localStorage)).toHaveLength(0);
@@ -213,14 +221,47 @@ describe("offline queue", () => {
   it("filters out a stored entry with a bogus kind", () => {
     const bogus = {
       id: "bogus-1",
-      started_at: "2026-08-15T10:00:00.000Z",
-      ended_at: null,
       status: "completed",
       kind: "siesta",
       label: null,
       tag_id: null,
+      intervals: [
+        {
+          started_at: "2026-08-15T10:00:00.000Z",
+          ended_at: "2026-08-15T10:25:00.000Z",
+        },
+      ],
     };
     localStorage.setItem("clocklog_block_queue", JSON.stringify([bogus]));
+    expect(readQueue(localStorage)).toHaveLength(0);
+  });
+
+  it("filters out a pre-interval (envelope-only) stored entry", () => {
+    // Written by a build predating the intervals wire: no migration, the
+    // payload is dropped rather than re-sent as one wall-to-wall interval.
+    const legacy = {
+      id: "legacy-1",
+      started_at: "2026-08-15T10:00:00.000Z",
+      ended_at: "2026-08-15T10:25:00.000Z",
+      status: "completed",
+      kind: "focus",
+      label: "old queue",
+      tag_id: null,
+    };
+    localStorage.setItem("clocklog_block_queue", JSON.stringify([legacy]));
+    expect(readQueue(localStorage)).toHaveLength(0);
+  });
+
+  it("filters out an entry whose interval is open", () => {
+    const open = {
+      id: "open-1",
+      status: "completed",
+      kind: "focus",
+      label: null,
+      tag_id: null,
+      intervals: [{ started_at: "2026-08-15T10:00:00.000Z", ended_at: null }],
+    };
+    localStorage.setItem("clocklog_block_queue", JSON.stringify([open]));
     expect(readQueue(localStorage)).toHaveLength(0);
   });
 

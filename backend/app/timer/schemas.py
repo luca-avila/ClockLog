@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class BlockIntervalSchema(BaseModel):
@@ -29,21 +29,33 @@ class BlockIntervalSchema(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class BlockCreate(BaseModel):
-    id: uuid.UUID
+class BlockIntervalIn(BaseModel):
+    """One work segment of a finished block, as the client sends it."""
+
     started_at: datetime
-    ended_at: datetime | None
+    ended_at: datetime
+
+    @field_validator("started_at", "ended_at")
+    @classmethod
+    def must_be_timezone_aware(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            raise ValueError("datetime must be timezone-aware")
+        return v
+
+
+class BlockCreate(BaseModel):
+    # extra="forbid": the old envelope-only create (top-level started_at /
+    # ended_at) must 422, not be silently absorbed into one interval.
+    model_config = ConfigDict(extra="forbid")
+
+    id: uuid.UUID
     status: Literal["completed", "aborted"]
     kind: Literal["focus", "short_break", "long_break"] = "focus"
     label: str | None = None
     tag_id: uuid.UUID | None = None
-
-    @field_validator("started_at", "ended_at")
-    @classmethod
-    def must_be_timezone_aware(cls, v: datetime | None) -> datetime | None:
-        if v is not None and v.tzinfo is None:
-            raise ValueError("datetime must be timezone-aware")
-        return v
+    # A finished block always has at least one closed interval; the envelope
+    # is derived server-side (started_at = intervals[0].started_at).
+    intervals: list[BlockIntervalIn] = Field(min_length=1)
 
 
 class BlockUpdate(BaseModel):

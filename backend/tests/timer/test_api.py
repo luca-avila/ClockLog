@@ -20,6 +20,25 @@ import pytest
 from httpx import Headers
 
 
+def _block_body(**overrides: object) -> dict[str, object]:
+    """Default create body, mirroring the frontend sender's payload."""
+    body: dict[str, object] = {
+        "id": str(uuid.uuid4()),
+        "status": "completed",
+        "kind": "focus",
+        "label": "test",
+        "tag_id": None,
+        "intervals": [
+            {
+                "started_at": "2026-08-05T12:00:00+00:00",
+                "ended_at": "2026-08-05T12:25:00+00:00",
+            }
+        ],
+    }
+    body.update(overrides)
+    return body
+
+
 class TestPostBlocks:
     @pytest.mark.asyncio
     async def test_post_block_succeeds(self, client, verified_user):
@@ -28,20 +47,13 @@ class TestPostBlocks:
         block_id = str(uuid.uuid4())
         resp = await client.post(
             "/blocks",
-            json={
-                "id": block_id,
-                "started_at": "2026-08-05T12:00:00+00:00",
-                "ended_at": "2026-08-05T12:25:00+00:00",
-                "status": "completed",
-                "label": "debug JWT refresh",
-                "tag_id": None,
-            },
+            json=_block_body(id=block_id, label="debug JWT refresh"),
             headers=Headers(headers),
         )
         assert resp.status_code == 201
 
     @pytest.mark.asyncio
-    async def test_rejects_missing_started_at(self, client, verified_user):
+    async def test_rejects_missing_intervals(self, client, verified_user):
         headers, _ = await verified_user()
 
         resp = await client.post(
@@ -52,23 +64,192 @@ class TestPostBlocks:
         assert resp.status_code == 422
 
     @pytest.mark.asyncio
+    async def test_rejects_legacy_envelope_payload(self, client, verified_user):
+        """The old single-interval wire must 422, never silently one-row it."""
+        headers, _ = await verified_user()
+
+        resp = await client.post(
+            "/blocks",
+            json={
+                "id": str(uuid.uuid4()),
+                "started_at": "2026-08-05T12:00:00+00:00",
+                "ended_at": "2026-08-05T12:25:00+00:00",
+                "status": "completed",
+                "label": "legacy",
+                "tag_id": None,
+            },
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_post_persists_all_intervals(self, client, verified_user):
+        """N intervals round-trip: the pause gap exists only as a gap."""
+        headers, _ = await verified_user()
+
+        resp = await client.post(
+            "/blocks",
+            json=_block_body(
+                intervals=[
+                    {
+                        "started_at": "2026-08-05T12:00:00+00:00",
+                        "ended_at": "2026-08-05T12:12:00+00:00",
+                    },
+                    {
+                        "started_at": "2026-08-05T12:22:00+00:00",
+                        "ended_at": "2026-08-05T12:30:00+00:00",
+                    },
+                ]
+            ),
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["started_at"] == "2026-08-05T12:00:00Z"
+        assert len(body["intervals"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_rejects_empty_intervals(self, client, verified_user):
+        headers, _ = await verified_user()
+
+        resp = await client.post(
+            "/blocks",
+            json=_block_body(intervals=[]),
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_rejects_open_interval(self, client, verified_user):
+        """A POSTed block is always finished; open intervals live only in
+        localStorage (one POST per block, invariant 3)."""
+        headers, _ = await verified_user()
+
+        resp = await client.post(
+            "/blocks",
+            json=_block_body(
+                intervals=[
+                    {
+                        "started_at": "2026-08-05T12:00:00+00:00",
+                        "ended_at": None,
+                    }
+                ]
+            ),
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_rejects_inverted_interval(self, client, verified_user):
+        headers, _ = await verified_user()
+
+        resp = await client.post(
+            "/blocks",
+            json=_block_body(
+                intervals=[
+                    {
+                        "started_at": "2026-08-05T12:25:00+00:00",
+                        "ended_at": "2026-08-05T12:00:00+00:00",
+                    }
+                ]
+            ),
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
+
+    @pytest.mark.asyncio
+    async def test_rejects_overlapping_intervals(self, client, verified_user):
+        headers, _ = await verified_user()
+
+        resp = await client.post(
+            "/blocks",
+            json=_block_body(
+                intervals=[
+                    {
+                        "started_at": "2026-08-05T12:00:00+00:00",
+                        "ended_at": "2026-08-05T12:15:00+00:00",
+                    },
+                    {
+                        "started_at": "2026-08-05T12:10:00+00:00",
+                        "ended_at": "2026-08-05T12:25:00+00:00",
+                    },
+                ]
+            ),
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
+
+    @pytest.mark.asyncio
+    async def test_rejects_naive_interval_datetime(self, client, verified_user):
+        headers, _ = await verified_user()
+
+        resp = await client.post(
+            "/blocks",
+            json=_block_body(
+                intervals=[
+                    {
+                        "started_at": "2026-08-05T12:00:00",
+                        "ended_at": "2026-08-05T12:25:00",
+                    }
+                ]
+            ),
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
     async def test_same_uuid_is_idempotent(self, client, verified_user):
         headers, _ = await verified_user()
 
         block_id = str(uuid.uuid4())
-        payload = {
-            "id": block_id,
-            "started_at": "2026-08-05T12:00:00+00:00",
-            "ended_at": "2026-08-05T12:25:00+00:00",
-            "status": "completed",
-            "label": "test idempotent",
-            "tag_id": None,
-        }
+        payload = _block_body(id=block_id, label="test idempotent")
         r1 = await client.post("/blocks", json=payload, headers=Headers(headers))
         r2 = await client.post("/blocks", json=payload, headers=Headers(headers))
         assert r1.status_code == 201
         assert r2.status_code == 201
         assert r1.json() == r2.json()
+
+    @pytest.mark.asyncio
+    async def test_idempotent_retry_with_different_intervals_returns_original(
+        self, client, verified_user
+    ):
+        """A queue retry must never become a write, even with a drifted body."""
+        headers, _ = await verified_user()
+
+        block_id = str(uuid.uuid4())
+        original = _block_body(
+            id=block_id,
+            label="retried",
+            intervals=[
+                {
+                    "started_at": "2026-08-05T12:00:00+00:00",
+                    "ended_at": "2026-08-05T12:12:00+00:00",
+                },
+                {
+                    "started_at": "2026-08-05T12:22:00+00:00",
+                    "ended_at": "2026-08-05T12:30:00+00:00",
+                },
+            ],
+        )
+        r1 = await client.post("/blocks", json=original, headers=Headers(headers))
+        retry = _block_body(
+            id=block_id,
+            label="retried",
+            intervals=[
+                {
+                    "started_at": "2026-08-05T13:00:00+00:00",
+                    "ended_at": "2026-08-05T13:25:00+00:00",
+                }
+            ],
+        )
+        r2 = await client.post("/blocks", json=retry, headers=Headers(headers))
+
+        assert r1.status_code == 201
+        assert r2.status_code == 201
+        assert len(r2.json()["intervals"]) == 2
+        assert r2.json()["intervals"][0]["started_at"] == "2026-08-05T12:00:00Z"
 
     @pytest.mark.asyncio
     async def test_cannot_write_another_users_block(self, client, verified_user):
@@ -79,27 +260,22 @@ class TestPostBlocks:
         # Create block as user 1
         await client.post(
             "/blocks",
-            json={
-                "id": block_id,
-                "started_at": "2026-08-05T12:00:00+00:00",
-                "ended_at": "2026-08-05T12:25:00+00:00",
-                "status": "completed",
-                "label": "u1 block",
-                "tag_id": None,
-            },
+            json=_block_body(id=block_id, label="u1 block"),
             headers=Headers(headers1),
         )
         # Try to overwrite as user 2 → should be rejected
         resp = await client.post(
             "/blocks",
-            json={
-                "id": block_id,
-                "started_at": "2026-08-05T13:00:00+00:00",
-                "ended_at": "2026-08-05T13:25:00+00:00",
-                "status": "completed",
-                "label": "u2 override attempt",
-                "tag_id": None,
-            },
+            json=_block_body(
+                id=block_id,
+                label="u2 override attempt",
+                intervals=[
+                    {
+                        "started_at": "2026-08-05T13:00:00+00:00",
+                        "ended_at": "2026-08-05T13:25:00+00:00",
+                    }
+                ],
+            ),
             headers=Headers(headers2),
         )
         assert resp.status_code == 403
@@ -121,14 +297,7 @@ class TestPatchBlocks:
         block_id = str(uuid.uuid4())
         await client.post(
             "/blocks",
-            json={
-                "id": block_id,
-                "started_at": "2026-08-05T12:00:00+00:00",
-                "ended_at": "2026-08-05T12:25:00+00:00",
-                "status": "completed",
-                "label": "debug JWT refresh",
-                "tag_id": tag_id,
-            },
+            json=_block_body(id=block_id, label="debug JWT refresh", tag_id=tag_id),
             headers=Headers(headers),
         )
 
@@ -149,14 +318,7 @@ class TestPatchBlocks:
         block_id = str(uuid.uuid4())
         await client.post(
             "/blocks",
-            json={
-                "id": block_id,
-                "started_at": "2026-08-05T12:00:00+00:00",
-                "ended_at": "2026-08-05T12:25:00+00:00",
-                "status": "completed",
-                "label": "keep me",
-                "tag_id": None,
-            },
+            json=_block_body(id=block_id, label="keep me"),
             headers=Headers(headers),
         )
         resp = await client.patch(
@@ -176,14 +338,7 @@ class TestPatchBlocks:
         block_id = str(uuid.uuid4())
         await client.post(
             "/blocks",
-            json={
-                "id": block_id,
-                "started_at": "2026-08-05T12:00:00+00:00",
-                "ended_at": "2026-08-05T12:25:00+00:00",
-                "status": "completed",
-                "label": "late stop",
-                "tag_id": None,
-            },
+            json=_block_body(id=block_id, label="late stop"),
             headers=Headers(headers),
         )
         resp = await client.patch(
@@ -203,14 +358,7 @@ class TestPatchBlocks:
         block_id = str(uuid.uuid4())
         await client.post(
             "/blocks",
-            json={
-                "id": block_id,
-                "started_at": "2026-08-05T12:00:00+00:00",
-                "ended_at": "2026-08-05T12:25:00+00:00",
-                "status": "completed",
-                "label": "anchored",
-                "tag_id": None,
-            },
+            json=_block_body(id=block_id, label="anchored"),
             headers=Headers(headers),
         )
         resp = await client.patch(
@@ -234,14 +382,7 @@ class TestPatchBlocks:
         block_id = str(uuid.uuid4())
         await client.post(
             "/blocks",
-            json={
-                "id": block_id,
-                "started_at": "2026-08-05T12:00:00+00:00",
-                "ended_at": "2026-08-05T12:25:00+00:00",
-                "status": "completed",
-                "label": "reopen me",
-                "tag_id": None,
-            },
+            json=_block_body(id=block_id, label="reopen me"),
             headers=Headers(headers),
         )
         resp = await client.patch(
@@ -261,14 +402,7 @@ class TestPatchBlocks:
         block_id = str(uuid.uuid4())
         await client.post(
             "/blocks",
-            json={
-                "id": block_id,
-                "started_at": "2026-08-05T12:00:00+00:00",
-                "ended_at": "2026-08-05T12:25:00+00:00",
-                "status": "completed",
-                "label": "mine",
-                "tag_id": None,
-            },
+            json=_block_body(id=block_id, label="mine"),
             headers=Headers(headers),
         )
         resp = await client.patch(
@@ -287,14 +421,7 @@ class TestPatchBlocks:
         block_id = str(uuid.uuid4())
         await client.post(
             "/blocks",
-            json={
-                "id": block_id,
-                "started_at": "2026-08-05T12:00:00+00:00",
-                "ended_at": "2026-08-05T12:25:00+00:00",
-                "status": "completed",
-                "label": "status anchor",
-                "tag_id": None,
-            },
+            json=_block_body(id=block_id, label="status anchor"),
             headers=Headers(headers),
         )
         resp = await client.patch(
@@ -319,14 +446,7 @@ class TestPatchBlocks:
         block_id = str(uuid.uuid4())
         await client.post(
             "/blocks",
-            json={
-                "id": block_id,
-                "started_at": "2026-08-05T12:00:00+00:00",
-                "ended_at": "2026-08-05T12:25:00+00:00",
-                "status": "completed",
-                "label": "tz anchor",
-                "tag_id": None,
-            },
+            json=_block_body(id=block_id, label="tz anchor"),
             headers=Headers(headers),
         )
         resp = await client.patch(
@@ -335,6 +455,135 @@ class TestPatchBlocks:
             headers=Headers(headers),
         )
         assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_patch_rejects_intervals(self, client, verified_user):
+        """PATCH is envelope-only (label/tag/status/start/end): interval
+        surgery stays out of the editor contract (SCR-21)."""
+        headers, _ = await verified_user()
+
+        block_id = str(uuid.uuid4())
+        await client.post(
+            "/blocks",
+            json=_block_body(id=block_id, label="no interval edits"),
+            headers=Headers(headers),
+        )
+        resp = await client.patch(
+            f"/blocks/{block_id}",
+            json={
+                "intervals": [
+                    {
+                        "started_at": "2026-08-05T12:00:00+00:00",
+                        "ended_at": "2026-08-05T12:25:00+00:00",
+                    }
+                ]
+            },
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_patch_end_moves_the_last_interval(self, client, verified_user):
+        """Envelope end = the last segment's end, never the pause edge."""
+        headers, _ = await verified_user()
+
+        block_id = str(uuid.uuid4())
+        await client.post(
+            "/blocks",
+            json=_block_body(
+                id=block_id,
+                label="move end",
+                intervals=[
+                    {
+                        "started_at": "2026-08-05T12:00:00+00:00",
+                        "ended_at": "2026-08-05T12:12:00+00:00",
+                    },
+                    {
+                        "started_at": "2026-08-05T12:22:00+00:00",
+                        "ended_at": "2026-08-05T12:30:00+00:00",
+                    },
+                ],
+            ),
+            headers=Headers(headers),
+        )
+        resp = await client.patch(
+            f"/blocks/{block_id}",
+            json={"ended_at": "2026-08-05T12:40:00+00:00"},
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 200
+        intervals = resp.json()["intervals"]
+        # First segment untouched; only the outer end moved.
+        assert intervals[0]["ended_at"] == "2026-08-05T12:12:00Z"
+        assert intervals[1]["ended_at"] == "2026-08-05T12:40:00Z"
+
+    @pytest.mark.asyncio
+    async def test_patch_start_moves_first_interval_and_block(self, client, verified_user):
+        """The start edit keeps block.started_at on the first interval, so
+        history day-bucketing follows (invariant 7)."""
+        headers, _ = await verified_user()
+
+        block_id = str(uuid.uuid4())
+        await client.post(
+            "/blocks",
+            json=_block_body(
+                id=block_id,
+                label="move start",
+                intervals=[
+                    {
+                        "started_at": "2026-08-05T12:00:00+00:00",
+                        "ended_at": "2026-08-05T12:12:00+00:00",
+                    },
+                    {
+                        "started_at": "2026-08-05T12:22:00+00:00",
+                        "ended_at": "2026-08-05T12:30:00+00:00",
+                    },
+                ],
+            ),
+            headers=Headers(headers),
+        )
+        resp = await client.patch(
+            f"/blocks/{block_id}",
+            json={"started_at": "2026-08-05T11:55:00+00:00"},
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["started_at"] == "2026-08-05T11:55:00Z"
+        assert body["intervals"][0]["started_at"] == "2026-08-05T11:55:00Z"
+        assert body["intervals"][1]["started_at"] == "2026-08-05T12:22:00Z"
+
+    @pytest.mark.asyncio
+    async def test_patch_inverted_edit_is_422(self, client, verified_user):
+        """Moving a start past its own segment's end must fail loudly."""
+        headers, _ = await verified_user()
+
+        block_id = str(uuid.uuid4())
+        await client.post(
+            "/blocks",
+            json=_block_body(
+                id=block_id,
+                label="invert",
+                intervals=[
+                    {
+                        "started_at": "2026-08-05T12:00:00+00:00",
+                        "ended_at": "2026-08-05T12:12:00+00:00",
+                    },
+                    {
+                        "started_at": "2026-08-05T12:22:00+00:00",
+                        "ended_at": "2026-08-05T12:30:00+00:00",
+                    },
+                ],
+            ),
+            headers=Headers(headers),
+        )
+        resp = await client.patch(
+            f"/blocks/{block_id}",
+            json={"started_at": "2026-08-05T12:20:00+00:00"},
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
 
 
 class TestPathIdValidation:

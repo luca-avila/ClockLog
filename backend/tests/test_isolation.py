@@ -72,12 +72,16 @@ async def _make_tag(client: AsyncClient, headers: Headers) -> str:
 async def _make_block(client: AsyncClient, headers: Headers, tag_id: str | None = None) -> dict:
     body = {
         "id": str(uuid.uuid4()),
-        "started_at": "2026-08-05T09:00:00+00:00",
-        "ended_at": "2026-08-05T09:25:00+00:00",
         "status": "completed",
         "kind": "focus",
         "label": "b-block",
         "tag_id": tag_id,
+        "intervals": [
+            {
+                "started_at": "2026-08-05T09:00:00+00:00",
+                "ended_at": "2026-08-05T09:25:00+00:00",
+            }
+        ],
     }
     res = await client.post("/blocks", json=body, headers=headers)
     assert res.status_code == 201
@@ -158,12 +162,16 @@ class TestCrossAccountIsolation:
             "/blocks",
             json={
                 "id": str(uuid.uuid4()),
-                "started_at": "2026-08-05T09:00:00+00:00",
-                "ended_at": "2026-08-05T09:25:00+00:00",
                 "status": "completed",
                 "kind": "focus",
                 "label": "a-block",
                 "tag_id": tag_id,
+                "intervals": [
+                    {
+                        "started_at": "2026-08-05T09:00:00+00:00",
+                        "ended_at": "2026-08-05T09:25:00+00:00",
+                    }
+                ],
             },
             headers=ha,
         )

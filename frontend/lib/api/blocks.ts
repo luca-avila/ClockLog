@@ -18,14 +18,20 @@ import type { TimerState } from "@/lib/timer/engine";
 import { enqueueAndSync, type BlockPayload, type FlushResult } from "./queue";
 
 function stateToPayload(state: TimerState, endedAt: number): BlockPayload {
+  // The wire carries the engine's real segments. closeBlock() already closes
+  // the final interval before a save effect fires, but an open tail is
+  // closed here too so the payload is never wall-to-wall (pause gaps must
+  // not be counted as work).
   return {
     id: state.id,
-    started_at: new Date(state.startedAt).toISOString(),
-    ended_at: new Date(endedAt).toISOString(),
     status: state.blockStatus,
     kind: state.type,
     label: state.label ?? null,
     tag_id: state.tagId ?? null,
+    intervals: state.intervals.map((interval) => ({
+      started_at: new Date(interval.startedAt).toISOString(),
+      ended_at: new Date(interval.endedAt ?? endedAt).toISOString(),
+    })),
   };
 }
 

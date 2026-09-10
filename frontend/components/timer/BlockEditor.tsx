@@ -40,9 +40,12 @@ export interface BlockEditorProps {
  * midnight-spanning block keeps its stored times unless actually changed.
  */
 export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
-  const interval = block.intervals[0];
-  const originalStartIso = interval?.started_at ?? block.started_at;
-  const originalEndIso = interval?.ended_at ?? null;
+  // Envelope edit (SCR-21): the block starts at its first segment and ends
+  // at its last one. The pause gaps in between are never edited here.
+  const first = block.intervals[0];
+  const last = block.intervals[block.intervals.length - 1] ?? first;
+  const originalStartIso = first?.started_at ?? block.started_at;
+  const originalEndIso = last?.ended_at ?? null;
 
   const [label, setLabel] = useState(block.label ?? "");
   const [tagId, setTagId] = useState<string | null>(block.tag_id);
