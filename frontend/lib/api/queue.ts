@@ -16,30 +16,53 @@
 
 import { apiFetch, ApiError, isSignedIn } from "./client";
 
+export interface BlockIntervalPayload {
+  started_at: string;
+  ended_at: string;
+}
+
 export interface BlockPayload {
   id: string;
-  started_at: string;
-  ended_at: string | null;
   status: "completed" | "aborted";
   kind: "focus" | "short_break" | "long_break";
   label: string | null;
   tag_id: string | null;
+  // A finished block always carries at least one closed interval. There is
+  // deliberately no envelope fallback: the pre-interval wire shape must be
+  // dropped, not re-sent (no migration, single-user pre-launch).
+  intervals: BlockIntervalPayload[];
 }
 
 const QUEUE_KEY = "clocklog_block_queue";
 const RETRY_MS = 30_000;
+
+function isIntervalPayload(v: unknown): v is BlockIntervalPayload {
+  if (typeof v !== "object" || v === null) return false;
+  const iv = v as Record<string, unknown>;
+  if (typeof iv.started_at !== "string" || typeof iv.ended_at !== "string") return false;
+  const start = Date.parse(iv.started_at);
+  const end = Date.parse(iv.ended_at);
+  // Closed and ordered; a stale envelope-shaped entry never passes. One notch
+  // looser than the server's strict `end > start`: a zero-length tail can only
+  // come from resume+stop in the same millisecond, and letting it reach the
+  // server turns that into a *visible* drop (flushQueue counts it and fires
+  // onBlocksDropped) instead of the silent filtering readQueue does for
+  // malformed and legacy shapes (invariant 9).
+  return Number.isFinite(start) && Number.isFinite(end) && end >= start;
+}
 
 function isBlockPayload(v: unknown): v is BlockPayload {
   if (typeof v !== "object" || v === null) return false;
   const p = v as Record<string, unknown>;
   return (
     typeof p.id === "string" && p.id.length > 0 &&
-    typeof p.started_at === "string" &&
-    (p.ended_at === null || typeof p.ended_at === "string") &&
     (p.status === "completed" || p.status === "aborted") &&
     (p.kind === "focus" || p.kind === "short_break" || p.kind === "long_break") &&
     (p.label === null || typeof p.label === "string") &&
-    (p.tag_id === null || typeof p.tag_id === "string")
+    (p.tag_id === null || typeof p.tag_id === "string") &&
+    Array.isArray(p.intervals) &&
+    p.intervals.length >= 1 &&
+    p.intervals.every(isIntervalPayload)
   );
 }
 
@@ -82,9 +105,10 @@ export function readQueue(
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    // Malformed entries are dropped silently here, as readQueue is called on
-    // every enqueue and every flush — firing onBlocksDropped from a read path
-    // would double-report. Only the flush path reports drops.
+    // Malformed entries — including the pre-interval envelope shape — are
+    // dropped silently here: no toast and no dropped count. readQueue runs on
+    // every enqueue and every flush, so firing onBlocksDropped from a read
+    // path would double-report; only the flush path reports drops.
     return parsed.filter(isBlockPayload);
   } catch {
     // Corrupt queue is worse than an empty one — reset rather than block sync.

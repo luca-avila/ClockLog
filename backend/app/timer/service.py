@@ -25,7 +25,7 @@ from sqlalchemy.orm import selectinload
 from app.shared.tag.models import Tag
 from app.shared.tag.service import assert_tag_owned
 from app.timer.models import Block, BlockInterval
-from app.timer.schemas import BlockCreate, BlockUpdate, TagSummary
+from app.timer.schemas import BlockCreate, BlockIntervalIn, BlockUpdate, TagSummary
 
 
 def compute_duration(block: Block) -> timedelta:
@@ -54,6 +54,61 @@ def validate_history_range(from_dt: datetime, to_dt: datetime) -> None:
         )
 
 
+def _validate_create_intervals(intervals: list[BlockIntervalIn]) -> None:
+    """Reject payloads the engine cannot have produced (decision table).
+
+    Closed, strictly positive, ordered, non-overlapping. Empty lists and naive
+    datetimes 422 in Pydantic before this runs.
+    """
+    previous_end: datetime | None = None
+    for interval in intervals:
+        if interval.ended_at <= interval.started_at:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "INVALID_INTERVAL",
+                    "message": "each interval's ended_at must be after its started_at",
+                },
+            )
+        if previous_end is not None and interval.started_at < previous_end:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "INVALID_INTERVAL",
+                    "message": "intervals must be ordered and non-overlapping",
+                },
+            )
+        previous_end = interval.ended_at
+
+
+def _validate_stored_intervals(intervals: list[BlockInterval]) -> None:
+    """Re-check shape and order after an envelope edit moved an outer edge.
+
+    Same rule as create (`end > start`): an edit must not be able to persist a
+    zero-length segment that POST /blocks would reject. An open last interval
+    (`ended_at is None`) stays legal — only its end was cleared.
+    """
+    previous_end: datetime | None = None
+    for interval in sorted(intervals, key=lambda iv: iv.started_at):
+        if interval.ended_at is not None and interval.ended_at <= interval.started_at:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "INVALID_INTERVAL",
+                    "message": "ended_at must be after started_at",
+                },
+            )
+        if previous_end is not None and interval.started_at < previous_end:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "INVALID_INTERVAL",
+                    "message": "intervals overlap after this edit",
+                },
+            )
+        previous_end = interval.ended_at
+
+
 async def create_block(db: AsyncSession, data: BlockCreate, user_id: uuid.UUID) -> Block:
     # A tag_id arriving from a client is not trusted (multi-user boundary).
     await assert_tag_owned(db, data.tag_id, user_id)
@@ -67,11 +122,7 @@ async def create_block(db: AsyncSession, data: BlockCreate, user_id: uuid.UUID) 
             )
         return block
 
-    interval = BlockInterval(
-        id=uuid.uuid4(),
-        started_at=data.started_at,
-        ended_at=data.ended_at,
-    )
+    _validate_create_intervals(data.intervals)
     block = Block(
         id=data.id,
         user_id=user_id,
@@ -79,8 +130,12 @@ async def create_block(db: AsyncSession, data: BlockCreate, user_id: uuid.UUID) 
         kind=data.kind,
         label=data.label,
         tag_id=data.tag_id,
-        started_at=data.started_at,
-        intervals=[interval],
+        # Invariant 7: the day bucket follows the first interval's start.
+        started_at=data.intervals[0].started_at,
+        intervals=[
+            BlockInterval(id=uuid.uuid4(), started_at=iv.started_at, ended_at=iv.ended_at)
+            for iv in data.intervals
+        ],
     )
     db.add(block)
     return block
@@ -212,25 +267,18 @@ async def update_block(
                 status_code=400,
                 detail={"code": "NO_INTERVALS", "message": "Block has no intervals"},
             )
-        interval = block.intervals[0]
+        ordered = sorted(block.intervals, key=lambda iv: iv.started_at)
         if "started_at" in fields:
-            interval.started_at = data.started_at
             # Block.started_at is the indexed column every history query and
             # the day bucketing run on (invariant 7) — keep it in sync or the
             # block silently stays on its old day after an edit.
+            ordered[0].started_at = data.started_at
             block.started_at = data.started_at
         if "ended_at" in fields:
-            # Cross-field and cross-row: the schema cannot see the stored
-            # start, so this one rule stays in the service.
-            if data.ended_at is not None and data.ended_at < interval.started_at:
-                raise HTTPException(
-                    status_code=422,
-                    detail={
-                        "code": "INVALID_INTERVAL",
-                        "message": "ended_at must be after started_at",
-                    },
-                )
-            interval.ended_at = data.ended_at
+            # Envelope-only edit: the start moves the first interval's edge,
+            # the end the last one's. Pause gaps inside are never rewritten.
+            ordered[-1].ended_at = data.ended_at
+        _validate_stored_intervals(block.intervals)
 
     return block
 

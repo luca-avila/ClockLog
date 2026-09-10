@@ -29,12 +29,16 @@ import { ApiError } from "@/lib/api/client";
 function payload(id: string, label = "Work"): BlockPayload {
   return {
     id,
-    started_at: "2026-08-15T10:00:00.000Z",
-    ended_at: "2026-08-15T10:25:00.000Z",
     status: "completed",
     kind: "focus",
     label,
     tag_id: null,
+    intervals: [
+      {
+        started_at: "2026-08-15T10:00:00.000Z",
+        ended_at: "2026-08-15T10:25:00.000Z",
+      },
+    ],
   };
 }
 
@@ -201,10 +205,14 @@ describe("offline queue", () => {
   it("filters out a stored entry missing status/kind", () => {
     const incomplete = {
       id: "inc-1",
-      started_at: "2026-08-15T10:00:00.000Z",
-      ended_at: null,
       label: null,
       tag_id: null,
+      intervals: [
+        {
+          started_at: "2026-08-15T10:00:00.000Z",
+          ended_at: "2026-08-15T10:25:00.000Z",
+        },
+      ],
     };
     localStorage.setItem("clocklog_block_queue", JSON.stringify([incomplete]));
     expect(readQueue(localStorage)).toHaveLength(0);
@@ -213,14 +221,47 @@ describe("offline queue", () => {
   it("filters out a stored entry with a bogus kind", () => {
     const bogus = {
       id: "bogus-1",
-      started_at: "2026-08-15T10:00:00.000Z",
-      ended_at: null,
       status: "completed",
       kind: "siesta",
       label: null,
       tag_id: null,
+      intervals: [
+        {
+          started_at: "2026-08-15T10:00:00.000Z",
+          ended_at: "2026-08-15T10:25:00.000Z",
+        },
+      ],
     };
     localStorage.setItem("clocklog_block_queue", JSON.stringify([bogus]));
+    expect(readQueue(localStorage)).toHaveLength(0);
+  });
+
+  it("filters out a pre-interval (envelope-only) stored entry", () => {
+    // Written by a build predating the intervals wire: no migration, the
+    // payload is dropped rather than re-sent as one wall-to-wall interval.
+    const legacy = {
+      id: "legacy-1",
+      started_at: "2026-08-15T10:00:00.000Z",
+      ended_at: "2026-08-15T10:25:00.000Z",
+      status: "completed",
+      kind: "focus",
+      label: "old queue",
+      tag_id: null,
+    };
+    localStorage.setItem("clocklog_block_queue", JSON.stringify([legacy]));
+    expect(readQueue(localStorage)).toHaveLength(0);
+  });
+
+  it("filters out an entry whose interval is open", () => {
+    const open = {
+      id: "open-1",
+      status: "completed",
+      kind: "focus",
+      label: null,
+      tag_id: null,
+      intervals: [{ started_at: "2026-08-15T10:00:00.000Z", ended_at: null }],
+    };
+    localStorage.setItem("clocklog_block_queue", JSON.stringify([open]));
     expect(readQueue(localStorage)).toHaveLength(0);
   });
 
@@ -235,5 +276,44 @@ describe("offline queue", () => {
     expect(post).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ id: "valid-1" })
     );
+  });
+
+  it("keeps a zero-length interval locally, then drops it visibly on 422", async () => {
+    // Deliberate client/server asymmetry: readQueue tolerates `start == end`
+    // (the engine can only emit one from resume+stop in the same millisecond),
+    // the stricter POST rejects it, and the flush path surfaces the loss
+    // instead of discarding the block silently (invariant 9).
+    const zeroLength: BlockPayload = {
+      id: "zero-1",
+      status: "completed",
+      kind: "focus",
+      label: null,
+      tag_id: null,
+      intervals: [
+        {
+          started_at: "2026-08-15T10:00:00.000Z",
+          ended_at: "2026-08-15T10:00:00.000Z",
+        },
+      ],
+    };
+    enqueueBlock(zeroLength, localStorage);
+    expect(readQueue(localStorage)).toHaveLength(1);
+
+    const post = vi
+      .fn<(p: BlockPayload) => Promise<void>>()
+      .mockRejectedValue(new ApiError(422, "INVALID_INTERVAL", "zero-length"));
+    const dropped = vi.fn();
+    const off = onBlocksDropped(dropped);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const r = await flushQueue(makeDeps(post));
+
+    expect(r).toMatchObject({ synced: 0, dropped: 1, pending: 0 });
+    expect(readQueue(localStorage)).toHaveLength(0);
+    expect(dropped).toHaveBeenCalledExactlyOnceWith(1);
+    expect(warn).toHaveBeenCalled();
+
+    warn.mockRestore();
+    off();
   });
 });

@@ -18,6 +18,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,15 +36,21 @@ def make_utc(*, hour=12, minute=0) -> datetime:
 
 class TestBlockModel:
     async def test_rejects_naive_datetime_in_schema(self):
-        """BlockCreate.started_at / ended_at must be timezone-aware UTC."""
+        """BlockCreate intervals must be timezone-aware UTC."""
         naive = datetime(2026, 8, 5, 12, 0)
         with pytest.raises(ValueError):
             BlockCreate(
                 id=uuid.uuid4(),
-                started_at=naive,
-                ended_at=naive,
                 status="completed",
+                intervals=[
+                    {"started_at": naive, "ended_at": naive},
+                ],
             )
+
+    def test_rejects_empty_intervals_in_schema(self):
+        """A finished block always carries at least one closed interval."""
+        with pytest.raises(ValueError):
+            BlockCreate(id=uuid.uuid4(), status="completed", intervals=[])
 
     def test_no_duration_column(self):
         """Duration is derived, never stored (invariant 6)."""
@@ -169,11 +176,15 @@ class TestService:
 
         data = BlockCreate(
             id=block_id,
-            started_at=make_utc(hour=9),
-            ended_at=make_utc(hour=9, minute=25),
             status="completed",
             label="debug JWT refresh",
             tag_id=None,
+            intervals=[
+                {
+                    "started_at": make_utc(hour=9),
+                    "ended_at": make_utc(hour=9, minute=25),
+                }
+            ],
         )
         await create_block(db_session, data, user.id)
         await db_session.commit()
@@ -182,6 +193,8 @@ class TestService:
         assert retrieved is not None
         assert retrieved.label == "debug JWT refresh"
         assert retrieved.status == "completed"
+        # Envelope is derived: the block starts where its first interval does.
+        assert retrieved.started_at == make_utc(hour=9)
         # had one interval (from started_at to ended_at)
         assert len(retrieved.intervals) == 1
 
@@ -191,11 +204,15 @@ class TestService:
 
         data = BlockCreate(
             id=block_id,
-            started_at=make_utc(hour=9),
-            ended_at=make_utc(hour=9, minute=25),
             status="completed",
             label="test idempotent",
             tag_id=None,
+            intervals=[
+                {
+                    "started_at": make_utc(hour=9),
+                    "ended_at": make_utc(hour=9, minute=25),
+                }
+            ],
         )
         block1 = await create_block(db_session, data, user.id)
         await db_session.commit()
@@ -211,17 +228,64 @@ class TestService:
         rows = result.scalars().all()
         assert len(rows) == 1
 
+    async def test_idempotent_retry_with_different_intervals_returns_original(
+        self, db_session: AsyncSession
+    ):
+        """A re-POST (offline queue retry) must never become a write."""
+        user = await _create_test_user(db_session)
+        block_id = uuid.uuid4()
+
+        original = BlockCreate(
+            id=block_id,
+            status="completed",
+            label="retried",
+            tag_id=None,
+            intervals=[
+                {"started_at": make_utc(hour=9), "ended_at": make_utc(hour=9, minute=12)},
+                {
+                    "started_at": make_utc(hour=9, minute=22),
+                    "ended_at": make_utc(hour=9, minute=30),
+                },
+            ],
+        )
+        await create_block(db_session, original, user.id)
+        await db_session.commit()
+
+        # Same client id, a different (valid but wrong) interval list.
+        retry = BlockCreate(
+            id=block_id,
+            status="completed",
+            label="retried",
+            tag_id=None,
+            intervals=[
+                {"started_at": make_utc(hour=10), "ended_at": make_utc(hour=10, minute=25)},
+            ],
+        )
+        returned = await create_block(db_session, retry, user.id)
+        await db_session.commit()
+
+        assert returned.id == block_id
+        stored = await get_block_by_id(db_session, block_id, user.id)
+        assert stored is not None
+        # Original list untouched: one block, two intervals, 09:00 start.
+        assert len(stored.intervals) == 2
+        assert stored.started_at == make_utc(hour=9)
+
     async def test_aborted_block_keeps_real_elapsed_time(self, db_session):
         user = await _create_test_user(db_session)
         block_id = uuid.uuid4()
 
         data = BlockCreate(
             id=block_id,
-            started_at=make_utc(hour=9),
-            ended_at=make_utc(hour=9, minute=12),  # aborted after 12 min
             status="aborted",
             label="client email",
             tag_id=None,
+            intervals=[
+                {
+                    "started_at": make_utc(hour=9),
+                    "ended_at": make_utc(hour=9, minute=12),  # aborted after 12 min
+                }
+            ],
         )
         block = await create_block(db_session, data, user.id)
         await db_session.commit()
@@ -229,6 +293,107 @@ class TestService:
         assert block.status == "aborted"
         duration = compute_duration(block)
         assert duration == timedelta(minutes=12)
+
+    async def test_create_persists_all_intervals_and_excludes_pause(self, db_session):
+        """The wire now carries N intervals: create must persist them all."""
+        user = await _create_test_user(db_session)
+        block_id = uuid.uuid4()
+
+        data = BlockCreate(
+            id=block_id,
+            status="completed",
+            label="two segments",
+            tag_id=None,
+            intervals=[
+                {"started_at": make_utc(hour=9), "ended_at": make_utc(hour=9, minute=12)},
+                # 10-minute pause gap between the segments.
+                {
+                    "started_at": make_utc(hour=9, minute=22),
+                    "ended_at": make_utc(hour=9, minute=30),
+                },
+            ],
+        )
+        block = await create_block(db_session, data, user.id)
+        await db_session.commit()
+
+        assert block.started_at == make_utc(hour=9)
+        assert len(block.intervals) == 2
+        # 12 min + 8 min = 20 min, not the 30 wall-clock minutes.
+        assert compute_duration(block) == timedelta(minutes=20)
+
+
+class TestCreateValidation:
+    async def test_rejects_inverted_interval(self, db_session: AsyncSession):
+        user = await _create_test_user(db_session)
+        data = BlockCreate(
+            id=uuid.uuid4(),
+            status="completed",
+            label=None,
+            tag_id=None,
+            intervals=[
+                {"started_at": make_utc(hour=9, minute=15), "ended_at": make_utc(hour=9)},
+            ],
+        )
+        with pytest.raises(HTTPException) as exc:
+            await create_block(db_session, data, user.id)
+        assert exc.value.status_code == 422
+        assert exc.value.detail["code"] == "INVALID_INTERVAL"
+
+    async def test_rejects_zero_length_interval(self, db_session: AsyncSession):
+        user = await _create_test_user(db_session)
+        data = BlockCreate(
+            id=uuid.uuid4(),
+            status="completed",
+            label=None,
+            tag_id=None,
+            intervals=[
+                {"started_at": make_utc(hour=9), "ended_at": make_utc(hour=9)},
+            ],
+        )
+        with pytest.raises(HTTPException) as exc:
+            await create_block(db_session, data, user.id)
+        assert exc.value.status_code == 422
+        assert exc.value.detail["code"] == "INVALID_INTERVAL"
+
+    async def test_rejects_overlapping_intervals(self, db_session: AsyncSession):
+        user = await _create_test_user(db_session)
+        data = BlockCreate(
+            id=uuid.uuid4(),
+            status="completed",
+            label=None,
+            tag_id=None,
+            intervals=[
+                {"started_at": make_utc(hour=9), "ended_at": make_utc(hour=9, minute=15)},
+                {
+                    "started_at": make_utc(hour=9, minute=10),
+                    "ended_at": make_utc(hour=9, minute=25),
+                },
+            ],
+        )
+        with pytest.raises(HTTPException) as exc:
+            await create_block(db_session, data, user.id)
+        assert exc.value.status_code == 422
+        assert exc.value.detail["code"] == "INVALID_INTERVAL"
+
+    async def test_rejects_unsorted_intervals(self, db_session: AsyncSession):
+        user = await _create_test_user(db_session)
+        data = BlockCreate(
+            id=uuid.uuid4(),
+            status="completed",
+            label=None,
+            tag_id=None,
+            intervals=[
+                {
+                    "started_at": make_utc(hour=9, minute=22),
+                    "ended_at": make_utc(hour=9, minute=30),
+                },
+                {"started_at": make_utc(hour=9), "ended_at": make_utc(hour=9, minute=12)},
+            ],
+        )
+        with pytest.raises(HTTPException) as exc:
+            await create_block(db_session, data, user.id)
+        assert exc.value.status_code == 422
+        assert exc.value.detail["code"] == "INVALID_INTERVAL"
 
 
 class TestUpdateBlock:
@@ -242,11 +407,15 @@ class TestUpdateBlock:
         user = await _create_test_user(db_session)
         data = BlockCreate(
             id=uuid.uuid4(),
-            started_at=datetime(2026, 8, 5, 23, 50, tzinfo=UTC),
-            ended_at=datetime(2026, 8, 6, 0, 10, tzinfo=UTC),
             status="completed",
             label="late block",
             tag_id=None,
+            intervals=[
+                {
+                    "started_at": datetime(2026, 8, 5, 23, 50, tzinfo=UTC),
+                    "ended_at": datetime(2026, 8, 6, 0, 30, tzinfo=UTC),
+                }
+            ],
         )
         block = await create_block(db_session, data, user.id)
         await db_session.commit()
@@ -267,6 +436,51 @@ class TestUpdateBlock:
         assert moved is not None
         assert moved.started_at.date() == date(2026, 8, 6)
         assert moved.intervals[0].started_at == moved.started_at
+        # The segment stays strictly positive: PATCH applies the same
+        # `end > start` rule as POST, so the moved start may not swallow the end.
+        assert moved.intervals[0].ended_at == datetime(2026, 8, 6, 0, 30, tzinfo=UTC)
+
+    async def test_zero_length_time_edit_is_rejected(self, db_session):
+        """A PATCH may not persist what a POST would reject: collapsing a
+        segment onto `start == end` leaves a zero-length interval whose
+        duration is not a real elapsed time (invariant 6)."""
+        from app.timer.service import update_block
+
+        user = await _create_test_user(db_session)
+        user_id = user.id
+        data = BlockCreate(
+            id=uuid.uuid4(),
+            status="completed",
+            label="collapse me",
+            tag_id=None,
+            intervals=[
+                {
+                    "started_at": make_utc(hour=9),
+                    "ended_at": make_utc(hour=9, minute=25),
+                }
+            ],
+        )
+        block = await create_block(db_session, data, user_id)
+        await db_session.commit()
+        block_id = block.id
+
+        with pytest.raises(HTTPException) as exc:
+            await update_block(
+                db_session,
+                block_id,
+                user_id,
+                BlockUpdate(started_at=make_utc(hour=9, minute=25)),
+            )
+        assert exc.value.status_code == 422
+        assert exc.value.detail["code"] == "INVALID_INTERVAL"
+
+        # Nothing was written: the stored block keeps its original start.
+        # Ids are captured before the rollback — afterwards the ORM instances
+        # are expired and even `block.id` would lazy-load outside a greenlet.
+        await db_session.rollback()
+        unchanged = await get_block_by_id(db_session, block_id, user_id)
+        assert unchanged is not None
+        assert unchanged.started_at == make_utc(hour=9)
 
 
 async def _create_test_user(db_session: AsyncSession) -> User:
