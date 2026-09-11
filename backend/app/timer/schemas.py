@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 class BlockIntervalSchema(BaseModel):
     id: uuid.UUID
     started_at: datetime
-    ended_at: datetime | None
+    ended_at: datetime
 
     model_config = {"from_attributes": True}
 

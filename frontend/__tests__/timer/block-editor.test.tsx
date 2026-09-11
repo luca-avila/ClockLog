@@ -108,30 +108,4 @@ describe("BlockEditor end-date validation", () => {
 
     expect(updateBlock).not.toHaveBeenCalled();
   });
-
-  it("legacy open block can be closed", async () => {
-    const block = makeBlock({
-      intervals: [
-        {
-          id: "iv-1",
-          started_at: START_ISO,
-          ended_at: null,
-        },
-      ],
-    });
-    const { container } = render(block);
-
-    // A legacy block has no end (empty input); SAVE stays blocked until one is
-    // entered, then the patch closes the block with a real instant.
-    const endInput = container.querySelector("#block-end") as HTMLInputElement;
-    act(() => setNativeValue(endInput, "09:30"));
-
-    const saveBtn = container.querySelector('button[aria-label="SAVE"]') as HTMLButtonElement;
-    await act(async () => saveBtn.click());
-
-    expect(updateBlock).toHaveBeenCalledTimes(1);
-    const patch = updateBlock.mock.calls[0][1];
-    expect(typeof patch.ended_at).toBe("string");
-    expect(new Date(patch.ended_at).getTime()).toBeGreaterThan(new Date(START_ISO).getTime());
-  });
 });

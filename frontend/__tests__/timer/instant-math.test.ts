@@ -77,16 +77,6 @@ describe("durationSeconds", () => {
     ).toBe(2100);
   });
 
-  it("an open interval (ended_at null) contributes 0", () => {
-    expect(
-      durationSeconds([
-        { started_at: "2026-07-15T10:00:00Z", ended_at: "2026-07-15T10:25:00Z" },
-        { started_at: "2026-07-15T11:00:00Z", ended_at: null },
-      ])
-    ).toBe(1500);
-    expect(durationSeconds([{ started_at: "2026-07-15T10:00:00Z", ended_at: null }])).toBe(0);
-  });
-
   it("an empty list is 0", () => {
     expect(durationSeconds([])).toBe(0);
   });

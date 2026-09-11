@@ -333,10 +333,9 @@ Interval lists are **not** editable — `intervals` is rejected like any unknown
   hit the same code.
 - `400 NO_INTERVALS`, `404 BLOCK_NOT_FOUND`.
 
-> `block_interval.ended_at` stays nullable in the schema for compatibility, but the
-> service rejects any open interval on a time edit. A pre-existing open row (if one
-> exists) is closed from SCR-21 by sending a valid `ended_at`; there is no backfill
-> and no column migration.
+> `block_interval.ended_at` is NOT NULL: a stored block is always closed
+> (invariants 2 and 3), so there is no open-interval state to read back and no
+> legacy path. `ended_at: null` on the wire is `422 INVALID_INTERVAL`.
 
 ### `DELETE /blocks/{block_id}` → `204`
 

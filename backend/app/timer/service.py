@@ -29,11 +29,10 @@ from app.timer.schemas import BlockCreate, BlockIntervalIn, BlockUpdate, TagSumm
 
 
 def compute_duration(block: Block) -> timedelta:
-    """Sum the duration of all completed intervals. Paused gaps excluded."""
+    """Sum the duration of all intervals. Paused gaps excluded."""
     total = timedelta()
     for interval in block.intervals:
-        if interval.ended_at is not None:
-            total += interval.ended_at - interval.started_at
+        total += interval.ended_at - interval.started_at
     return total
 
 
@@ -84,20 +83,12 @@ def _validate_create_intervals(intervals: list[BlockIntervalIn]) -> None:
 def _validate_stored_intervals(intervals: list[BlockInterval]) -> None:
     """Re-check shape and order after an envelope edit moved an outer edge.
 
-    Same rule as create (`end > start`), plus closed: a stored block is always
-    finished (invariants 2 and 3), so an edit must not be able to persist an
-    open or zero-length segment that POST /blocks would reject.
+    Same rule as create (`end > start`, ordered, non-overlapping). The column
+    is NOT NULL so every stored interval is closed by construction; an edit
+    that inverts or overlaps a segment must 422 like POST /blocks would.
     """
     previous_end: datetime | None = None
     for interval in sorted(intervals, key=lambda iv: iv.started_at):
-        if interval.ended_at is None:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "code": "INVALID_INTERVAL",
-                    "message": "ended_at cannot be cleared; a stored block is always closed",
-                },
-            )
         if interval.ended_at <= interval.started_at:
             raise HTTPException(
                 status_code=422,

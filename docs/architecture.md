@@ -121,12 +121,13 @@ with the account. Created lazily on first `GET /settings`.
 (≤500) · `started_at` (tz-aware, indexed).
 Composite index `ix_block_user_id_started_at` — every history query goes through it.
 
-`block_interval`: `id` · `block_id` · `started_at` · `ended_at?`. One row per
+`block_interval`: `id` · `block_id` · `started_at` · `ended_at` (NOT NULL —
+a stored block is always closed, invariants 2 and 3). One row per
 run segment; pausing closes a row and resuming opens a new one.
 
-**Duration is never stored.** It is the sum of closed intervals
+**Duration is never stored.** It is the sum of the intervals
 (`timer/service.py::compute_duration`), so paused time is excluded and a timeline can
-always be reconstructed. An open interval contributes zero.
+always be reconstructed.
 
 ### `entry` (plan)
 `id` · `user_id` · `tag_id?` · `name` (≤200) · `date` (**naive `Date`**) · `all_day` ·

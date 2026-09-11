@@ -45,21 +45,18 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
   const first = block.intervals[0];
   const last = block.intervals[block.intervals.length - 1] ?? first;
   const originalStartIso = first?.started_at ?? block.started_at;
-  const originalEndIso = last?.ended_at ?? null;
+  const originalEndIso = last?.ended_at ?? block.started_at;
 
   const [label, setLabel] = useState(block.label ?? "");
   const [tagId, setTagId] = useState<string | null>(block.tag_id);
   const [status, setStatus] = useState<BlockData["status"]>(block.status);
   const [start, setStart] = useState(() => formatClock(originalStartIso));
-  const [end, setEnd] = useState(() =>
-    originalEndIso ? formatClock(originalEndIso) : ""
-  );
+  const [end, setEnd] = useState(() => formatClock(originalEndIso));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // A stored block is always closed (invariants 2 and 3), so the end is
-  // mandatory — including for a legacy open block, which SCR-21 is the only
-  // place to close.
+  // mandatory.
   const endRequired = end.length === 0;
 
   async function handleSave() {
@@ -79,15 +76,13 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
     // end on the next local day, which an untouched time input would
     // otherwise flatten back onto the start's day.
     const startDirty = start !== formatClock(originalStartIso);
-    // A legacy open block has no end to compare against, so its end is always
-    // sent (anchored to the start's local day) and closes the block.
-    const endDirty = originalEndIso === null || end !== formatClock(originalEndIso);
+    const endDirty = end !== formatClock(originalEndIso);
     if (startDirty) payload.started_at = withLocalTime(originalStartIso, start);
     if (endDirty) {
-      payload.ended_at = withLocalTime(originalEndIso ?? originalStartIso, end);
+      payload.ended_at = withLocalTime(originalEndIso, end);
     }
     const newStart = new Date(payload.started_at ?? originalStartIso);
-    const newEnd = new Date(payload.ended_at ?? originalEndIso ?? originalStartIso);
+    const newEnd = new Date(payload.ended_at ?? originalEndIso);
     if (newEnd <= newStart) {
       setError("End must be after start");
       return;

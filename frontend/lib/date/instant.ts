@@ -22,7 +22,7 @@
  *  this module never imports lib/api. */
 export interface IntervalLike {
   started_at: string;
-  ended_at: string | null;
+  ended_at: string;
 }
 
 /** The UTC instants bounding the local calendar day containing `date`.
@@ -37,16 +37,14 @@ export function localDayRange(date: Date): { from: string; to: string } {
   return { from: from.toISOString().slice(0, -5) + "Z", to: to.toISOString().slice(0, -5) + "Z" };
 }
 
-/** Summed seconds of closed intervals. An open interval contributes 0 — a
- *  defensive read of a legacy row only: since the SCR-21 fix a persisted
- *  interval is always closed, so new data never takes the 0 path. */
+/** Summed seconds of closed intervals. A stored block is always closed
+ *  (invariants 2 and 3), so every interval carries a real end. */
 export function durationSeconds(intervals: readonly IntervalLike[]): number {
-  return intervals.reduce((sum, iv) => {
-    if (iv.ended_at) {
-      return sum + (new Date(iv.ended_at).getTime() - new Date(iv.started_at).getTime()) / 1000;
-    }
-    return sum;
-  }, 0);
+  return intervals.reduce(
+    (sum, iv) =>
+      sum + (new Date(iv.ended_at).getTime() - new Date(iv.started_at).getTime()) / 1000,
+    0
+  );
 }
 
 /** Local wall-clock "HH:MM" for an instant. */

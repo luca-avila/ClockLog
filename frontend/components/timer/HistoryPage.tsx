@@ -62,11 +62,8 @@ function blockStart(b: BlockData) {
   return b.intervals[0]?.started_at || b.started_at;
 }
 
-function blockEnd(b: BlockData): string | null {
-  for (let i = b.intervals.length - 1; i >= 0; i--) {
-    if (b.intervals[i].ended_at) return b.intervals[i].ended_at;
-  }
-  return null;
+function blockEnd(b: BlockData): string {
+  return b.intervals[b.intervals.length - 1].ended_at;
 }
 
 export default function HistoryPage() {
