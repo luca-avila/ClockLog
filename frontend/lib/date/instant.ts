@@ -74,7 +74,9 @@ export function withLocalTime(iso: string, hhmm: string): string {
 
 /** "MM:SS" countdown from a millisecond duration. */
 export function formatCountdown(ms: number): string {
-  const s = Math.floor(ms / 1000);
+  // A countdown never owes negative time: clamp so a stale clock can only
+  // ever read 00:00, never "-1:-1".
+  const s = Math.floor(Math.max(0, ms) / 1000);
   const m = Math.floor(s / 60);
   return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }

@@ -286,8 +286,21 @@ export default function TimerScreen() {
   // closure; transition calls clock.now()/clock.uuid() internally. The reducer
   // is not literally deterministic under a dev double-invoke, but the discarded
   // first result is thrown away with its effects, so this is benign.
+  //
+  // One `t` seeds both the render clock and the engine, so START/RESUME cannot
+  // paint a fresh `startedAt` against a stale `now` and flash a negative
+  // countdown for a frame before the next tick lands.
   const dispatch = useCallback(
-    (event: TimerEvent) => rawDispatch({ kind: "event", event, settings, clock: browserClock }),
+    (event: TimerEvent) => {
+      const t = browserClock.now();
+      setNow(t);
+      rawDispatch({
+        kind: "event",
+        event,
+        settings,
+        clock: { now: () => t, uuid: browserClock.uuid },
+      });
+    },
     [settings],
   );
 
@@ -333,6 +346,10 @@ export default function TimerScreen() {
   const currentElapsed = machine.timer
     ? elapsed(machine.timer.startedAt, now, machine.timer.intervals)
     : 0;
+  // Belt to the single-timestamp fix above: clock skew or a stale `now` must
+  // never paint time owed. The state keeps the raw value; only the display
+  // clamps.
+  const displayMs = Math.max(0, currentElapsed);
   const targetDuration = machine.timer
     ? machine.timer.targetMs
     : 0;
@@ -405,9 +422,9 @@ export default function TimerScreen() {
   const dialValue = machine.timer
     ? isEnded
       ? targetDuration
-      : currentElapsed
+      : displayMs
     : idleDuration;
-  const fraction = machine.timer && dialTotal > 0 ? currentElapsed / dialTotal : 0;
+  const fraction = machine.timer && dialTotal > 0 ? displayMs / dialTotal : 0;
 
   // Same wrapper as every painted state, so nothing reflows when they arrive.
   const shell = (children: React.ReactNode) => (

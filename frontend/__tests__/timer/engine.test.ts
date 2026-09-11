@@ -28,6 +28,7 @@ import {
   transition,
   type ClockDeps,
 } from "@/lib/timer/engine";
+import { formatCountdown } from "@/lib/date/instant";
 
 const STORAGE_KEY = "clocklog_clock";
 
@@ -1212,5 +1213,66 @@ describe("transition — purity", () => {
     const second = transition(first.state, { kind: "tick" }, clock, settings, 4, true);
     expect(second.state).toBeNull();
     expect(second.effects).toHaveLength(0);
+  });
+});
+
+// ─── race: one timestamp for render + engine ───────────────────────
+//
+// The component's `dispatch` captures a single `t` and hands the engine a
+// fixed clock whose `now()` returns that same `t`, so the first frame after
+// START/RESUME derives elapsed against the same instant instead of a fresh
+// `startedAt` measured against a stale render `now`.
+describe("start/resume single-clock", () => {
+  it("derives elapsed === 0 on the first frame after start", () => {
+    const t = 1_700_000_000_000;
+    const clock: ClockDeps = { now: () => t, uuid: () => "u" };
+    // Mirrors TimerScreen's buildStartEvent, which is not exported.
+    const result = transition(
+      null,
+      { kind: "start", type: "focus", tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    expect(result.state).not.toBeNull();
+    expect(elapsed(result.state!.startedAt, t, result.state!.intervals)).toBe(0);
+  });
+
+  it("does not let the fresh resume interval pull elapsed backward", () => {
+    const start = 1_700_000_000_000;
+    let t = start;
+    const clock: ClockDeps = { now: () => t, uuid: () => "u" };
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    t = start + 60_000;
+    const paused = transition(started.state, { kind: "pause" }, clock, settings, 0, false);
+    const elapsedAtPause = elapsed(paused.state!.startedAt, t, paused.state!.intervals);
+
+    t = start + 120_000;
+    const resumed = transition(paused.state, { kind: "resume" }, clock, settings, 0, false);
+    const last = resumed.state!.intervals[resumed.state!.intervals.length - 1];
+
+    // Render `now` and the new interval's start are the same instant; the open
+    // interval contributes 0, so the first frame matches the paused reading
+    // instead of jumping backward.
+    expect(last.endedAt).toBeUndefined();
+    expect(t - last.startedAt).toBe(0);
+    expect(elapsed(resumed.state!.startedAt, t, resumed.state!.intervals)).toBe(
+      elapsedAtPause
+    );
+  });
+});
+
+describe("formatCountdown clamps negatives", () => {
+  it("renders 00:00 for negative durations", () => {
+    expect(formatCountdown(-5)).toBe("00:00");
+    expect(formatCountdown(-60_000)).toBe("00:00");
   });
 });
