@@ -580,7 +580,7 @@ describe("transition — pause and resume", () => {
 });
 
 describe("transition — stop", () => {
-  it("aborts a focus block, alerts with nextBreak, and advances cycle", () => {
+  it("opens the label sheet and defers save + cycle to labelSave", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
@@ -592,13 +592,81 @@ describe("transition — stop", () => {
     );
     clock.advance(5000);
     const stopped = transition(started.state, { kind: "stop" }, clock, settings, 2, false);
-    expect(stopped.state).toBeNull();
-    expect(stopped.effects).toHaveLength(3);
-    expect(stopped.effects[0].type).toBe("save");
-    expect(stopped.effects[1]).toEqual({ type: "alert", blockType: "focus", nextBreak: "short_break" });
-    expect(stopped.effects[2]).toEqual({
+    expect(stopped.state?.phase).toBe("ended");
+    expect(stopped.state?.blockStatus).toBe("aborted");
+    expect(stopped.effects).toEqual([
+      { type: "showLabelSheet" },
+      { type: "alert", blockType: "focus", nextBreak: "short_break" },
+    ]);
+    expect(stopped.effects.some((e) => e.type === "save")).toBe(false);
+    expect(stopped.effects.some((e) => e.type === "setCycle")).toBe(false);
+  });
+
+  it("stop-focus then labelSave saves aborted with the label and advances the cycle", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", tagId: null },
+      clock,
+      settings,
+      2,
+      false
+    );
+    clock.advance(5000);
+    const stopped = transition(started.state, { kind: "stop" }, clock, settings, 2, false);
+    const saved = transition(
+      stopped.state,
+      { kind: "labelSave", label: "cut short", tagId: null },
+      clock,
+      settings,
+      2,
+      false
+    );
+    expect(saved.state).toBeNull();
+    expect(saved.effects).toHaveLength(2);
+    const saveEffect = saved.effects.find(
+      (e): e is { type: "save"; state: TimerState; endedAt: number } => e.type === "save"
+    )!;
+    expect(saveEffect.state.blockStatus).toBe("aborted");
+    expect(saveEffect.state.label).toBe("cut short");
+    expect(saveEffect.endedAt).toBe(1_005_000);
+    expect(saved.effects).toContainEqual({
       type: "setCycle",
       completed: 3,
+      pendingBreak: true,
+    });
+  });
+
+  it("stop-focus then skip saves aborted with a null label and advances the cycle", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    clock.advance(5000);
+    const stopped = transition(started.state, { kind: "stop" }, clock, settings, 0, false);
+    // Skip is labelSave with no label — the block is recorded, never discarded.
+    const saved = transition(
+      stopped.state,
+      { kind: "labelSave", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    expect(saved.state).toBeNull();
+    const saveEffect = saved.effects.find(
+      (e): e is { type: "save"; state: TimerState; endedAt: number } => e.type === "save"
+    )!;
+    expect(saveEffect.state.blockStatus).toBe("aborted");
+    expect(saveEffect.state.label).toBeNull();
+    expect(saved.effects).toContainEqual({
+      type: "setCycle",
+      completed: 1,
       pendingBreak: true,
     });
   });
@@ -630,14 +698,12 @@ describe("transition — stop", () => {
     );
     clock.advance(5000);
     const stopped = transition(started.state, { kind: "stop" }, clock, settings, 0, false);
-    const saveEffect = stopped.effects.find(
-      (e): e is { type: "save"; state: TimerState; endedAt: number } => e.type === "save"
-    )!;
-    const last = saveEffect.state.intervals[saveEffect.state.intervals.length - 1];
+    const intervals = stopped.state!.intervals;
+    const last = intervals[intervals.length - 1];
     expect(last.endedAt).toBe(1_005_000);
   });
 
-  it("aborts a break block without advancing cycle", () => {
+  it("aborts a break block with an immediate save, no sheet, no cycle move", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
@@ -651,11 +717,12 @@ describe("transition — stop", () => {
     const stopped = transition(started.state, { kind: "stop" }, clock, settings, 4, true);
     expect(stopped.state).toBeNull();
     expect(stopped.effects).toContainEqual(expect.objectContaining({ type: "save" }));
-    const cycleEffects = stopped.effects.filter((e) => e.type === "setCycle");
-    expect(cycleEffects).toHaveLength(0);
+    expect(stopped.effects.some((e) => e.type === "showLabelSheet")).toBe(false);
+    expect(stopped.effects.some((e) => e.type === "setCycle")).toBe(false);
+    expect(stopped.effects).toContainEqual({ type: "alert", blockType: "short_break" });
   });
 
-  it("endedAt equals now when stopping while running", () => {
+  it("records the real elapsed time when stopping while running", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
@@ -667,13 +734,11 @@ describe("transition — stop", () => {
     );
     clock.advance(5000);
     const stopped = transition(started.state, { kind: "stop" }, clock, settings, 0, false);
-    const saveEffect = stopped.effects.find(
-      (e): e is { type: "save"; state: TimerState; endedAt: number } => e.type === "save"
-    )!;
-    expect(saveEffect.endedAt).toBe(1_005_000);
+    const state = stopped.state!;
+    expect(elapsed(state.startedAt, 1_005_000, state.intervals)).toBe(5000);
   });
 
-  it("endedAt equals the pause instant when stopping while paused", () => {
+  it("stops a paused focus block with the real elapsed time and the pause instant as its end", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
@@ -687,10 +752,24 @@ describe("transition — stop", () => {
     const paused = transition(started.state, { kind: "pause" }, clock, settings, 0, false);
     clock.advance(7000);
     const stopped = transition(paused.state, { kind: "stop" }, clock, settings, 0, false);
-    const saveEffect = stopped.effects.find(
-      (e): e is { type: "save"; state: TimerState; endedAt: number } => e.type === "save"
-    )!;
-    expect(saveEffect.endedAt).toBe(1_003_000);
+    expect(stopped.state?.phase).toBe("ended");
+    expect(stopped.state?.blockStatus).toBe("aborted");
+    const state = stopped.state!;
+    const last = state.intervals[state.intervals.length - 1];
+    // Pausing froze the clock: the 7s spent paused is not owed time.
+    expect(last.endedAt).toBe(1_003_000);
+    expect(elapsed(state.startedAt, 1_003_000, state.intervals)).toBe(3000);
+    expect(stopped.effects).toEqual([
+      { type: "showLabelSheet" },
+      { type: "alert", blockType: "focus", nextBreak: "short_break" },
+    ]);
+  });
+
+  it("is a no-op when there is no block", () => {
+    const clock = makeClock(1_000_000);
+    const result = transition(null, { kind: "stop" }, clock, settings, 0, false);
+    expect(result.state).toBeNull();
+    expect(result.effects).toHaveLength(0);
   });
 
   it("is a no-op on an ended focus block", () => {
@@ -726,8 +805,10 @@ describe("transition — stop", () => {
     const result = transition(ticked.state, { kind: "stop" }, clock, settings, 0, false);
     const saves = result.effects.filter((e) => e.type === "save");
     const cycles = result.effects.filter((e) => e.type === "setCycle");
+    const sheets = result.effects.filter((e) => e.type === "showLabelSheet");
     expect(saves).toHaveLength(0);
     expect(cycles).toHaveLength(0);
+    expect(sheets).toHaveLength(0);
   });
 });
 
@@ -1078,7 +1159,7 @@ describe("transition — cycle integration", () => {
     });
   });
 
-  it("stop focus at position 3 advances to 4 (triggers long break next)", () => {
+  it("stop focus at position 3 defers the cycle advance until the label is confirmed", () => {
     const clock = makeClock(1_000_000);
     const started = transition(
       null,
@@ -1089,7 +1170,16 @@ describe("transition — cycle integration", () => {
       false
     );
     const stopped = transition(started.state, { kind: "stop" }, clock, settings, 3, false);
-    expect(stopped.effects).toContainEqual({
+    expect(stopped.effects.some((e) => e.type === "setCycle")).toBe(false);
+    const saved = transition(
+      stopped.state,
+      { kind: "labelSave", label: null, tagId: null },
+      clock,
+      settings,
+      3,
+      false
+    );
+    expect(saved.effects).toContainEqual({
       type: "setCycle",
       completed: 4,
       pendingBreak: true,

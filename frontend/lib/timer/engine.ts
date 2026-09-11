@@ -271,6 +271,37 @@ function closeBlock(
   return { intervals: copy, endedAt: last.endedAt };
 }
 
+// ─── Focus block endings ───────────────────────────────────────────
+
+/**
+ * Close a focus block and derive the cycle advance that follows it.
+ *
+ * Both endings of a focus block — the clock running out (`tick`) and the
+ * user cutting it short (`stop`) — converge here so the aborted path
+ * cannot drift from the completed one. Neither caller saves: the label
+ * sheet owns the save, so the block and its cycle advance land together
+ * instead of the cycle moving ahead of a block that was never posted.
+ */
+export function prepareFocusEnd(
+  state: TimerState,
+  at: number,
+  settings: TimerSettings,
+  aborted: boolean
+): { ended: TimerState; nextCompleted: number; nextBreak: BlockType } {
+  const closed = closeBlock(state.intervals, at);
+  const nextCompleted = state.focusBlocksCompleted + 1;
+  return {
+    ended: {
+      ...state,
+      phase: "ended",
+      blockStatus: aborted ? "aborted" : "completed",
+      intervals: closed.intervals,
+    },
+    nextCompleted,
+    nextBreak: nextBreakType(nextCompleted, settings.blocksPerCycle),
+  };
+}
+
 // ─── State machine ─────────────────────────────────────────────────
 
 export type TimerEvent =
@@ -366,29 +397,39 @@ export function transition(
       if (!state) return { state: null, effects: [] };
       // Defensive: an ended block is terminal — labelSave owns the save.
       if (state.phase === "ended") return { state, effects: [] };
-      const closed = closeBlock(state.intervals, now);
-      const aborted: TimerState = {
-        ...state,
-        phase: "ended",
-        blockStatus: "aborted",
-        intervals: closed.intervals,
-      };
-      const effects: TimerEffect[] = [
-        { type: "save", state: aborted, endedAt: closed.endedAt },
-      ];
       if (state.type === "focus") {
-        const nextCompleted = state.focusBlocksCompleted + 1;
-        const nextBreak = nextBreakType(nextCompleted, settings.blocksPerCycle);
-        effects.push({ type: "alert", blockType: "focus", nextBreak });
-        effects.push({
-          type: "setCycle",
-          completed: nextCompleted,
-          pendingBreak: true,
-        });
-      } else {
-        effects.push({ type: "alert", blockType: state.type });
+        // A cut-short focus block ends exactly like a completed one: the sheet
+        // opens, and the save + cycle advance are deferred to labelSave/skip so
+        // an aborted block is recorded with its real time (invariant 9) and a
+        // refresh cannot leave the cycle advanced without its block.
+        const { ended, nextBreak } = prepareFocusEnd(state, now, settings, true);
+        return {
+          state: ended,
+          effects: [
+            { type: "showLabelSheet" },
+            { type: "alert", blockType: "focus", nextBreak },
+          ],
+        };
       }
-      return { state: null, effects };
+
+      // Breaks carry no label (ADR-002) and never move the focus cycle.
+      const closed = closeBlock(state.intervals, now);
+      return {
+        state: null,
+        effects: [
+          {
+            type: "save",
+            state: {
+              ...state,
+              phase: "ended",
+              blockStatus: "aborted",
+              intervals: closed.intervals,
+            },
+            endedAt: closed.endedAt,
+          },
+          { type: "alert", blockType: state.type },
+        ],
+      };
     }
 
     case "labelSave": {
@@ -448,14 +489,9 @@ export function transition(
 
       // Block time is up
       if (state.type === "focus") {
-        const nextCompleted = state.focusBlocksCompleted + 1;
-        const nextBreak = nextBreakType(nextCompleted, settings.blocksPerCycle);
+        const { ended, nextBreak } = prepareFocusEnd(state, now, settings, false);
         return {
-          state: {
-            ...state,
-            phase: "ended",
-            intervals: closeBlock(state.intervals, now).intervals,
-          },
+          state: ended,
           effects: [
             { type: "showLabelSheet" },
             { type: "alert", blockType: "focus", nextBreak },

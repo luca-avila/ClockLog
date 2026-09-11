@@ -31,9 +31,16 @@ vi.mock("@/lib/alerts", () => ({
 }));
 
 vi.mock("@/components/timer/LabelSheet", () => ({
-  default: ({ onSave }: { onSave: (label: string, tagId: string | null) => void }) => (
+  default: ({
+    onSave,
+    onSkip,
+  }: {
+    onSave: (label: string, tagId: string | null) => void;
+    onSkip: () => void;
+  }) => (
     <div data-testid="label-sheet">
       <button onClick={() => onSave("test label", null)}>SAVE</button>
+      <button onClick={onSkip}>SKIP</button>
     </div>
   ),
 }));
@@ -154,12 +161,67 @@ describe("pause and resume (SCR-12)", () => {
 });
 
 describe("stop (abort)", () => {
-  it("queues the block for save", async () => {
+  it("opens the label sheet and saves nothing until the block is named", async () => {
     const { container } = render();
     clickButton(container, "START");
     clickButton(container, "STOP");
     await act(async () => {});
-    expect(saveBlock).toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="label-sheet"]')).toBeTruthy();
+    expect(saveBlock).not.toHaveBeenCalled();
+  });
+
+  it("saves the aborted block with its label when the sheet is confirmed", async () => {
+    const { container } = render();
+    clickButton(container, "START");
+    clickButton(container, "STOP");
+    clickButton(container, "SAVE");
+    await act(async () => {});
+    expect(saveBlock).toHaveBeenCalledTimes(1);
+    expect(saveBlock).toHaveBeenCalledWith(
+      expect.objectContaining({ blockStatus: "aborted", label: "test label" }),
+      expect.any(Number)
+    );
+  });
+
+  it("saves the aborted block unlabelled when the sheet is skipped", async () => {
+    const { container } = render();
+    clickButton(container, "START");
+    clickButton(container, "STOP");
+    clickButton(container, "SKIP");
+    await act(async () => {});
+    expect(saveBlock).toHaveBeenCalledTimes(1);
+    expect(saveBlock).toHaveBeenCalledWith(
+      expect.objectContaining({ blockStatus: "aborted", label: null }),
+      expect.any(Number)
+    );
+  });
+
+  it("stops a break without opening the sheet and saves immediately", async () => {
+    const startedAt = now - 60_000;
+    const breakState: TimerState = {
+      id: "test-break",
+      type: "short_break",
+      phase: "running",
+      startedAt,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 4,
+      intervals: [{ startedAt }],
+      blockStatus: "completed",
+      targetMs: 5 * 60 * 1000,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(breakState));
+    localStorage.setItem(CYCLE_KEY, JSON.stringify({ completed: 4, pendingBreak: false }));
+    const { container } = render();
+    expect(container.textContent).toContain("STOP");
+    clickButton(container, "STOP");
+    await act(async () => {});
+    expect(container.querySelector('[data-testid="label-sheet"]')).toBeNull();
+    expect(saveBlock).toHaveBeenCalledTimes(1);
+    expect(saveBlock).toHaveBeenCalledWith(
+      expect.objectContaining({ blockStatus: "aborted" }),
+      expect.any(Number)
+    );
   });
 });
 
@@ -238,6 +300,50 @@ describe("reload while the label sheet is open (SCR-14)", () => {
     const { container } = render();
     expect(container.querySelector('[data-testid="label-sheet"]')).toBeNull();
     expect(container.textContent).toContain("PAUSED");
+  });
+});
+
+describe("reload with an aborted block awaiting its label (SCR-14)", () => {
+  function seedEndedAbortedBlock() {
+    const startedAt = now - 3 * 60 * 1000;
+    const state: TimerState = {
+      id: "test-ended-aborted",
+      type: "focus",
+      phase: "ended",
+      startedAt,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      intervals: [{ startedAt, endedAt: now }],
+      blockStatus: "aborted",
+      targetMs: 25 * 60 * 1000,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(CYCLE_KEY, JSON.stringify({ completed: 0, pendingBreak: false }));
+  }
+
+  it("reopens the sheet and recovers a single aborted save plus its cycle advance", async () => {
+    seedEndedAbortedBlock();
+    const { container } = render();
+    expect(container.querySelector('[data-testid="label-sheet"]')).toBeTruthy();
+
+    clickButton(container, "SAVE");
+    await act(async () => {});
+
+    // Exactly one save — the deferred block and the cycle advance land together.
+    expect(saveBlock).toHaveBeenCalledTimes(1);
+    expect(saveBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "test-ended-aborted",
+        blockStatus: "aborted",
+        label: "test label",
+      }),
+      expect.any(Number)
+    );
+    expect(JSON.parse(localStorage.getItem(CYCLE_KEY)!)).toEqual({
+      completed: 1,
+      pendingBreak: true,
+    });
   });
 });
 
