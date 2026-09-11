@@ -84,7 +84,7 @@ _INTERVAL_CONTRACT_FIELDS = ("intervals", "started_at", "ended_at")
 # report loc = ("body",) and name the field only in the raised message, so those
 # messages are listed explicitly. Pydantic's built-in wording is never pattern
 # matched — a library message change must not be able to re-label an error.
-_INTERVAL_GUARD_MESSAGES = frozenset({"started_at cannot be cleared"})
+_INTERVAL_GUARD_MESSAGES = frozenset({"started_at cannot be cleared", "ended_at cannot be cleared"})
 
 
 def _is_interval_contract_error(request: Request, exc: RequestValidationError) -> bool:

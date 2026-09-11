@@ -394,7 +394,7 @@ class TestPatchBlocks:
     @pytest.mark.asyncio
     async def test_patch_cannot_clear_started_at(self, client, verified_user):
         """started_at: null is rejected — a block always has a start
-        (invariant 7). ended_at: null is the only clearable time."""
+        (invariant 7). No time is clearable; only label/tag_id accept null."""
         headers, _ = await verified_user()
 
         block_id = str(uuid.uuid4())
@@ -420,14 +420,15 @@ class TestPatchBlocks:
         assert blocks[block_id]["started_at"] == "2026-08-05T12:00:00Z"
 
     @pytest.mark.asyncio
-    async def test_patch_can_clear_ended_at(self, client, verified_user):
-        """Pins the asymmetry: ended_at: null clears the end (200)."""
+    async def test_patch_cannot_clear_ended_at(self, client, verified_user):
+        """ended_at: null would reopen a stored block, which create rejects —
+        the edit contract must reject it too (invariants 2 and 3)."""
         headers, _ = await verified_user()
 
         block_id = str(uuid.uuid4())
         await client.post(
             "/blocks",
-            json=_block_body(id=block_id, label="reopen me"),
+            json=_block_body(id=block_id, label="stay closed"),
             headers=Headers(headers),
         )
         resp = await client.patch(
@@ -435,8 +436,101 @@ class TestPatchBlocks:
             json={"ended_at": None},
             headers=Headers(headers),
         )
+        after = await client.get(
+            "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+        # The model-level "cannot be cleared" guard re-labels to the interval
+        # contract, same code as started_at: null.
+        assert resp.json()["code"] == "INVALID_INTERVAL"
+        blocks = {b["id"]: b for b in after.json()}
+        assert blocks[block_id]["intervals"][0]["ended_at"] == "2026-08-05T12:25:00Z"
+
+    @pytest.mark.asyncio
+    async def test_patch_cannot_open_last_interval_of_multi_interval_block(
+        self, client, verified_user
+    ):
+        """The end edge lives on the last interval of an N-interval block; a
+        null there must 422 exactly like the single-interval case."""
+        headers, _ = await verified_user()
+
+        block_id = str(uuid.uuid4())
+        await client.post(
+            "/blocks",
+            json=_block_body(
+                id=block_id,
+                intervals=[
+                    {
+                        "started_at": "2026-08-05T12:00:00+00:00",
+                        "ended_at": "2026-08-05T12:12:00+00:00",
+                    },
+                    {
+                        "started_at": "2026-08-05T12:22:00+00:00",
+                        "ended_at": "2026-08-05T12:30:00+00:00",
+                    },
+                ],
+            ),
+            headers=Headers(headers),
+        )
+        resp = await client.patch(
+            f"/blocks/{block_id}",
+            json={"ended_at": None},
+            headers=Headers(headers),
+        )
+        after = await client.get(
+            "/blocks?from=2026-08-05T00:00:00Z&to=2026-08-06T00:00:00Z",
+            headers=Headers(headers),
+        )
+        assert resp.status_code == 422
+        assert resp.json()["code"] == "INVALID_INTERVAL"
+        blocks = {b["id"]: b for b in after.json()}
+        assert all(iv["ended_at"] is not None for iv in blocks[block_id]["intervals"])
+
+    @pytest.mark.asyncio
+    async def test_patch_ended_at_collapse_or_invert_rejected(self, client, verified_user):
+        """A moved end obeys the same `end > start` rule as POST."""
+        headers, _ = await verified_user()
+
+        block_id = str(uuid.uuid4())
+        await client.post(
+            "/blocks",
+            json=_block_body(id=block_id, label="edges"),
+            headers=Headers(headers),
+        )
+        collapsed = await client.patch(
+            f"/blocks/{block_id}",
+            json={"ended_at": "2026-08-05T12:00:00+00:00"},
+            headers=Headers(headers),
+        )
+        inverted = await client.patch(
+            f"/blocks/{block_id}",
+            json={"ended_at": "2026-08-05T11:30:00+00:00"},
+            headers=Headers(headers),
+        )
+        assert collapsed.status_code == 422
+        assert collapsed.json()["code"] == "INVALID_INTERVAL"
+        assert inverted.status_code == 422
+        assert inverted.json()["code"] == "INVALID_INTERVAL"
+
+    @pytest.mark.asyncio
+    async def test_patch_move_ended_at_still_works(self, client, verified_user):
+        """A closed block stays editable: a later, valid end moves the edge."""
+        headers, _ = await verified_user()
+
+        block_id = str(uuid.uuid4())
+        await client.post(
+            "/blocks",
+            json=_block_body(id=block_id, label="extend me"),
+            headers=Headers(headers),
+        )
+        resp = await client.patch(
+            f"/blocks/{block_id}",
+            json={"ended_at": "2026-08-05T12:40:00+00:00"},
+            headers=Headers(headers),
+        )
         assert resp.status_code == 200
-        assert resp.json()["intervals"][0]["ended_at"] is None
+        assert resp.json()["intervals"][-1]["ended_at"] == "2026-08-05T12:40:00Z"
 
     @pytest.mark.asyncio
     async def test_patch_rejects_unknown_field(self, client, verified_user):

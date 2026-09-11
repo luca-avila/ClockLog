@@ -63,6 +63,8 @@ class BlockInterval(Base):
         ForeignKey("block.id", ondelete="CASCADE"), nullable=False, index=True
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Nullable for legacy rows only (no migration, "boring solution"): the
+    # service rejects any open interval on edit — see _validate_stored_intervals.
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     block: Mapped["Block"] = relationship("Block", back_populates="intervals")

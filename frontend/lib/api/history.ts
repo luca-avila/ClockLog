@@ -45,14 +45,15 @@ export async function fetchSummary(from: string, to: string): Promise<TagSummary
 }
 
 /** PATCH /blocks/:id — mirrors backend BlockUpdate. An omitted key is
- *  untouched; an explicit null clears. started_at has no null: a block
- *  always has a start (invariant 7). */
+ *  untouched; an explicit null clears label/tag_id only. started_at and
+ *  ended_at have no null: a stored block always has a start and a closed
+ *  end (invariants 3 and 7). */
 export interface BlockPatch {
   label?: string | null;
   tag_id?: string | null;
   status?: BlockData["status"];
   started_at?: string;
-  ended_at?: string | null;
+  ended_at?: string;
 }
 
 export async function updateBlock(id: string, data: BlockPatch): Promise<BlockData> {

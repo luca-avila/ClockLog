@@ -482,6 +482,54 @@ class TestUpdateBlock:
         assert unchanged is not None
         assert unchanged.started_at == make_utc(hour=9)
 
+    async def test_open_interval_is_rejected_by_service_guard(self):
+        """Second barrier, kept independent of the schema: even if a payload
+        reached the service without the Pydantic guard, an edit may not persist
+        an open interval (invariants 2 and 3)."""
+        from app.timer.service import _validate_stored_intervals
+
+        open_interval = BlockInterval(
+            id=uuid.uuid4(),
+            started_at=make_utc(hour=9),
+            ended_at=None,
+        )
+        with pytest.raises(HTTPException) as exc:
+            _validate_stored_intervals([open_interval])
+        assert exc.value.status_code == 422
+        assert exc.value.detail["code"] == "INVALID_INTERVAL"
+
+    async def test_resaving_legacy_open_block_is_rejected(self, db_session):
+        """A pre-existing open row (written before this fix) cannot be re-saved
+        through a time edit until it is given a real end in the same patch."""
+        from app.timer.service import update_block
+
+        user = await _create_test_user(db_session)
+        user_id = user.id
+        block = Block(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            status="completed",
+            kind="focus",
+            label="legacy open",
+            tag_id=None,
+            started_at=make_utc(hour=9),
+            intervals=[BlockInterval(id=uuid.uuid4(), started_at=make_utc(hour=9), ended_at=None)],
+        )
+        db_session.add(block)
+        await db_session.commit()
+        block_id = block.id
+
+        with pytest.raises(HTTPException) as exc:
+            await update_block(
+                db_session,
+                block_id,
+                user_id,
+                BlockUpdate(started_at=make_utc(hour=9, minute=5)),
+            )
+        assert exc.value.status_code == 422
+        assert exc.value.detail["code"] == "INVALID_INTERVAL"
+        await db_session.rollback()
+
 
 async def _create_test_user(db_session: AsyncSession) -> User:
     email = f"test-{uuid.uuid4()}@example.com"

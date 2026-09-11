@@ -34,7 +34,8 @@ into a history endpoint. See [architecture.md § 4](architecture.md#4-time-the-o
 **PATCH semantics.** An omitted key is left untouched; an explicit `null` clears a
 nullable field. Unknown keys are rejected (`extra="forbid"`) on `PATCH /blocks/{id}` and
 on the plan endpoints — an unknown key is a client bug, not something to drop silently.
-Fields backing NOT NULL columns (`started_at`, `status`) cannot be set to `null`.
+Fields backing NOT NULL columns (`started_at`, `status`) cannot be set to `null`. Neither
+can `ended_at` — a stored block is always closed (`422 INVALID_INTERVAL`).
 
 **Errors.** Every error is JSON with a stable `code`. Branch on `code`, never on the
 message text:
@@ -317,17 +318,25 @@ Post-hoc editing (SCR-21): `label`, `tag_id`, `status`, `started_at`, `ended_at`
 Interval lists are **not** editable — `intervals` is rejected like any unknown key
 (`422`).
 
-- `label`, `tag_id`, `ended_at` accept `null` to clear.
-- `started_at` and `status` cannot be cleared (`422`).
+- `label` and `tag_id` accept `null` to clear (invariant 10).
+- `started_at`, `ended_at` and `status` cannot be cleared (`422`): a stored block
+  always has a start and a closed end (invariants 2, 3 and 7). `ended_at: null` is
+  `422 INVALID_INTERVAL`, the same code as `started_at: null`.
 - Times are envelope edits: `started_at` moves the first interval's start **and**
   `block.started_at` (so day bucketing stays correct); `ended_at` moves the last
   interval's end. Pause gaps inside are never rewritten.
 - `422 INVALID_INTERVAL` — the edit collapses a segment to zero length
   (`end == start`), inverts one (its end would precede its start), or makes intervals
-  overlap. Editing applies the same `end > start` rule as POST, so a PATCH can never
-  persist a block that create would reject. `intervals` in the body, a naive time, or
-  `started_at: null` hit the same code.
+  overlap. Editing applies the same `end > start` rule as POST, so a PATCH can
+  never persist a block that create would reject — including reopening it.
+  `intervals` in the body, a naive time, or `started_at: null` / `ended_at: null`
+  hit the same code.
 - `400 NO_INTERVALS`, `404 BLOCK_NOT_FOUND`.
+
+> `block_interval.ended_at` stays nullable in the schema for compatibility, but the
+> service rejects any open interval on a time edit. A pre-existing open row (if one
+> exists) is closed from SCR-21 by sending a valid `ended_at`; there is no backfill
+> and no column migration.
 
 ### `DELETE /blocks/{block_id}` → `204`
 
@@ -416,7 +425,7 @@ Deletes the entry and therefore all its occurrences. `404 ENTRY_NOT_FOUND`.
 | `BLOCK_NOT_FOUND` | 404 | |
 | `BLOCK_OWNED_BY_OTHER` | 403 | Client-generated id collides with another user's block |
 | `NO_INTERVALS` | 400 | Time edit on a block with no interval rows |
-| `INVALID_INTERVAL` | 422 | The interval contract on `/blocks`: missing/empty/open/naive/zero-length/inverted/overlapping intervals on create, or a time edit that zero-lengths, inverts or overlaps a segment |
+| `INVALID_INTERVAL` | 422 | The interval contract on `/blocks`: missing/empty/open/naive/zero-length/inverted/overlapping intervals on create, or a time edit that zero-lengths, inverts, overlaps or reopens a segment |
 | `NAIVE_DATETIME` | 422 | `from`/`to` not timezone-aware |
 | `INVALID_RANGE` | 422 | `from` after `to` |
 | `RANGE_TOO_LARGE` | 422 | Plan range over 366 days |

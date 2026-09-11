@@ -84,13 +84,21 @@ def _validate_create_intervals(intervals: list[BlockIntervalIn]) -> None:
 def _validate_stored_intervals(intervals: list[BlockInterval]) -> None:
     """Re-check shape and order after an envelope edit moved an outer edge.
 
-    Same rule as create (`end > start`): an edit must not be able to persist a
-    zero-length segment that POST /blocks would reject. An open last interval
-    (`ended_at is None`) stays legal — only its end was cleared.
+    Same rule as create (`end > start`), plus closed: a stored block is always
+    finished (invariants 2 and 3), so an edit must not be able to persist an
+    open or zero-length segment that POST /blocks would reject.
     """
     previous_end: datetime | None = None
     for interval in sorted(intervals, key=lambda iv: iv.started_at):
-        if interval.ended_at is not None and interval.ended_at <= interval.started_at:
+        if interval.ended_at is None:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "INVALID_INTERVAL",
+                    "message": "ended_at cannot be cleared; a stored block is always closed",
+                },
+            )
+        if interval.ended_at <= interval.started_at:
             raise HTTPException(
                 status_code=422,
                 detail={

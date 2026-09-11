@@ -79,11 +79,12 @@ class BlockUpdate(BaseModel):
 
     @model_validator(mode="after")
     def non_clearable_fields(self) -> "BlockUpdate":
-        # label, tag_id and ended_at back nullable columns, so null there
-        # legitimately clears. started_at and status back NOT NULL columns —
-        # for them the Optional type is only how "unset" is spelled, and a
-        # literal null would reach the ORM and 500 on commit.
-        for name in ("started_at", "status"):
+        # label and tag_id back nullable columns, so an explicit null
+        # legitimately clears them (invariant 10). started_at, ended_at and
+        # status are NOT NULL-backed edges: for them Optional is only how
+        # "unset" is spelled, and a literal null would either reach the ORM and
+        # 500, or reopen a stored block (invariants 2 and 3 forbid open blocks).
+        for name in ("started_at", "ended_at", "status"):
             if name in self.model_fields_set and getattr(self, name) is None:
                 raise ValueError(f"{name} cannot be cleared")
         return self

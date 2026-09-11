@@ -57,9 +57,17 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // A stored block is always closed (invariants 2 and 3), so the end is
+  // mandatory — including for a legacy open block, which SCR-21 is the only
+  // place to close.
+  const endRequired = end.length === 0;
+
   async function handleSave() {
     if (busy) return;
-    setBusy(true);
+    if (endRequired) {
+      setError("End is required");
+      return;
+    }
     setError(null);
 
     const payload: BlockPatch = {
@@ -71,21 +79,21 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
     // end on the next local day, which an untouched time input would
     // otherwise flatten back onto the start's day.
     const startDirty = start !== formatClock(originalStartIso);
+    // A legacy open block has no end to compare against, so its end is always
+    // sent (anchored to the start's local day) and closes the block.
+    const endDirty = originalEndIso === null || end !== formatClock(originalEndIso);
     if (startDirty) payload.started_at = withLocalTime(originalStartIso, start);
-    if (originalEndIso !== null) {
-      const endDirty = end !== formatClock(originalEndIso);
-      if (endDirty) payload.ended_at = withLocalTime(originalEndIso, end);
-      if (startDirty || endDirty) {
-        const newStart = new Date(payload.started_at ?? originalStartIso);
-        const newEnd = new Date(payload.ended_at ?? originalEndIso);
-        if (newEnd <= newStart) {
-          setError("End must be after start");
-          setBusy(false);
-          return;
-        }
-      }
+    if (endDirty) {
+      payload.ended_at = withLocalTime(originalEndIso ?? originalStartIso, end);
+    }
+    const newStart = new Date(payload.started_at ?? originalStartIso);
+    const newEnd = new Date(payload.ended_at ?? originalEndIso ?? originalStartIso);
+    if (newEnd <= newStart) {
+      setError("End must be after start");
+      return;
     }
 
+    setBusy(true);
     try {
       await updateBlock(block.id, payload);
       onDone();
@@ -207,9 +215,9 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
         <TagPicker tags={tags} value={tagId} onChange={setTagId} />
       </div>
 
-      {error && (
+      {(error || endRequired) && (
         <p role="alert" className="text-xs text-red-500 mt-3">
-          {error}
+          {error ?? "End is required"}
         </p>
       )}
 
@@ -218,7 +226,7 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
           type="button"
           aria-label="SAVE"
           onClick={handleSave}
-          disabled={busy}
+          disabled={busy || endRequired}
         >
           SAVE
         </PrimaryButton>

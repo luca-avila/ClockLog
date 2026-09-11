@@ -92,7 +92,24 @@ describe("BlockEditor end-date validation", () => {
     expect(updateBlock).not.toHaveBeenCalled();
   });
 
-  it("saves with no ended_at when interval has null ended_at", async () => {
+  it("does not send null end", async () => {
+    const block = makeBlock();
+    const { container } = render(block);
+
+    // Clearing Ended leaves an open block, which the server now rejects; the
+    // editor must block the save locally instead of PATCHing ended_at: null.
+    const endInput = container.querySelector("#block-end") as HTMLInputElement;
+    act(() => setNativeValue(endInput, ""));
+
+    expect(container.textContent).toContain("End is required");
+
+    const saveBtn = container.querySelector('button[aria-label="SAVE"]') as HTMLButtonElement;
+    await act(async () => saveBtn.click());
+
+    expect(updateBlock).not.toHaveBeenCalled();
+  });
+
+  it("legacy open block can be closed", async () => {
     const block = makeBlock({
       intervals: [
         {
@@ -104,15 +121,17 @@ describe("BlockEditor end-date validation", () => {
     });
     const { container } = render(block);
 
-    // Change label to trigger a save
-    const labelInput = container.querySelector("#block-label") as HTMLInputElement;
-    act(() => setNativeValue(labelInput, "new label"));
+    // A legacy block has no end (empty input); SAVE stays blocked until one is
+    // entered, then the patch closes the block with a real instant.
+    const endInput = container.querySelector("#block-end") as HTMLInputElement;
+    act(() => setNativeValue(endInput, "09:30"));
 
     const saveBtn = container.querySelector('button[aria-label="SAVE"]') as HTMLButtonElement;
     await act(async () => saveBtn.click());
 
-    expect(updateBlock).toHaveBeenCalled();
+    expect(updateBlock).toHaveBeenCalledTimes(1);
     const patch = updateBlock.mock.calls[0][1];
-    expect(patch).not.toHaveProperty("ended_at");
+    expect(typeof patch.ended_at).toBe("string");
+    expect(new Date(patch.ended_at).getTime()).toBeGreaterThan(new Date(START_ISO).getTime());
   });
 });
