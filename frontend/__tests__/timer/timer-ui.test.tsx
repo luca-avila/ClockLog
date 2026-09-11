@@ -421,6 +421,22 @@ describe("space shortcut (SCR-11)", () => {
     expect(container.textContent).toContain("PAUSE");
   });
 
+  it("moves focus off navigation before Space starts", () => {
+    // Clicking a sidebar/tab link leaves that link focused after the route
+    // changes; the shortcut must not hand Space back to the navigation.
+    const navLink = document.createElement("a");
+    document.body.appendChild(navLink);
+    navLink.focus();
+
+    const { container } = render();
+    const screen = container.querySelector('[data-testid="timer-screen"]');
+    expect(screen).not.toBeNull();
+    expect(document.activeElement).toBe(screen);
+
+    pressSpace(screen!);
+    expect(container.textContent).toContain("of 25:00");
+  });
+
   it("ignores Space while a block is running", () => {
     const { container } = render();
     clickButton(container, "START");

@@ -19,6 +19,7 @@
 import {
   useState,
   useEffect,
+  useRef,
   useCallback,
   useReducer,
   useSyncExternalStore,
@@ -262,12 +263,22 @@ export default function TimerScreen() {
   const [machine, rawDispatch] = useReducer(reducer, undefined, initMachine);
   const { settings } = useSettings();
   const [now, setNow] = useState(() => Date.now());
+  const screenRef = useRef<HTMLDivElement>(null);
   // initMachine reads localStorage, which the server cannot: rendering the
   // restored machine during hydration makes the server's default disagree
   // with it. Hold the first paint so the restored state is the only one
   // ever painted — a wrong countdown must never flash on the largest
   // element in the app.
   const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
+
+  // Navigation links keep focus after a route change, and Space on a focused
+  // link belongs to that link. Move focus to the screen itself so the Space
+  // shortcut is live as soon as Timer opens.
+  useEffect(() => {
+    if (hydrated && !machine.labelSheetOpen) screenRef.current?.focus();
+    // The sheet's own inputs own focus whenever it is open on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
 
   useEffect(() => {
     try {
@@ -428,7 +439,14 @@ export default function TimerScreen() {
 
   // Same wrapper as every painted state, so nothing reflows when they arrive.
   const shell = (children: React.ReactNode) => (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">{children}</div>
+    <div
+      ref={screenRef}
+      tabIndex={-1}
+      data-testid="timer-screen"
+      className="mx-auto max-w-5xl px-4 py-6 outline-none sm:px-6 md:py-10"
+    >
+      {children}
+    </div>
   );
 
   if (!hydrated) return shell(null);
