@@ -173,43 +173,73 @@ export async function flushQueue(
     needsReauth: false,
   };
 
-  const queue = readQueue(deps.storage);
-  result.pending = queue.length;
-  if (flushing || queue.length === 0) return result;
+  const initial = readQueue(deps.storage);
+  result.pending = initial.length;
+  if (flushing || initial.length === 0) return result;
 
   flushing = true;
   try {
-    const remaining: BlockPayload[] = [];
+    // Ids this invocation already POSTed: a mid-flush re-read must never
+    // re-send them, so the drain loop below cannot double-POST (invariant 3).
+    const attempted = new Set<string>();
 
-    for (let i = 0; i < queue.length; i++) {
-      const item = queue[i];
-      if (!deps.isOnline()) {
-        remaining.push(...queue.slice(i));
-        break;
-      }
-      try {
-        await deps.post(item);
-        result.synced++;
-      } catch (err) {
-        const status = statusOf(err);
-        if (status === 401 || status === 403) {
-          remaining.push(...queue.slice(i));
-          result.needsReauth = true;
+    while (true) {
+      const queue = readQueue(deps.storage);
+      const batch = queue.filter((item) => !attempted.has(item.id));
+      if (batch.length === 0) break;
+
+      // What this pass decided to remove, keyed by the serialized copy we
+      // actually sent. A same-id re-enqueue (last-write-wins) survives the
+      // reconciliation below instead of being deleted along with the old copy.
+      const succeeded = new Map<string, string>();
+      const dropped = new Map<string, string>();
+      let blocked = false;
+
+      for (const item of batch) {
+        attempted.add(item.id);
+        if (!deps.isOnline()) {
+          blocked = true;
           break;
         }
-        if (status >= 400 && status < 500) {
-          // Permanently rejected — retrying forever would poison the queue.
-          console.warn("block dropped: server rejected payload", item);
-          result.dropped++;
-          continue;
+        const sent = JSON.stringify(item);
+        try {
+          await deps.post(item);
+          result.synced++;
+          succeeded.set(item.id, sent);
+        } catch (err) {
+          const status = statusOf(err);
+          if (status === 401 || status === 403) {
+            result.needsReauth = true;
+            blocked = true;
+            break;
+          }
+          if (status >= 400 && status < 500) {
+            // Permanently rejected — retrying forever would poison the queue.
+            console.warn("block dropped: server rejected payload", item);
+            result.dropped++;
+            dropped.set(item.id, sent);
+            continue;
+          }
+          blocked = true;
+          break;
         }
-        remaining.push(...queue.slice(i));
-        break;
       }
-    }
 
-    writeQueue(deps.storage, remaining);
-    result.pending = remaining.length;
+      // Re-read: the initial snapshot is stale once POSTs are in flight, so
+      // remove only entries this pass sent and left unchanged. Anything
+      // enqueued during the flush (new id, or a rewritten same-id) is kept.
+      const current = readQueue(deps.storage);
+      const next = current.filter((item) => {
+        const sent = succeeded.get(item.id) ?? dropped.get(item.id);
+        if (sent === undefined) return true;
+        return JSON.stringify(item) !== sent;
+      });
+      writeQueue(deps.storage, next);
+      result.pending = next.length;
+
+      // A network/auth stop is not a retry: leave the rest for the next flush.
+      if (blocked) break;
+    }
   } finally {
     flushing = false;
   }

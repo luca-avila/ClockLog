@@ -316,4 +316,111 @@ describe("offline queue", () => {
     warn.mockRestore();
     off();
   });
+
+  it("enqueued-during-flush: a block enqueued while POST(A) is in flight is never lost on success", async () => {
+    let releaseA: () => void = () => {};
+    const gateA = new Promise<void>((res) => {
+      releaseA = res;
+    });
+    const post = vi
+      .fn<(p: BlockPayload) => Promise<void>>()
+      .mockImplementationOnce(() => gateA)
+      .mockResolvedValue(undefined);
+    const deps = makeDeps(post);
+
+    enqueueBlock(payload("a"), localStorage);
+    const flushing = flushQueue(deps);
+    // Enqueued while A's POST is still pending — the old flush overwrote it.
+    enqueueBlock(payload("b"), localStorage);
+    releaseA();
+    await flushing;
+
+    const queue = readQueue(localStorage);
+    const bSynced = post.mock.calls.some(([p]) => p.id === "b");
+    // B must survive: either re-queued, or drained and synced — never dropped.
+    expect(bSynced || queue.some((q) => q.id === "b")).toBe(true);
+    expect(queue.some((q) => q.id === "a")).toBe(false);
+    // Exactly one POST per block, even when the drain picks B up (invariant 3).
+    expect(post.mock.calls.filter(([p]) => p.id === "b")).toHaveLength(1);
+  });
+
+  it("enqueued-during-flush: survives a network failure by keeping A and B queued", async () => {
+    let failA: (err: unknown) => void = () => {};
+    const gateA = new Promise<void>((_res, rej) => {
+      failA = rej;
+    });
+    const post = vi
+      .fn<(p: BlockPayload) => Promise<void>>()
+      .mockImplementationOnce(() => gateA)
+      .mockResolvedValue(undefined);
+    const deps = makeDeps(post);
+
+    enqueueBlock(payload("a"), localStorage);
+    const flushing = flushQueue(deps);
+    enqueueBlock(payload("b"), localStorage);
+    failA(new Error("fetch failed"));
+    await flushing;
+
+    const queue = readQueue(localStorage);
+    expect(queue).toHaveLength(2);
+    expect(queue).toEqual(expect.arrayContaining([payload("a"), payload("b")]));
+    // A network stop is not a retry: B is left for the next flush.
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it("enqueued-during-flush: a 400 drops A but never loses B", async () => {
+    let rejectA: (err: unknown) => void = () => {};
+    const gateA = new Promise<void>((_res, rej) => {
+      rejectA = rej;
+    });
+    const post = vi
+      .fn<(p: BlockPayload) => Promise<void>>()
+      .mockImplementationOnce(() => gateA)
+      .mockResolvedValue(undefined);
+    const deps = makeDeps(post);
+    const dropped = vi.fn();
+    const off = onBlocksDropped(dropped);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    enqueueBlock(payload("a"), localStorage);
+    const flushing = flushQueue(deps);
+    enqueueBlock(payload("b"), localStorage);
+    rejectA(new ApiError(400, "VALIDATION_ERROR", "bad payload"));
+    const r = await flushing;
+
+    // A is permanently rejected (invariant 9 surfaces the loss).
+    expect(r.dropped).toBe(1);
+    expect(dropped).toHaveBeenCalledExactlyOnceWith(1);
+    const queue = readQueue(localStorage);
+    const bSynced = post.mock.calls.some(([p]) => p.id === "b");
+    expect(bSynced || queue.some((q) => q.id === "b")).toBe(true);
+    expect(queue.some((q) => q.id === "a")).toBe(false);
+
+    warn.mockRestore();
+    off();
+  });
+
+  it("enqueued-during-flush: a 401 keeps A and B queued and flags reauth", async () => {
+    let rejectA: (err: unknown) => void = () => {};
+    const gateA = new Promise<void>((_res, rej) => {
+      rejectA = rej;
+    });
+    const post = vi
+      .fn<(p: BlockPayload) => Promise<void>>()
+      .mockImplementationOnce(() => gateA)
+      .mockResolvedValue(undefined);
+    const deps = makeDeps(post);
+
+    enqueueBlock(payload("a"), localStorage);
+    const flushing = flushQueue(deps);
+    enqueueBlock(payload("b"), localStorage);
+    rejectA(new ApiError(401, "INVALID_TOKEN", "expired"));
+    const r = await flushing;
+
+    expect(r.needsReauth).toBe(true);
+    const queue = readQueue(localStorage);
+    expect(queue).toHaveLength(2);
+    expect(queue).toEqual(expect.arrayContaining([payload("a"), payload("b")]));
+    expect(post).toHaveBeenCalledTimes(1);
+  });
 });
