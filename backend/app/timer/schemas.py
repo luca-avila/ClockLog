@@ -102,6 +102,15 @@ class BlockResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator("intervals", mode="before")
+    @classmethod
+    def chronological_intervals(cls, value: object) -> object:
+        # SQL doesn't order the collection, but the API contract does:
+        # clients derive the block envelope from first/last.
+        if isinstance(value, list):
+            return sorted(value, key=lambda iv: iv.started_at)
+        return value
+
 
 class TagSummary(BaseModel):
     """One row of GET /blocks/summary. Mirrored in frontend/lib/api/history.ts."""
