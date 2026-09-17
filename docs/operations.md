@@ -164,15 +164,42 @@ mutually deletable. If one fails, the invariant broke: fix the code, not the tes
 nginx and TLS (certbot) run on the VPS itself, outside Compose. Compose services bind to
 `127.0.0.1` only and the reverse proxy fronts them.
 
-```bash
-# First time
-cp .env.example .env      # then fill in every value
-docker compose -f docker-compose.yml up -d --build
+Prod images are built in CI, not on the VPS. Every push to `main` triggers
+`.github/workflows/publish.yml`, which compiles the prod stages and pushes them to
+GHCR (`ghcr.io/luca-avila/clocklog-backend|frontend|backup`, tags `:latest` and
+`:<sha>`). The VPS only pulls and restarts — no `npm ci`, no Next build, no `pip
+install` on the small machine.
 
-# Subsequent deploys
+```bash
+# First time: .env, registry login, and pull
+cp .env.example .env      # then fill in every value
+docker login ghcr.io -u <tu-usuario> -p <PAT con read:packages>  # una vez; imagenes privadas
+docker compose -f docker-compose.yml pull
+docker compose -f docker-compose.yml up -d
+
+# Subsequent deploys (segundos, no minutos)
 git pull
-docker compose -f docker-compose.yml up -d --build
+docker compose -f docker-compose.yml pull
+docker compose -f docker-compose.yml up -d
 ```
+
+One-time GitHub setup: repo variable `NEXT_PUBLIC_API_URL =
+https://clocklog.net/api` (Settings -> Secrets and variables -> Actions ->
+Variables). The frontend build bakes it into the bundle, so `publish.yml` refuses
+to build while the variable is empty rather than shipping a bundle that points
+nowhere. No secret is needed for the push itself: the workflow uses the built-in
+`GITHUB_TOKEN` with `packages: write`.
+
+Pinned deploy and rollback via `TAG` (defaults to `latest`):
+
+```bash
+TAG=<sha> docker compose -f docker-compose.yml pull
+TAG=<sha> docker compose -f docker-compose.yml up -d
+```
+
+A rollback is the same with the previous sha — no rebuild, just a pull. `up -d
+--build` still works as an emergency fallback (the `build:` blocks stay in the
+compose file), but it is no longer the deploy path.
 
 `docker-compose.yml` is the full prod stack: backend (prod stage, non-root),
 Postgres, frontend and the backup sidecar, with `restart: unless-stopped`, capped
@@ -247,6 +274,11 @@ rebuilding the frontend image — restarting the container does nothing.
   (runtime deps only, non-root `appuser`). The base `docker-compose.yml` targets
   `prod`; `docker-compose.override.yml` switches it to `dev` for local work.
 - `frontend/Dockerfile` builds a Next.js standalone server on `node:20-alpine`.
+- Prod images live in GHCR (`ghcr.io/luca-avila/clocklog-*`, private) and are
+  published by `.github/workflows/publish.yml` on every push to `main` (`:latest`
+  plus `:<sha>`, `linux/amd64`, BuildKit `gha` cache). The compose file keeps its
+  `build:` blocks so a smoke-boot (`-p clocklog-prodcheck up -d --build`) and an
+  emergency local build still work, but the deploy path is `pull` + `up -d`.
 
 ### Required variables and fail-fast
 

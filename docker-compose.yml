@@ -5,7 +5,8 @@
 # alone; an explicit `-f` skips the override, so prod inherits nothing dev and
 # never has to "undo" it:
 #
-#   docker compose -f docker-compose.yml up -d --build
+#   docker compose -f docker-compose.yml pull
+#   docker compose -f docker-compose.yml up -d
 #
 # Every required variable — RESEND_API_KEY included — interpolates with
 # ${VAR:?message}, so a missing or empty value fails at `docker compose
@@ -27,7 +28,7 @@ services:
       # Runtime-only stage (non-root appuser). Dev switches to `dev` in
       # docker-compose.override.yml — never point this at dev.
       target: prod
-    image: clocklog-backend:${TAG:-latest}
+    image: ghcr.io/luca-avila/clocklog-backend:${TAG:-latest}
     command: sh -c "alembic upgrade head && fastapi run app/main.py --host 0.0.0.0 --port 8000"
     ports:
       # Loopback only: nginx on the host fronts both services.
@@ -81,7 +82,7 @@ services:
       args:
         # Build-time: changing NEXT_PUBLIC_API_URL requires a rebuild, not a restart.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL required in .env}
-    image: clocklog-frontend:${TAG:-latest}
+    image: ghcr.io/luca-avila/clocklog-frontend:${TAG:-latest}
     restart: unless-stopped
     ports:
       - "127.0.0.1:3001:3000"
@@ -91,7 +92,7 @@ services:
   # BACKUP_RCLONE_REMOTE is set (see .env.example for the tradeoff).
   backup:
     build: ./infra/backup
-    image: clocklog-backup:${TAG:-latest}
+    image: ghcr.io/luca-avila/clocklog-backup:${TAG:-latest}
     restart: unless-stopped
     environment:
       PGHOST: db
