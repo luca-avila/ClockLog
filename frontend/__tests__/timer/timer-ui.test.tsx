@@ -468,3 +468,58 @@ describe("space shortcut (SCR-11)", () => {
     expect(container.textContent).not.toContain("of 25:00");
   });
 });
+
+describe("reset cycle (SCR-11 / SCR-13)", () => {
+  it("shows Reset cycle when completed > 0 and resets to zero on click", () => {
+    localStorage.setItem(CYCLE_KEY, JSON.stringify({ completed: 2, pendingBreak: false }));
+    const { container } = render();
+    expect(container.textContent).toContain("2 of 4 blocks in this cycle");
+
+    clickButton(container, "Reset cycle");
+
+    expect(container.textContent).toContain("0 of 4 blocks in this cycle");
+    expect(container.textContent).not.toContain("Reset cycle");
+    expect(JSON.parse(localStorage.getItem(CYCLE_KEY)!)).toEqual({
+      completed: 0,
+      pendingBreak: false,
+    });
+  });
+
+  it("hides Reset cycle when the cycle is fresh", () => {
+    localStorage.setItem(CYCLE_KEY, JSON.stringify({ completed: 0, pendingBreak: false }));
+    const { container } = render();
+    expect(container.textContent).not.toContain("Reset cycle");
+  });
+
+  it("clears a pending break so the next START is a focus block", () => {
+    localStorage.setItem(CYCLE_KEY, JSON.stringify({ completed: 0, pendingBreak: true }));
+    const { container } = render();
+    expect(container.textContent).toContain("Up next: Short break");
+
+    clickButton(container, "Reset cycle");
+
+    expect(container.textContent).toContain("Up next: Focus");
+    clickButton(container, "START");
+    expect(container.textContent).toContain("of 25:00");
+    expect(container.textContent).not.toContain("of 05:00");
+  });
+
+  it("refuses to reset mid-block, says so, and clears the notice with the block", async () => {
+    localStorage.setItem(CYCLE_KEY, JSON.stringify({ completed: 2, pendingBreak: false }));
+    const { container } = render();
+    clickButton(container, "START");
+
+    clickButton(container, "Reset cycle");
+
+    expect(container.textContent).toContain("Stop the current block first");
+    expect(container.textContent).toContain("2 of 4 blocks in this cycle");
+
+    clickButton(container, "STOP");
+    clickButton(container, "SKIP");
+    await act(async () => {});
+
+    expect(container.textContent).not.toContain("Stop the current block first");
+    // The refused reset did not eat the block's own cycle advance.
+    expect(container.textContent).toContain("3 of 4 blocks in this cycle");
+  });
+});

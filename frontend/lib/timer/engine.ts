@@ -311,6 +311,7 @@ export type TimerEvent =
   | { kind: "stop" }
   | { kind: "labelSave"; label: string | null; tagId: string | null }
   | { kind: "skipBreak" }
+  | { kind: "resetCycle" }
   | { kind: "tick" };
 
 export type TimerEffect =
@@ -476,6 +477,19 @@ export function transition(
       }
       // Defensive: focus block or ended state — no-op.
       return { state, effects: [] };
+    }
+
+    case "resetCycle": {
+      // Idle-only. A block in flight still owes the cycle its advance at
+      // labelSave, so zeroing the count now would be undone a moment later —
+      // and a break block would be orphaned behind a reset count. The UI
+      // refuses the click while a block exists; this keeps a stray dispatch
+      // harmless. No state has to change: the next START reads a zero count.
+      if (state) return { state, effects: [] };
+      return {
+        state: null,
+        effects: [{ type: "setCycle", completed: 0, pendingBreak: false }],
+      };
     }
 
     case "tick": {

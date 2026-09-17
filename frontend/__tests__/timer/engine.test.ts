@@ -1107,6 +1107,65 @@ describe("transition — skipBreak", () => {
   });
 });
 
+describe("transition — resetCycle", () => {
+  it("from idle with completed > 0 clears the cycle to zero", () => {
+    const clock = makeClock(1_000_000);
+    const result = transition(null, { kind: "resetCycle" }, clock, settings, 2, false);
+    expect(result.state).toBeNull();
+    expect(result.effects).toEqual([
+      { type: "setCycle", completed: 0, pendingBreak: false },
+    ]);
+  });
+
+  it("from idle with pendingBreak true clears the pending break", () => {
+    const clock = makeClock(1_000_000);
+    const result = transition(null, { kind: "resetCycle" }, clock, settings, 3, true);
+    expect(result.state).toBeNull();
+    expect(result.effects).toEqual([
+      { type: "setCycle", completed: 0, pendingBreak: false },
+    ]);
+  });
+
+  it("while running is a no-op — a block in flight still owns its cycle advance", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", tagId: null },
+      clock,
+      settings,
+      2,
+      false
+    );
+    const result = transition(started.state, { kind: "resetCycle" }, clock, settings, 2, false);
+    expect(result.state).toBe(started.state);
+    expect(result.effects).toHaveLength(0);
+  });
+
+  it("while paused or awaiting a label is a no-op", () => {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", tagId: null },
+      clock,
+      settings,
+      1,
+      false
+    );
+    clock.advance(5_000);
+    const paused = transition(started.state, { kind: "pause" }, clock, settings, 1, false);
+    const afterPaused = transition(paused.state, { kind: "resetCycle" }, clock, settings, 1, false);
+    expect(afterPaused.state).toBe(paused.state);
+    expect(afterPaused.effects).toHaveLength(0);
+
+    clock.advance(25 * 60 * 1000 + 1);
+    const ended = transition(started.state, { kind: "tick" }, clock, settings, 1, false);
+    expect(ended.state!.phase).toBe("ended");
+    const afterEnded = transition(ended.state, { kind: "resetCycle" }, clock, settings, 1, false);
+    expect(afterEnded.state).toBe(ended.state);
+    expect(afterEnded.effects).toHaveLength(0);
+  });
+});
+
 describe("transition — elapsed time (drift-proof)", () => {
   it("background tab jump does not accumulate", () => {
     const clock = makeClock(1_000_000);

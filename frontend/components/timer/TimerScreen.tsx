@@ -52,6 +52,7 @@ import {
 import CycleIndicator from "./CycleIndicator";
 import LabelSheet from "./LabelSheet";
 import PrimaryButton from "@/components/shared/PrimaryButton";
+import Toast from "@/components/shared/Toast";
 
 // The hydration gate below never changes after mount, so it has nothing to
 // subscribe to. useSyncExternalStore is still the right tool: it is the one
@@ -90,8 +91,13 @@ function loadStoredCycle(): StoredCycle {
     }
     const p = parsed as { completed?: unknown; pendingBreak?: unknown };
     return {
+      // A cycle count is a whole number of blocks; anything else (negative,
+      // fractional, NaN) is a stale or hand-edited key and reads as "unset",
+      // which the caller defaults to 0.
       completed:
-        typeof p.completed === "number" && Number.isFinite(p.completed)
+        typeof p.completed === "number" &&
+        Number.isInteger(p.completed) &&
+        p.completed >= 0
           ? p.completed
           : null,
       pendingBreak: p.pendingBreak === true,
@@ -263,6 +269,14 @@ export default function TimerScreen() {
   const [machine, rawDispatch] = useReducer(reducer, undefined, initMachine);
   const { settings } = useSettings();
   const [now, setNow] = useState(() => Date.now());
+  // Page-scoped notice — the right-hand slot of AGENTS.md, rendered through
+  // Toast slot="page". It describes the block that was in flight when the
+  // reset was refused, so it is keyed to that exact timer state: any event
+  // that replaces the timer (pause, stop, save, discard, the next block)
+  // makes it stale. Staleness is derived in render instead of cleared from an
+  // effect, because a synchronous setState in an effect cascades a render.
+  const [notice, setNotice] = useState<{ text: string; timer: TimerState } | null>(null);
+  const pageNotice = notice && notice.timer === machine.timer ? notice.text : null;
   const screenRef = useRef<HTMLDivElement>(null);
   // initMachine reads localStorage, which the server cannot: rendering the
   // restored machine during hydration makes the server's default disagree
@@ -290,6 +304,15 @@ export default function TimerScreen() {
       /* private mode — cycle resets on refresh, nothing else breaks */
     }
   }, [machine.completed, machine.pendingBreak]);
+
+  // Same lifetime as the page-scoped message on /settings: the notice fades
+  // after a beat. Whether it still belongs to the current block is derived in
+  // render (`pageNotice`), so this effect only owns the fade.
+  useEffect(() => {
+    if (!notice) return;
+    const id = setTimeout(() => setNotice(null), 1500);
+    return () => clearTimeout(id);
+  }, [notice]);
 
   const ticking = machine.timer?.phase === "running";
 
@@ -354,6 +377,17 @@ export default function TimerScreen() {
     dispatch({ kind: "labelSave", label: null, tagId: null });
   }
 
+  function handleResetCycle() {
+    if (machine.timer !== null) {
+      // Idle-only. A block in flight still owes the cycle its advance at
+      // labelSave, so a reset now would be overwritten the moment it saves.
+      setNotice({ text: "Stop the current block first", timer: machine.timer });
+      return;
+    }
+    setNotice(null);
+    dispatch({ kind: "resetCycle" });
+  }
+
   const currentElapsed = machine.timer
     ? elapsed(machine.timer.startedAt, now, machine.timer.intervals)
     : 0;
@@ -368,6 +402,9 @@ export default function TimerScreen() {
   const pos = cyclePosition(machine.completed, settings.blocksPerCycle);
 
   const breakType = nextBreakType(machine.completed, settings.blocksPerCycle);
+
+  // Nothing to reset on a fresh cycle — the control would be noise.
+  const showReset = machine.completed > 0 || machine.pendingBreak;
 
 
   // ─── Presentation (SCR-11 / SCR-13) ─────────────────────────────
@@ -454,6 +491,17 @@ export default function TimerScreen() {
   return (
     <>
       {machine.labelSheetOpen && <LabelSheet onSave={handleLabelSave} onSkip={handleLabelSkip} />}
+
+      {pageNotice && (
+        <Toast slot="page">
+          <div
+            role="status"
+            className="rounded-full bg-neutral-100 px-3 py-1.5 text-xs text-neutral-500"
+          >
+            {pageNotice}
+          </div>
+        </Toast>
+      )}
 
       {shell(
         <>
@@ -563,12 +611,21 @@ export default function TimerScreen() {
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
                 Cycle
               </p>
-              <div className="mt-3 flex justify-start">
+              <div className="mt-3 flex items-center justify-between gap-3">
                 <CycleIndicator
                   completed={pos.completed}
                   total={settings.blocksPerCycle}
                   isBreak={isBreakNow}
                 />
+                {showReset && (
+                  <button
+                    type="button"
+                    onClick={handleResetCycle}
+                    className="text-xs text-neutral-400 transition-colors hover:text-neutral-600"
+                  >
+                    Reset cycle
+                  </button>
+                )}
               </div>
               <p className="mt-3 text-sm text-neutral-500">
                 {pos.completed} of {settings.blocksPerCycle} blocks in this cycle
