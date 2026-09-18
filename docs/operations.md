@@ -34,7 +34,7 @@ compose config` exits non-zero with a `... required in .env` message.
 Interpolation covers profile-excluded services too: `NEXT_PUBLIC_API_URL` must exist
 in `.env` even though the frontend does not run in Compose in dev (it runs on the
 host via `npm run dev`), and the `backup` sidecar only starts in prod. The GitHub
-workflow injects the same values as step-level `env` because a runner has no `.env`.
+workflow injects the same values as job-level `env` because a runner has no `.env`.
 
 Postgres is not published to the host — uncomment the `ports` block under `db` if you
 need `psql` from outside.
