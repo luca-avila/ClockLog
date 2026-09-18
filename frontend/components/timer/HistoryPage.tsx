@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   fetchBlocks,
   fetchSummary,
@@ -35,7 +35,7 @@ import {
   formatDuration,
   durationSeconds,
 } from "@/lib/date/instant";
-import { blockStart, groupByLocalDay } from "@/lib/timer/history-group";
+import { blockStart, groupByLocalDay, localDayKey } from "@/lib/timer/history-group";
 import Sheet from "@/components/shared/Sheet";
 import BlockEditor from "./BlockEditor";
 
@@ -80,6 +80,51 @@ function rangeFor(view: HistoryView, anchor: Date): { from: string; to: string }
   if (view === "week") return localWeekRange(anchor);
   if (view === "month") return localMonthRange(anchor);
   return localDayRange(anchor);
+}
+
+/** One slot per local day of the active range, zeros included. */
+interface DayBucket {
+  date: Date;
+  key: string;
+  focusSeconds: number;
+}
+
+/** Local days in [from, to), in order. Day-stepping goes through the Date
+ *  constructor so DST-shortened days still land on the next local midnight. */
+function daysInRange(from: string, to: string): Date[] {
+  const days: Date[] = [];
+  const end = new Date(to).getTime();
+  let cursor = startOfLocalDay(new Date(from));
+  while (cursor.getTime() < end) {
+    days.push(cursor);
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
+  }
+  return days;
+}
+
+/** Focus seconds per local day, one slot per entry in `days`. Focus-only and
+ *  keyed by the local day a block *started*, identical to the day headings
+ *  (invariants 5 and 7). */
+export function bucketDayFocus(blocks: BlockData[], days: readonly Date[]): number[] {
+  const index = new Map(days.map((d, i) => [localDayKey(d.toISOString()), i]));
+  const totals = days.map(() => 0);
+  for (const block of blocks) {
+    if (block.kind !== "focus") continue;
+    const slot = index.get(localDayKey(blockStart(block)));
+    if (slot === undefined) continue;
+    totals[slot] += durationSeconds(block.intervals);
+  }
+  return totals;
+}
+
+function formatBarDay(date: Date): string {
+  return date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+}
+
+/** Inverse of `localDayKey` for a heading click: same local calendar day. */
+function dayFromKey(key: string): Date {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year, month - 1, day);
 }
 
 // Render-time fallback: a block with no label but a tag shows the tag name.
@@ -157,6 +202,15 @@ export default function HistoryPage() {
     setAnchor(startOfLocalDay(new Date()));
   }
 
+  // Drill-down is a state change, not navigation: Day becomes the view and
+  // the clicked date its anchor, so the same screen (and inspector) stays put.
+  function handleDrillDown(day: Date) {
+    setLoading(true);
+    setSelectedId(null);
+    setView("day");
+    setAnchor(startOfLocalDay(day));
+  }
+
   // Focus totals only — breaks appear in the list (SCR-20) but never in
   // the "Xh Ym focus" line.
   const focusBlocks = blocks.filter((b) => b.kind === "focus");
@@ -176,6 +230,17 @@ export default function HistoryPage() {
 
   const selected = blocks.find((b) => b.id === selectedId) ?? null;
   const groups = groupByLocalDay(blocks);
+  const dayBuckets: DayBucket[] = useMemo(() => {
+    const { from, to } = rangeFor(view, anchor);
+    const days = daysInRange(from, to);
+    const totals = bucketDayFocus(blocks, days);
+    return days.map((date, i) => ({
+      date,
+      key: localDayKey(date.toISOString()),
+      focusSeconds: totals[i],
+    }));
+  }, [blocks, view, anchor]);
+  const maxFocus = Math.max(0, ...dayBuckets.map((b) => b.focusSeconds));
   const onToday = rangeFor(view, anchor).from === rangeFor(view, new Date()).from;
 
   const subtitle: ReactNode =
@@ -371,6 +436,43 @@ export default function HistoryPage() {
                 </dl>
               </div>
 
+              {/* Daily focus totals above the tag split: one bar per local
+                  day of the range, zeros included, clickable to drill into
+                  that day. Neutral ink only — tag color stays in the
+                  breakdown below. */}
+              {view !== "day" && !loading && blocks.length > 0 && (
+                <section
+                  aria-label="Daily totals"
+                  className={`mt-6 flex h-24 items-end ${
+                    view === "month" ? "gap-0.5" : "gap-1"
+                  }`}
+                >
+                  {dayBuckets.map((b) => (
+                    <button
+                      key={b.key}
+                      type="button"
+                      onClick={() => handleDrillDown(b.date)}
+                      aria-label={`Show ${formatBarDay(b.date)} — ${formatDuration(
+                        b.focusSeconds
+                      )}`}
+                      className="flex h-full min-w-0 flex-1 flex-col justify-end"
+                    >
+                      <div className="flex h-full w-full items-end bg-neutral-200">
+                        <div
+                          className="w-full bg-neutral-700"
+                          style={{
+                            height:
+                              b.focusSeconds === 0
+                                ? "4px"
+                                : `${Math.max(8, (b.focusSeconds / maxFocus) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </button>
+                  ))}
+                </section>
+              )}
+
               {summaryTotal > 0 && (
                 <>
                   {/* Proportional bar: the split by tag, readable before any
@@ -440,8 +542,19 @@ export default function HistoryPage() {
                 {groups.map((g) => (
                   <section key={g.key} aria-label={g.label}>
                     <h4 className="mb-2 text-xs font-medium text-neutral-500">
-                      {g.label}{" "}
-                      <span className="text-neutral-400">— {formatDuration(g.focusSeconds)}</span>
+                      {/* Second drill-down affordance: the heading keeps its
+                          markup but the text becomes the button. */}
+                      <button
+                        type="button"
+                        onClick={() => handleDrillDown(dayFromKey(g.key))}
+                        aria-label={`Show ${formatBarDay(dayFromKey(g.key))} — ${formatDuration(
+                          g.focusSeconds
+                        )}`}
+                        className="text-left transition-colors hover:text-neutral-800"
+                      >
+                        {g.label}{" "}
+                        <span className="text-neutral-400">— {formatDuration(g.focusSeconds)}</span>
+                      </button>
                     </h4>
                     <ol className="relative space-y-2">
                       {g.items.map((b, i) => renderRow(b, i > 0 ? g.items[i - 1] : null))}
