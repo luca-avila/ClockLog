@@ -76,6 +76,14 @@ const EMPTY_TITLE: Record<HistoryView, string> = {
   month: "No blocks this month",
 };
 
+// The jump-back button follows the active view: "Today" would lie in
+// Week/Month, where the range — not the day — is what returns to now.
+const CURRENT_LABEL: Record<HistoryView, string> = {
+  day: "Today",
+  week: "This week",
+  month: "This month",
+};
+
 function rangeFor(view: HistoryView, anchor: Date): { from: string; to: string } {
   if (view === "week") return localWeekRange(anchor);
   if (view === "month") return localMonthRange(anchor);
@@ -383,7 +391,7 @@ export default function HistoryPage() {
               onClick={goToday}
               className="h-10 rounded-full border border-neutral-200 px-4 text-xs font-medium text-neutral-600 transition-colors hover:border-neutral-400 hover:text-neutral-900"
             >
-              Today
+              {CURRENT_LABEL[view]}
             </button>
           )}
           <button
