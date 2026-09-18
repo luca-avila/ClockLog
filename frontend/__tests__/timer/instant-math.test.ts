@@ -17,6 +17,11 @@
 import { describe, it, expect, afterAll } from "vitest";
 import {
   localDayRange,
+  localWeekRange,
+  localMonthRange,
+  startOfLocalDay,
+  formatWeekSubtitle,
+  formatMonthSubtitle,
   durationSeconds,
   formatClock,
   formatDuration,
@@ -64,6 +69,107 @@ describe("localDayRange (invariant 5: local day -> UTC instants)", () => {
     const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
     expect(from).toMatch(iso);
     expect(to).toMatch(iso);
+  });
+});
+
+describe("localWeekRange (invariant 5: Monday-start local week -> UTC instants)", () => {
+  it("bounds the week of a mid-week anchor with Monday and the next Monday", () => {
+    // Wed Sep 16 2026, Madrid: local Monday Sep 14 00:00 → 22:00Z the day before.
+    const { from, to } = localWeekRange(new Date(2026, 8, 16, 12, 0, 0));
+    expect(from).toBe("2026-09-13T22:00:00Z");
+    expect(to).toBe("2026-09-20T22:00:00Z");
+    expect(new Date(from).getDay()).toBe(1); // Monday
+    expect(new Date(to).getDay()).toBe(1);
+  });
+
+  it("puts Sunday in the week that ends that Sunday", () => {
+    const { from, to } = localWeekRange(new Date(2026, 8, 13, 12, 0, 0)); // Sunday
+    expect(from).toBe("2026-09-06T22:00:00Z");
+    expect(to).toBe("2026-09-13T22:00:00Z");
+  });
+
+  it("opens a new week on Monday", () => {
+    const sunday = localWeekRange(new Date(2026, 8, 13, 12, 0, 0));
+    const monday = localWeekRange(new Date(2026, 8, 14, 12, 0, 0));
+    expect(monday.from).toBe(sunday.to);
+  });
+
+  it("crosses into the previous year for a Jan 1 anchor", () => {
+    const { from, to } = localWeekRange(new Date(2026, 0, 1, 12, 0, 0)); // Thursday
+    expect(from).toBe("2025-12-28T23:00:00Z"); // Monday Dec 29 2025 local
+    expect(to).toBe("2026-01-04T23:00:00Z");
+  });
+
+  it("is 167h across the spring-forward week (Madrid 2026-03-23)", () => {
+    const { from, to } = localWeekRange(new Date(2026, 2, 23, 12, 0, 0));
+    expect(new Date(to).getTime() - new Date(from).getTime()).toBe(167 * 3600 * 1000);
+  });
+
+  it("ignores the anchor's time of day", () => {
+    const midnight = localWeekRange(new Date(2026, 8, 16, 0, 0, 0));
+    const noon = localWeekRange(new Date(2026, 8, 16, 12, 34, 56));
+    expect(noon).toEqual(midnight);
+  });
+
+  it("emits local-midnight instants ending in Z, no milliseconds", () => {
+    const { from, to } = localWeekRange(new Date(2026, 8, 16, 12, 0, 0));
+    const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+    expect(from).toMatch(iso);
+    expect(to).toMatch(iso);
+    expect(new Date(from).getHours()).toBe(0);
+    expect(new Date(from).getMinutes()).toBe(0);
+    expect(new Date(to).getHours()).toBe(0);
+  });
+});
+
+describe("localMonthRange (invariant 5: local calendar month -> UTC instants)", () => {
+  it("bounds a month with its first and next-first local midnights", () => {
+    const { from, to } = localMonthRange(new Date(2026, 8, 16, 12, 0, 0));
+    expect(from).toBe("2026-08-31T22:00:00Z"); // Sep 1 00:00 Madrid
+    expect(to).toBe("2026-09-30T22:00:00Z"); // Oct 1 00:00 Madrid
+  });
+
+  it("rolls December into January of the next year", () => {
+    const { from, to } = localMonthRange(new Date(2026, 11, 15, 12, 0, 0));
+    expect(from).toBe("2026-11-30T23:00:00Z"); // Dec 1 2026 Madrid
+    expect(to).toBe("2026-12-31T23:00:00Z"); // Jan 1 2027 Madrid
+    expect(new Date(to).getFullYear()).toBe(2027);
+  });
+
+  it("ignores the anchor's day and time of day", () => {
+    const first = localMonthRange(new Date(2026, 8, 1, 0, 0, 0));
+    const last = localMonthRange(new Date(2026, 8, 30, 23, 59, 0));
+    expect(last).toEqual(first);
+  });
+
+  it("emits local-midnight instants ending in Z, no milliseconds", () => {
+    const { from, to } = localMonthRange(new Date(2026, 8, 16, 12, 0, 0));
+    const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+    expect(from).toMatch(iso);
+    expect(to).toMatch(iso);
+    expect(new Date(from).getDate()).toBe(1);
+    expect(new Date(to).getDate()).toBe(1);
+  });
+});
+
+describe("history range headings", () => {
+  it("renders a week subtitle as Monday through Sunday", () => {
+    expect(formatWeekSubtitle(new Date(2026, 8, 16, 12, 0, 0))).toBe("Sep 14 – Sep 20");
+  });
+
+  it("renders a month subtitle as the month and year of the anchor", () => {
+    expect(formatMonthSubtitle(new Date(2026, 8, 16, 12, 0, 0))).toBe("September 2026");
+    expect(formatMonthSubtitle(new Date(2026, 11, 15, 12, 0, 0))).toBe("December 2026");
+  });
+});
+
+describe("startOfLocalDay", () => {
+  it("drops the time of day", () => {
+    const d = startOfLocalDay(new Date(2026, 8, 16, 23, 59, 59));
+    expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 8, 16]);
+    expect([d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds()]).toEqual([
+      0, 0, 0, 0,
+    ]);
   });
 });
 

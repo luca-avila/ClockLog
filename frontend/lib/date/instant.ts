@@ -25,6 +25,24 @@ export interface IntervalLike {
   ended_at: string;
 }
 
+/** Second-precision UTC instant, the shape history queries send: the API
+ *  takes instants and the client alone decides where a local day begins. */
+function toInstant(d: Date): string {
+  return d.toISOString().slice(0, -5) + "Z";
+}
+
+/** Local midnight of the day containing `date`. */
+export function startOfLocalDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/** Local midnight of the Monday starting the week containing `anchor`. */
+function localWeekStart(anchor: Date): Date {
+  // getDay: 0=Sun..6=Sat — days since Monday, wrapping Sunday back a week.
+  const sinceMonday = (anchor.getDay() + 6) % 7;
+  return new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - sinceMonday);
+}
+
 /** The UTC instants bounding the local calendar day containing `date`.
  *  Invariant 5: the client owns this conversion; the server never
  *  reasons about days. */
@@ -34,7 +52,38 @@ export function localDayRange(date: Date): { from: string; to: string } {
   const to = new Date(date);
   to.setDate(to.getDate() + 1);
   to.setHours(0, 0, 0, 0);
-  return { from: from.toISOString().slice(0, -5) + "Z", to: to.toISOString().slice(0, -5) + "Z" };
+  return { from: toInstant(from), to: toInstant(to) };
+}
+
+/** The UTC instants bounding the local Monday–Sunday week containing
+ *  `anchor`. Same instant pattern as `localDayRange` (invariant 5); the
+ *  Monday start deliberately mirrors the plan's week without importing it
+ *  (invariant 11). */
+export function localWeekRange(anchor: Date): { from: string; to: string } {
+  const monday = localWeekStart(anchor);
+  const nextMonday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 7);
+  return { from: toInstant(monday), to: toInstant(nextMonday) };
+}
+
+/** The UTC instants bounding the local calendar month containing `anchor`.
+ *  The Date constructor rolls December into January on its own. */
+export function localMonthRange(anchor: Date): { from: string; to: string } {
+  const year = anchor.getFullYear();
+  const month = anchor.getMonth();
+  return { from: toInstant(new Date(year, month, 1)), to: toInstant(new Date(year, month + 1, 1)) };
+}
+
+/** "Sep 8 – Sep 14" for a week heading; `anchor` is any instant in it. */
+export function formatWeekSubtitle(anchor: Date): string {
+  const monday = localWeekStart(anchor);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  const short = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${short(monday)} – ${short(sunday)}`;
+}
+
+/** "September 2026" for a month heading. */
+export function formatMonthSubtitle(anchor: Date): string {
+  return anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
 /** Summed seconds of closed intervals. A stored block is always closed

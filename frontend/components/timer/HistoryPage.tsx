@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   fetchBlocks,
   fetchSummary,
@@ -24,13 +24,20 @@ import {
   type TagSummary,
 } from "@/lib/api/history";
 import { fetchTags, type Tag } from "@/lib/api/tags";
-import { localDayRange, formatClock, formatDuration, durationSeconds } from "@/lib/date/instant";
+import {
+  localDayRange,
+  localWeekRange,
+  localMonthRange,
+  startOfLocalDay,
+  formatWeekSubtitle,
+  formatMonthSubtitle,
+  formatClock,
+  formatDuration,
+  durationSeconds,
+} from "@/lib/date/instant";
+import { blockStart, groupByLocalDay } from "@/lib/timer/history-group";
 import Sheet from "@/components/shared/Sheet";
 import BlockEditor from "./BlockEditor";
-
-function isSameDay(a: Date, b: Date) {
-  return a.toDateString() === b.toDateString();
-}
 
 function formatDayHeading(date: Date) {
   return date.toLocaleDateString("en-US", { weekday: "long" });
@@ -51,6 +58,30 @@ const KIND_LABEL: Record<BlockData["kind"], string> = {
 // say so instead of stacking two rows as if they were consecutive.
 const GAP_THRESHOLD_SECONDS = 15 * 60;
 
+// SCR-20 shows one range at a time; Day stays the default so the screen a
+// phone lands on is unchanged.
+type HistoryView = "day" | "week" | "month";
+
+const HISTORY_VIEWS: readonly HistoryView[] = ["day", "week", "month"];
+
+const HISTORY_VIEW_LABEL: Record<HistoryView, string> = {
+  day: "Day",
+  week: "Week",
+  month: "Month",
+};
+
+const EMPTY_TITLE: Record<HistoryView, string> = {
+  day: "No blocks yet",
+  week: "No blocks this week",
+  month: "No blocks this month",
+};
+
+function rangeFor(view: HistoryView, anchor: Date): { from: string; to: string } {
+  if (view === "week") return localWeekRange(anchor);
+  if (view === "month") return localMonthRange(anchor);
+  return localDayRange(anchor);
+}
+
 // Render-time fallback: a block with no label but a tag shows the tag name.
 // `label` stays null, so renaming the tag updates the display and the user
 // can still overwrite the label independently.
@@ -58,16 +89,15 @@ export function focusName(label: string | null, tagName: string | undefined) {
   return label || tagName || "Unlabeled";
 }
 
-function blockStart(b: BlockData) {
-  return b.intervals[0]?.started_at || b.started_at;
-}
-
 function blockEnd(b: BlockData): string {
   return b.intervals[b.intervals.length - 1].ended_at;
 }
 
 export default function HistoryPage() {
-  const [date, setDate] = useState(() => new Date());
+  const [view, setView] = useState<HistoryView>("day");
+  // The anchor keeps its position inside the active view: the day within
+  // the shown week/month, so switching tabs never jumps elsewhere.
+  const [anchor, setAnchor] = useState<Date>(() => startOfLocalDay(new Date()));
   const [blocks, setBlocks] = useState<BlockData[]>([]);
   const [summary, setSummary] = useState<TagSummary[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -82,7 +112,7 @@ export default function HistoryPage() {
   }, []);
 
   useEffect(() => {
-    const { from, to } = localDayRange(date);
+    const { from, to } = rangeFor(view, anchor);
     let cancelled = false;
     Promise.all([fetchBlocks(from, to), fetchSummary(from, to)])
       .then(([b, s]) => {
@@ -97,20 +127,34 @@ export default function HistoryPage() {
     return () => {
       cancelled = true;
     };
-  }, [date, reload]);
+  }, [anchor, view, reload]);
 
-  function shiftDay(delta: number) {
+  // One unit of the active view per click. The month case keeps the day of
+  // month and lets Date roll over (Jan 31 + 1 month → Mar 3): the range is
+  // the month of the resulting anchor, never the day.
+  function shift(delta: number) {
     setLoading(true);
     setSelectedId(null);
-    const d = new Date(date);
-    d.setDate(d.getDate() + delta);
-    setDate(d);
+    setAnchor((prev) => {
+      if (view === "month") {
+        return new Date(prev.getFullYear(), prev.getMonth() + delta, prev.getDate());
+      }
+      const days = view === "week" ? delta * 7 : delta;
+      return new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + days);
+    });
+  }
+
+  function changeView(next: HistoryView) {
+    if (next === view) return;
+    setLoading(true);
+    setSelectedId(null);
+    setView(next);
   }
 
   function goToday() {
     setLoading(true);
     setSelectedId(null);
-    setDate(new Date());
+    setAnchor(startOfLocalDay(new Date()));
   }
 
   // Focus totals only — breaks appear in the list (SCR-20) but never in
@@ -131,12 +175,104 @@ export default function HistoryPage() {
   const tagById = new Map(tags.map((t) => [t.id, t]));
 
   const selected = blocks.find((b) => b.id === selectedId) ?? null;
-  const onToday = isSameDay(date, new Date());
+  const groups = groupByLocalDay(blocks);
+  const onToday = rangeFor(view, anchor).from === rangeFor(view, new Date()).from;
+
+  const subtitle: ReactNode =
+    view === "day" ? (
+      <>
+        {formatDayHeading(anchor)} <span className="text-neutral-300">/</span>{" "}
+        {formatDayNumber(anchor)}
+      </>
+    ) : view === "week" ? (
+      formatWeekSubtitle(anchor)
+    ) : (
+      formatMonthSubtitle(anchor)
+    );
 
   function afterEditorDone() {
     setSelectedId(null);
     setLoading(true);
     setReload((n) => n + 1);
+  }
+
+  // One row, shared by every view: the same rail, dot, clock, duration and
+  // "stopped early" badge. `prev` is the previous row *of the same local
+  // day*, so a gap never spans a day boundary (decided 4).
+  function renderRow(b: BlockData, prev: BlockData | null) {
+    const start = blockStart(b);
+    const duration = durationSeconds(b.intervals);
+    const isFocus = b.kind === "focus";
+    const tag = isFocus && b.tag_id ? tagById.get(b.tag_id) : undefined;
+    const dotColor = tag?.color;
+    const name = isFocus ? focusName(b.label, tag?.name) : KIND_LABEL[b.kind];
+    const isSelected = selectedId === b.id;
+
+    const prevEnd = prev ? blockEnd(prev) : null;
+    const gap = prevEnd ? (new Date(start).getTime() - new Date(prevEnd).getTime()) / 1000 : 0;
+
+    return (
+      <li key={b.id}>
+        {gap >= GAP_THRESHOLD_SECONDS && (
+          <div className="flex items-center gap-3 py-1 pl-14 text-[11px] text-neutral-400">
+            <span className="h-px flex-1 bg-neutral-200" />
+            <span className="tabular-nums">{formatDuration(gap)} away</span>
+            <span className="h-px flex-1 bg-neutral-200" />
+          </div>
+        )}
+        <button
+          onClick={() => setSelectedId(b.id)}
+          aria-label={`Edit block: ${name}`}
+          aria-pressed={isSelected}
+          className={`group relative flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors sm:p-3.5 ${
+            isSelected
+              ? "border-neutral-400 bg-neutral-100"
+              : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
+          }`}
+        >
+          <span className="w-10 shrink-0 text-xs text-neutral-500 tabular-nums">
+            {formatClock(start)}
+          </span>
+
+          {/* Rail + node. Focus is a filled dot in the tag's color,
+              a break a hollow ring — SCR-20's ● / ○, drawn rather
+              than typed so it stops sharing the label's baseline. */}
+          <span className="relative flex w-3 shrink-0 justify-center self-stretch">
+            <span className="absolute inset-y-0 w-px bg-neutral-200" aria-hidden />
+            <span
+              className={`relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
+                isFocus ? "bg-neutral-700" : "border border-neutral-300 bg-[var(--background)]"
+              }`}
+              style={isFocus && dotColor ? { backgroundColor: dotColor } : undefined}
+              aria-hidden
+            />
+          </span>
+
+          <span className="min-w-0 flex-1">
+            <span
+              className={`block truncate ${
+                isFocus ? "text-[15px] text-neutral-900" : "text-sm text-neutral-500"
+              }`}
+            >
+              {name}
+            </span>
+            {b.status === "aborted" && (
+              <span className="mt-1 inline-block rounded border border-neutral-300 px-1.5 text-[10px] uppercase tracking-wide text-neutral-500">
+                stopped early
+              </span>
+            )}
+          </span>
+
+          <span
+            className={`shrink-0 tabular-nums ${
+              isFocus ? "text-sm text-neutral-700" : "text-xs text-neutral-500"
+            }`}
+          >
+            {formatDuration(duration)}
+          </span>
+        </button>
+      </li>
+    );
   }
 
   return (
@@ -147,15 +283,32 @@ export default function HistoryPage() {
             Time recorded
           </p>
           <h1 className="text-3xl font-light tracking-tight text-neutral-800 sm:text-4xl">History</h1>
-          <p className="mt-2 text-sm text-neutral-500">
-            {formatDayHeading(date)} <span className="text-neutral-300">/</span>{" "}
-            {formatDayNumber(date)}
-          </p>
+          <p className="mt-2 text-sm text-neutral-500">{subtitle}</p>
+          {/* Segmented control, not PrimaryButton: switching views is
+              navigation, and PrimaryButton is reserved for actions that
+              commit something. */}
+          <div className="mt-4 inline-flex rounded-full border border-neutral-200 bg-neutral-100 p-1">
+            {HISTORY_VIEWS.map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => changeView(v)}
+                aria-pressed={view === v}
+                className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                  view === v
+                    ? "bg-white text-neutral-900 shadow-sm"
+                    : "text-neutral-500 hover:text-neutral-800"
+                }`}
+              >
+                {HISTORY_VIEW_LABEL[v]}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
-            onClick={() => shiftDay(-1)}
-            aria-label="Previous day"
+            onClick={() => shift(-1)}
+            aria-label={`Previous ${view}`}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-neutral-200 text-lg text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-800"
           >
             <span aria-hidden>&lsaquo;</span>
@@ -169,8 +322,8 @@ export default function HistoryPage() {
             </button>
           )}
           <button
-            onClick={() => shiftDay(1)}
-            aria-label="Next day"
+            onClick={() => shift(1)}
+            aria-label={`Next ${view}`}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-neutral-200 text-lg text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-800"
           >
             <span aria-hidden>&rsaquo;</span>
@@ -186,7 +339,7 @@ export default function HistoryPage() {
         </div>
       ) : blocks.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-neutral-300 px-6 py-20 text-center">
-          <p className="text-sm font-medium text-neutral-600">No blocks yet</p>
+          <p className="text-sm font-medium text-neutral-600">{EMPTY_TITLE[view]}</p>
           <p className="mt-2 text-sm text-neutral-400">Your finished blocks will show up here.</p>
         </div>
       ) : (
@@ -274,93 +427,29 @@ export default function HistoryPage() {
               <span className="text-xs tabular-nums text-neutral-400">{blocks.length} entries</span>
             </div>
 
-            {/* Block list, hung off a continuous rail so the day reads as a
-                sequence instead of a stack of similar rows. */}
-            <ol className="relative space-y-2">
-              {blocks.map((b, i) => {
-                const start = blockStart(b);
-                const duration = durationSeconds(b.intervals);
-                const isFocus = b.kind === "focus";
-                const tag = isFocus && b.tag_id ? tagById.get(b.tag_id) : undefined;
-                const dotColor = tag?.color;
-                const name = isFocus ? focusName(b.label, tag?.name) : KIND_LABEL[b.kind];
-                const isSelected = selectedId === b.id;
-
-                const prevEnd = i > 0 ? blockEnd(blocks[i - 1]) : null;
-                const gap = prevEnd
-                  ? (new Date(start).getTime() - new Date(prevEnd).getTime()) / 1000
-                  : 0;
-
-                return (
-                  <li key={b.id}>
-                    {gap >= GAP_THRESHOLD_SECONDS && (
-                      <div className="flex items-center gap-3 py-1 pl-14 text-[11px] text-neutral-400">
-                        <span className="h-px flex-1 bg-neutral-200" />
-                        <span className="tabular-nums">{formatDuration(gap)} away</span>
-                        <span className="h-px flex-1 bg-neutral-200" />
-                      </div>
-                    )}
-                    <button
-                      onClick={() => setSelectedId(b.id)}
-                      aria-label={`Edit block: ${name}`}
-                      aria-pressed={isSelected}
-                      className={`group relative flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors sm:p-3.5 ${
-                        isSelected
-                          ? "border-neutral-400 bg-neutral-100"
-                          : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
-                      }`}
-                    >
-                      <span className="w-10 shrink-0 text-xs text-neutral-500 tabular-nums">
-                        {formatClock(start)}
-                      </span>
-
-                      {/* Rail + node. Focus is a filled dot in the tag's color,
-                          a break a hollow ring — SCR-20's ● / ○, drawn rather
-                          than typed so it stops sharing the label's baseline. */}
-                      <span className="relative flex w-3 shrink-0 justify-center self-stretch">
-                        <span className="absolute inset-y-0 w-px bg-neutral-200" aria-hidden />
-                        <span
-                          className={`relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
-                            isFocus
-                              ? "bg-neutral-700"
-                              : "border border-neutral-300 bg-[var(--background)]"
-                          }`}
-                          style={
-                            isFocus && dotColor ? { backgroundColor: dotColor } : undefined
-                          }
-                          aria-hidden
-                        />
-                      </span>
-
-                      <span className="min-w-0 flex-1">
-                        <span
-                          className={`block truncate ${
-                            isFocus
-                              ? "text-[15px] text-neutral-900"
-                              : "text-sm text-neutral-500"
-                          }`}
-                        >
-                          {name}
-                        </span>
-                        {b.status === "aborted" && (
-                          <span className="mt-1 inline-block rounded border border-neutral-300 px-1.5 text-[10px] uppercase tracking-wide text-neutral-500">
-                            stopped early
-                          </span>
-                        )}
-                      </span>
-
-                      <span
-                        className={`shrink-0 tabular-nums ${
-                          isFocus ? "text-sm text-neutral-700" : "text-xs text-neutral-500"
-                        }`}
-                      >
-                        {formatDuration(duration)}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
+            {/* Block list, hung off a continuous rail so a day reads as a
+                sequence instead of a stack of similar rows. Day keeps the
+                flat list it has always had; the wider views add one heading
+                per local day (invariant 7). */}
+            {view === "day" ? (
+              <ol className="relative space-y-2">
+                {blocks.map((b, i) => renderRow(b, i > 0 ? blocks[i - 1] : null))}
+              </ol>
+            ) : (
+              <div className="space-y-6">
+                {groups.map((g) => (
+                  <section key={g.key} aria-label={g.label}>
+                    <h4 className="mb-2 text-xs font-medium text-neutral-500">
+                      {g.label}{" "}
+                      <span className="text-neutral-400">— {formatDuration(g.focusSeconds)}</span>
+                    </h4>
+                    <ol className="relative space-y-2">
+                      {g.items.map((b, i) => renderRow(b, i > 0 ? g.items[i - 1] : null))}
+                    </ol>
+                  </section>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Desktop inspector (SCR-21): edit without navigating away. */}
