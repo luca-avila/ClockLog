@@ -79,20 +79,14 @@ docker compose up -d
 cd frontend && npm install
 ```
 
-Copy `.env.example` to `.env` before the first run. How interpolation, the dev
-override, and the `RESEND_API_KEY` placeholder work is defined in
-`docs/operations.md` — read that section before touching `.env` or any compose
-file. `.env` is gitignored.
+`cp .env.example .env` before the first run. Every variable is documented in
+`.env.example` itself (required vs optional, and why the dev override empties
+`RESEND_API_KEY` at runtime); read it plus `docs/operations.md` § first run
+before touching any compose file. `.env` is gitignored — never quote it as a
+reference, it may not exist.
 
-### Ports and endpoints
-
-| URL | What |
-| --- | --- |
-| `http://localhost:3000` | Frontend dev (`npm run dev`) |
-| `http://localhost:8000` | API |
-| `http://localhost:8000/docs` | OpenAPI / Swagger UI |
-| `http://localhost:8000/health` | Liveness probe → `{"status": "ok"}` |
-| `http://127.0.0.1:3001` | Frontend in prod (Compose host port; nginx fronts it — see `docs/operations.md` § Deployment) |
+Ports, endpoints, and the liveness probe live in `docs/operations.md` (dev:
+frontend `:3000`, API `:8000`; prod: nginx fronts `:3001` / `:8000`).
 
 Postgres is **not** published to the host by default. Uncomment the `ports` block under `db` in `docker-compose.yml` if you need a direct client.
 
@@ -133,30 +127,14 @@ All routers mount at the app root. Every endpoint requires an `Authorization: Be
 The backend is organized **by module, not by layer**, so the independence invariant is visible in the filesystem.
 
 ```
-backend/
-  app/
-    core/            # config, security, db session, rate limiting — no business logic
-    shared/          # user, tag, setting — the ONLY things both modules may import
-      user/  tag/  setting/
-    timer/           # blocks, history      (phase 1, shipped)
-      api.py  models.py  schemas.py  service.py
-    plan/            # entries — the dated weekly calendar (phase 2, shipped)
-      api.py  models.py  schemas.py  service.py
-  alembic/versions/  # migrations
-  tests/
+backend/app/
+  core/     # config, security, db session, rate limiting — no business logic
+  shared/   # user, tag, setting — the ONLY things both modules may import
+  timer/    # blocks, history (phase 1, shipped): api.py  models.py  schemas.py  service.py
+  plan/     # entries, the dated weekly calendar (phase 2, shipped): same four files
 frontend/
-  app/               # App Router: (app)/ authenticated shell, login/
-  components/
-    shared/          # AppShell, Sidebar, TabBar, TagPicker, TagManager, QueueSync
-    timer/           # TimerScreen, LabelSheet, CycleIndicator, HistoryPage, BlockEditor
-    plan/            # PlanWeekScreen, PlanDayScreen, WeekView, DayView, EntrySheet, EmptyWeek
-  lib/               # api client, timer engine, date helpers, alerts
-  __tests__/
-docs/                # architecture.md, api.md, operations.md, decisions/ (ADR-001…010)
-  plans/             # in-flight change plans; deleted once the change lands
-infra/backup/        # nightly pg_dump container
-scripts/ci.sh        # run the full CI suite locally
-.github/workflows/   # CI
+  app/  components/{shared,timer,plan}/  lib/  __tests__/   # full tree in frontend/AGENTS.md
+docs/  infra/backup/  scripts/ci.sh  .github/workflows/
 ```
 
 `timer/` and `plan/` must never import each other. If something seems to belong to both, it belongs in `shared/`.
@@ -286,25 +264,12 @@ CI runs `ruff check .` and `ruff format --check app tests` — both must be clea
 
 ### Frontend
 
-**Mobile-first.** Phone width is the primary target: author the mobile layout first and add desktop layouts at breakpoints (`md:`/`lg:`). Desktop is a first-class second target, not an afterthought — match the desktop treatment the shipped screens already use.
+UI conventions (layout, palette, buttons, empty states) live in
+`frontend/AGENTS.md` — read it before touching any screen. What stays here:
 
-- **Mobile:** a bottom tab bar — `⏱ Timer · ▤ History · ▦ Plan`. Settings is reached from the header gear, not the tab bar.
-- **Desktop:** a persistent left sidebar carrying the same three destinations plus tags and Settings. History gains a two-pane layout (day list + block inspector) so editing a block never navigates away.
-- **A `fixed` overlay must clear the mobile tab bar.** The tab bar is an opaque 56px band at `bottom-0`, so anything pinned to the bottom uses `bottom-16 md:bottom-4` and a `z-index` above it, or it is painted underneath on the primary target. Two slots, and they do not share: **app-wide** messages take the centered one (`QueueSync`), **page-scoped** messages the right (`/settings`). A screen shows at most one page-scoped message at a time.
-
-Other conventions:
-
-- **Server Components by default**; `"use client"` only where interactivity requires it. The timer is necessarily a client component.
 - **Timer state lives in one place** (`lib/timer/engine.ts`). Do not duplicate elapsed-time calculation across components.
-- **Geist is the app typeface** (`Geist` / `Geist_Mono`, loaded in `app/layout.tsx` and mapped to `--font-sans` / `--font-mono` in `globals.css`). Do not set `font-family` on `body` — a direct rule there overrides the token for every screen.
 - **No `any`.** TypeScript runs in `strict` mode. If a type is hard to express, ask rather than escaping the type system.
-- **Tag colors are the only saturated color in the UI.** Everything else stays neutral. Tags are the single visual element shared across both modules.
-- **The palette lives in `app/globals.css`, and only there.** Every screen is authored in `neutral-*` plus `white`, so the app's color is set by overriding the Tailwind scale (`--color-neutral-50` … `--color-neutral-900`, `--color-white`) in one `@theme` block. The shipped palette is **sepia** — a warm cream ground with brown ink, so `bg-neutral-900` reads as espresso rather than black. Repaint by editing those tokens; never hard-code a hex or reach for another Tailwind color family in a component, or the palette stops being one revertable edit. The tint is low-chroma on purpose: it keeps tag colors the only saturated color in the app.
-- The cycle indicator (`● ● ○ ○`) appears only on the timer, never in the Plan.
-- Density differs by module on purpose: the timer is sparse, the plan grid is dense. They are used in different mental states.
-- **Empty states are honest and literal** ("No blocks yet"), never fabricated encouragement. The Plan empty state mentions the timer not at all — gate G-5 dropped the "Timers are optional." line, and invariant 13 stands unscoped ([ADR-005](docs/decisions/005-plan-empty-state-copy.md)).
-- **One filled button, one size.** `components/shared/PrimaryButton` is the only filled `bg-neutral-900` treatment in the app, and every action that commits something — START, RESUME, SAVE, SIGN IN — routes through it. It takes no `className`: a per-call-site override is how seven divergent copies of it happened the first time. It lives in `shared/` because both feature modules need it and neither may import the other (invariant 11), so its name, props, and copy stay free of Pomodoro vocabulary (invariant 13).
-- Secondary actions **during a running block** (Pause, Stop, Skip) are deliberately low-contrast. During focus, the correct interaction is none. **Resume, in the paused state, is primary** — it carries the same filled treatment as START, because paused is not running and the correct interaction there is precisely to resume.
+- The Plan empty state mentions the timer not at all (gate G-5, invariant 13).
 
 ```bash
 cd frontend
@@ -418,18 +383,12 @@ All decision gates are closed; resolutions and consequences live in `docs/decisi
 ## Debugging and troubleshooting
 
 Symptom → cause/fix lives in `docs/operations.md` § Monitoring and diagnosis
-(troubleshooting table). Start there; the entries that matter most to agents:
-
-- Timer under-reports in a background tab → invariant 1 violated (accumulating
-  counter instead of deriving from `startedAt`).
-- ESLint `no-restricted-imports` → invariant 11 violated; move the shared piece
-  into `shared/`.
-- `test_plan_contains_no_timer_vocabulary` on a header-only change → use the
-  `plan/` license-header variant (see [License headers](#license-headers)).
+(troubleshooting table). Start there.
 
 ## Working style
 
 - **Ask before large refactors or new dependencies.**
+- **In autonomous loops (`question: deny`), "ask" means decide conservatively and document.** Invariants in this file override the plan; anything else ambiguous goes in the plan's Supuestos or the report's Deuda — never a silent scope expansion.
 - **Prefer the boring solution.** This is maintained by one self-taught developer in limited time; clever code is a liability.
 - When you make a non-obvious choice, leave a one-line comment explaining *why*, not what. The existing codebase does this consistently — match it.
 - If something in this file is wrong or has drifted from the code, **say so** rather than working around it.
