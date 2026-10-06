@@ -65,7 +65,10 @@ describe("navigation destinations", () => {
     // gear + sidebar entry.
     expect(settingsHrefs.length).toBeGreaterThanOrEqual(1);
     expect(settingsHrefs).toContain("/settings");
-    expect(shellMarkup).toContain("⚙");
+    // The gear is a drawn icon now, so it is found by its accessible name.
+    const gear = [...shellMarkup.matchAll(/<a[^>]*aria-label="Settings"[^>]*>/g)];
+    expect(gear).toHaveLength(1);
+    expect(gear[0][0]).toContain('href="/settings"');
   });
 
   it("marks one sidebar item on /settings, not Tags as well", () => {

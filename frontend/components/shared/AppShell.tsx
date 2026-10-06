@@ -16,6 +16,7 @@
 
 import Link from "next/link";
 import Logo from "@/components/Logo";
+import NavIcon from "./NavIcon";
 import Sidebar from "./Sidebar";
 import TabBar from "./TabBar";
 import QueueSync from "./QueueSync";
@@ -32,13 +33,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" className="text-lg text-neutral-800">
             <Logo />
           </Link>
-          {/* Settings is reached from the gear, never a fourth tab */}
+          {/* Settings is reached from the gear, never a fourth tab. The same
+              drawn icon as the sidebar's, not an emoji glyph; the -mr-2
+              keeps the icon on the gutter while the tap target stays 36px. */}
           <Link
             href="/settings"
             aria-label="Settings"
-            className="text-neutral-400 hover:text-neutral-700 transition-colors text-lg"
+            className="-mr-2 grid h-9 w-9 place-items-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800"
           >
-            ⚙
+            <NavIcon name="settings" />
           </Link>
         </header>
         <main className="flex-1 pb-20 md:pb-6">{children}</main>
