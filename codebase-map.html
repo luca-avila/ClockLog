@@ -1,298 +1,161 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ClockLog — Mapa del codebase</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0d1117;--card:#161b22;--bd:#30363d;--tx:#e6edf3;--mut:#8b949e;--ac:#58a6ff}
-body{background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.55}
-a{color:var(--ac);text-decoration:none}
-a:hover{text-decoration:underline}
-code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
-pre{background:#0a0d12;border:1px solid var(--bd);border-radius:8px;padding:12px;overflow:auto}
-#side{position:fixed;top:0;left:0;bottom:0;width:220px;background:var(--card);border-right:1px solid var(--bd);padding:20px 14px;overflow:auto}
-#side h1{font-size:16px;margin-bottom:2px}
-#side p{font-size:12px;color:var(--mut);margin-bottom:14px}
-#side nav a{display:block;padding:6px 10px;border-radius:6px;color:var(--tx);font-size:13.5px}
-#side nav a.active{background:#1f6feb33;color:var(--ac)}
-main{margin-left:220px;padding:32px;max-width:1100px}
-section{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:22px;margin-bottom:22px}
-section h2{font-size:20px;margin-bottom:4px}
-section h3{font-size:15px;margin:18px 0 8px;color:var(--ac)}
-.sub{color:var(--mut);font-size:13px;margin-bottom:14px}
-table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
-th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--bd);vertical-align:top}
-th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
-.pill{display:inline-block;min-width:52px;text-align:center;font-size:11.5px;font-weight:700;border-radius:20px;padding:2px 9px}
-.get{background:#1a472a;color:#7ee787}.post{background:#1c3d5a;color:#79c0ff}
-.patch{background:#5a441c;color:#e3b341}.delete{background:#5a1f1f;color:#ff7b72}.put{background:#4a2d5a;color:#d2a8ff}
-.badge{display:inline-block;font-size:12px;border:1px solid var(--bd);border-radius:20px;padding:1px 10px;margin:2px 4px 2px 0;color:var(--tx)}
-.auth-y{color:#7ee787}.auth-n{color:#e3b341}
-.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:12px 0}
-.box{border:1px solid var(--bd);border-radius:8px;padding:10px 14px;background:#0a0d12;flex:1;min-width:140px;text-align:center}
-.box b{display:block;font-size:13.5px}.box span{font-size:12px;color:var(--mut)}
-.arrow{align-self:center;color:var(--ac);font-weight:700}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-top:10px}
-.card{border:1px solid var(--bd);border-radius:8px;padding:10px 12px;background:#0a0d12}
-.card b{font-size:13px}.card p{font-size:12.5px;color:var(--mut);margin-top:4px}
-.ok{background:#1a472a33;border:1px solid #1a472a;border-radius:8px;padding:10px 12px;font-size:13.5px;margin-top:10px}
-.warn{background:#5a441c33;border:1px solid #5a441c;border-radius:8px;padding:10px 12px;font-size:13.5px;margin-top:10px}
-#apiFilter{width:100%;background:#0a0d12;border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:9px 12px;margin:10px 0;font-size:14px}
-details{margin:4px 0}summary{cursor:pointer;font-size:13.5px}summary:hover{color:var(--ac)}
-.tree{font-size:13px;white-space:pre}
-footer{color:var(--mut);font-size:12.5px;text-align:center;padding:18px}
-@media(max-width:760px){#side{position:static;width:auto}main{margin:0;padding:16px}}
-</style>
-</head>
-<body>
-<aside id="side">
-<h1>ClockLog · mapa</h1>
-<p>FastAPI + Next.js · VPS Docker</p>
-<nav id="nav">
-<a href="#resumen">Resumen</a>
-<a href="#arquitectura">Arquitectura</a>
-<a href="#estructura">Estructura</a>
-<a href="#api">API</a>
-<a href="#datos">Datos</a>
-<a href="#frontend">Frontend</a>
-<a href="#contrato">Contrato</a>
-<a href="#deploy">Deploy</a>
-<a href="#criticos">Archivos críticos</a>
-<a href="#convenciones">Convenciones y deuda</a>
-</nav>
-</aside>
-<main>
-<section id="resumen">
-<h2>Resumen</h2>
-<p class="sub">Foto verificada en código · ver citas ruta:línea</p>
-<p><b>ClockLog</b> es un temporizador Pomodoro multiusuario + planificador semanal desacoplado: dos mitades (timer, plan) que solo comparten <code>user/tag/setting</code> y son físicamente borrables (<code>backend/app/main.py:51-56</code>, <code>docs/architecture.md:31-36</code>). Backend FastAPI async + PostgreSQL 16, frontend Next.js 16 App Router, en una VPS con Docker Compose; nginx + certbot corren fuera de Compose. Registro abierto con email verificado (G-6), JWT bearer + bcrypt, email vía Resend con <code>httpx</code> plano sin SDK.</p>
-<div>
-<span class="badge">Python 3.12 · backend/pyproject.toml:4</span><span class="badge">FastAPI ≥0.115</span><span class="badge">SQLAlchemy 2 async + asyncpg</span><span class="badge">Alembic</span><span class="badge">Postgres 16-alpine · docker-compose.yml:30</span><span class="badge">Next.js 16.3.0 · frontend/package.json:14</span><span class="badge">React 19 · frontend/package.json:15-16</span><span class="badge">Tailwind v4</span><span class="badge">vitest + happy-dom</span><span class="badge">ruff · eslint · tsc strict</span>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ClockLog · mapa del codebase</title><style>
+:root{color-scheme:dark;--bg:#0d1117;--card:#161b22;--line:#30363d;--text:#e6edf3;--muted:#9da7b3;--accent:#58a6ff}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}code,pre{font:13px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}code{overflow-wrap:anywhere}
+nav{position:fixed;inset:0 auto 0 0;width:220px;padding:22px 16px;overflow:auto;border-right:1px solid var(--line);background:var(--card)}nav strong{display:block;font-size:17px;margin:0 8px 18px}nav a{display:block;color:var(--muted);padding:7px 10px;border-radius:7px}nav a.active,nav a:hover{color:var(--text);background:#202b38;text-decoration:none}
+main{max-width:1100px;margin-left:220px;padding:24px 36px 80px}section{scroll-margin-top:20px;margin:0 0 42px}h1{font-size:32px;margin:0 0 8px}h2{font-size:22px;border-bottom:1px solid var(--line);padding-bottom:8px}h3{font-size:17px}.muted{color:var(--muted)}.badge,.pill{display:inline-block;border:1px solid var(--line);background:#202b38;border-radius:99px;padding:2px 8px;margin:0 4px 4px 0;font-size:12px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.card{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:15px}.flow{display:flex;flex-wrap:wrap;align-items:center;gap:10px}.flow .card{min-width:135px;text-align:center}.arrow{color:var(--accent);font-size:22px}table{border-collapse:collapse;width:100%;background:var(--card);font-size:13px}td,th{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}th{background:#202b38}input{width:100%;padding:10px 12px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:7px;margin:0 0 10px}.get{color:#7ee787}.post{color:#79c0ff}.patch,.put{color:#e3b341}.delete{color:#ff7b72}.ok{color:#7ee787}.warn{color:#e3b341}details{background:var(--card);border:1px solid var(--line);border-radius:7px;margin:8px 0;padding:8px 12px}summary{cursor:pointer}pre{white-space:pre-wrap;margin:10px 0 4px}footer{color:var(--muted);border-top:1px solid var(--line);padding-top:16px}@media(max-width:800px){nav{position:static;width:auto;border-right:0;border-bottom:1px solid var(--line)}nav a{display:inline-block}main{margin:0;padding:20px}}
+</style></head><body>
+<nav><strong>ClockLog · mapa</strong><a href="#resumen">Resumen</a><a href="#arquitectura">Arquitectura</a><a href="#estructura">Estructura</a><a href="#api">API</a><a href="#datos">Datos</a><a href="#frontend">Frontend</a><a href="#contrato">Contrato</a><a href="#deploy">Deploy</a><a href="#criticos">Archivos críticos</a><a href="#convenciones">Convenciones y deuda</a></nav><main>
+<section id="resumen"><h1>ClockLog · mapa del código</h1><p>Aplicación multiusuario de timer Pomodoro e historial más un calendario semanal independiente. El navegador mantiene el timer y su cola offline; FastAPI persiste datos, autentica y consulta Postgres. Corre en un VPS con Docker Compose y nginx.</p><p><span class="badge">Next.js 16</span><span class="badge">React 19</span><span class="badge">TypeScript</span><span class="badge">FastAPI</span><span class="badge">SQLAlchemy</span><span class="badge">Alembic</span><span class="badge">PostgreSQL 16</span><span class="badge">Docker Compose</span></p><p class="muted">Fuentes: <a href="./docs/architecture.md"><code>docs/architecture.md:7</code></a> · <a href="./frontend/lib/api/client.ts"><code>frontend/lib/api/client.ts:17</code></a> · <a href="./docker-compose.yml"><code>docker-compose.yml:22</code></a></p></section>
+
+<section id="arquitectura"><h2>Arquitectura</h2><div class="flow"><div class="card">Navegador<br><small>JWT + fetch</small></div>
+<div class="arrow">→</div>
+<div class="card">nginx<br><small>/ y /api</small></div>
+<div class="arrow">→</div>
+<div class="card">Next.js :3000<br><small>HTML y assets</small></div>
+<div class="card">FastAPI :8000<br><small>API JSON</small></div>
+<div class="arrow">→</div>
+<div class="card">Postgres :5432</div>
+</div>
+<p>La flecha de datos del navegador va directamente de nginx /api a FastAPI. Next no hace de proxy ni de backend para las llamadas del producto. El JWT vive en localStorage y se envía como Bearer. <a href="./infra/nginx.example.conf"><code>infra/nginx.example.conf:70</code></a> · <a href="./frontend/lib/api/client.ts"><code>frontend/lib/api/client.ts:60</code></a></p><p>Backend: <code>core/</code> para infraestructura; <code>shared/</code> para cuenta, tags y settings; <code>timer/</code> y <code>plan/</code> independientes. <a href="./backend/app/main.py"><code>backend/app/main.py:38</code></a></p></section>
+
+<section id="estructura"><h2>Estructura</h2><details open><summary>backend/ · API y migraciones</summary><pre>app/core/             configuración, DB, seguridad, rate limit, email
+app/shared/           user, tag, setting
+app/timer/            bloques e historial
+app/plan/             entradas del calendario
+alembic/versions/      evolución de esquema
+tests/                pruebas por módulo</pre></details><details><summary>frontend/ · App Router</summary><pre>app/                  rutas y layouts
+components/shared/    shell, navegación, tags
+components/timer/     timer e historial
+components/plan/      semana, día y editor
+lib/api/              cliente JSON y cola offline
+lib/timer/            motor del timer
+lib/plan/             geometría y estado URL
+__tests__/            Vitest</pre></details><details><summary>Infra y docs</summary><pre>docker-compose.yml       servicios de producción
+docker-compose.override.yml  dev
+infra/nginx.example.conf  proxy y TLS
+infra/backup/           pg_dump
+docs/                   arquitectura, API, operación, ADR
+.github/workflows/       CI y publicación de imágenes</pre></details></section>
+
+<section id="api"><h2>API</h2><p>25 rutas registradas en código. Los routers se montan en la raíz; nginx remueve el prefijo externo <code>/api</code>. <a href="./backend/app/main.py"><code>backend/app/main.py:38</code></a> · <a href="./infra/nginx.example.conf"><code>infra/nginx.example.conf:70</code></a></p><input id="filter" placeholder="Filtrar por método, ruta o módulo"><table><thead><tr><th>Método</th><th>Ruta interna</th><th>Router</th><th>Tag</th><th>Auth</th></tr>
+</thead><tbody id="apiRows"><tr data-filter="GET /health system"><td><span class="pill get">GET</span></td><td><code>/health</code></td><td><a href="./backend/app/main.py"><code>backend/app/main.py:147</code></a></td><td>system</td><td>No</td></tr>
+<tr data-filter="POST /auth/register auth"><td><span class="pill post">POST</span></td><td><code>/auth/register</code></td><td><a href="./backend/app/shared/user/api.py"><code>backend/app/shared/user/api.py:48</code></a></td><td>auth</td><td>No</td></tr>
+<tr data-filter="POST /auth/verify-email auth"><td><span class="pill post">POST</span></td><td><code>/auth/verify-email</code></td><td><a href="./backend/app/shared/user/api.py"><code>backend/app/shared/user/api.py:59</code></a></td><td>auth</td><td>No</td></tr>
+<tr data-filter="POST /auth/resend-verification auth"><td><span class="pill post">POST</span></td><td><code>/auth/resend-verification</code></td><td><a href="./backend/app/shared/user/api.py"><code>backend/app/shared/user/api.py:66</code></a></td><td>auth</td><td>No</td></tr>
+<tr data-filter="POST /auth/login auth"><td><span class="pill post">POST</span></td><td><code>/auth/login</code></td><td><a href="./backend/app/shared/user/api.py"><code>backend/app/shared/user/api.py:74</code></a></td><td>auth</td><td>No</td></tr>
+<tr data-filter="POST /auth/forgot-password auth"><td><span class="pill post">POST</span></td><td><code>/auth/forgot-password</code></td><td><a href="./backend/app/shared/user/api.py"><code>backend/app/shared/user/api.py:79</code></a></td><td>auth</td><td>No</td></tr>
+<tr data-filter="POST /auth/reset-password auth"><td><span class="pill post">POST</span></td><td><code>/auth/reset-password</code></td><td><a href="./backend/app/shared/user/api.py"><code>backend/app/shared/user/api.py:87</code></a></td><td>auth</td><td>No</td></tr>
+<tr data-filter="GET /auth/me auth"><td><span class="pill get">GET</span></td><td><code>/auth/me</code></td><td><a href="./backend/app/shared/user/api.py"><code>backend/app/shared/user/api.py:92</code></a></td><td>auth</td><td>Sí</td></tr>
+<tr data-filter="POST /tags tags"><td><span class="pill post">POST</span></td><td><code>/tags</code></td><td><a href="./backend/app/shared/tag/api.py"><code>backend/app/shared/tag/api.py:30</code></a></td><td>tags</td><td>Sí</td></tr>
+<tr data-filter="GET /tags tags"><td><span class="pill get">GET</span></td><td><code>/tags</code></td><td><a href="./backend/app/shared/tag/api.py"><code>backend/app/shared/tag/api.py:42</code></a></td><td>tags</td><td>Sí</td></tr>
+<tr data-filter="PATCH /tags/{tag_id} tags"><td><span class="pill patch">PATCH</span></td><td><code>/tags/{tag_id}</code></td><td><a href="./backend/app/shared/tag/api.py"><code>backend/app/shared/tag/api.py:50</code></a></td><td>tags</td><td>Sí</td></tr>
+<tr data-filter="DELETE /tags/{tag_id} tags"><td><span class="pill delete">DELETE</span></td><td><code>/tags/{tag_id}</code></td><td><a href="./backend/app/shared/tag/api.py"><code>backend/app/shared/tag/api.py:67</code></a></td><td>tags</td><td>Sí</td></tr>
+<tr data-filter="GET /settings settings"><td><span class="pill get">GET</span></td><td><code>/settings</code></td><td><a href="./backend/app/shared/setting/api.py"><code>backend/app/shared/setting/api.py:28</code></a></td><td>settings</td><td>Sí</td></tr>
+<tr data-filter="PUT /settings settings"><td><span class="pill put">PUT</span></td><td><code>/settings</code></td><td><a href="./backend/app/shared/setting/api.py"><code>backend/app/shared/setting/api.py:38</code></a></td><td>settings</td><td>Sí</td></tr>
+<tr data-filter="GET /blocks/recent-labels blocks"><td><span class="pill get">GET</span></td><td><code>/blocks/recent-labels</code></td><td><a href="./backend/app/timer/api.py"><code>backend/app/timer/api.py:40</code></a></td><td>blocks</td><td>Sí</td></tr>
+<tr data-filter="GET /blocks blocks"><td><span class="pill get">GET</span></td><td><code>/blocks</code></td><td><a href="./backend/app/timer/api.py"><code>backend/app/timer/api.py:48</code></a></td><td>blocks</td><td>Sí</td></tr>
+<tr data-filter="GET /blocks/summary blocks"><td><span class="pill get">GET</span></td><td><code>/blocks/summary</code></td><td><a href="./backend/app/timer/api.py"><code>backend/app/timer/api.py:61</code></a></td><td>blocks</td><td>Sí</td></tr>
+<tr data-filter="POST /blocks blocks"><td><span class="pill post">POST</span></td><td><code>/blocks</code></td><td><a href="./backend/app/timer/api.py"><code>backend/app/timer/api.py:72</code></a></td><td>blocks</td><td>Sí</td></tr>
+<tr data-filter="PATCH /blocks/{block_id} blocks"><td><span class="pill patch">PATCH</span></td><td><code>/blocks/{block_id}</code></td><td><a href="./backend/app/timer/api.py"><code>backend/app/timer/api.py:86</code></a></td><td>blocks</td><td>Sí</td></tr>
+<tr data-filter="DELETE /blocks/{block_id} blocks"><td><span class="pill delete">DELETE</span></td><td><code>/blocks/{block_id}</code></td><td><a href="./backend/app/timer/api.py"><code>backend/app/timer/api.py:99</code></a></td><td>blocks</td><td>Sí</td></tr>
+<tr data-filter="POST /plan/entries plan"><td><span class="pill post">POST</span></td><td><code>/plan/entries</code></td><td><a href="./backend/app/plan/api.py"><code>backend/app/plan/api.py:44</code></a></td><td>plan</td><td>Sí</td></tr>
+<tr data-filter="GET /plan/entries plan"><td><span class="pill get">GET</span></td><td><code>/plan/entries</code></td><td><a href="./backend/app/plan/api.py"><code>backend/app/plan/api.py:56</code></a></td><td>plan</td><td>Sí</td></tr>
+<tr data-filter="GET /plan/entries/{entry_id} plan"><td><span class="pill get">GET</span></td><td><code>/plan/entries/{entry_id}</code></td><td><a href="./backend/app/plan/api.py"><code>backend/app/plan/api.py:68</code></a></td><td>plan</td><td>Sí</td></tr>
+<tr data-filter="PATCH /plan/entries/{entry_id} plan"><td><span class="pill patch">PATCH</span></td><td><code>/plan/entries/{entry_id}</code></td><td><a href="./backend/app/plan/api.py"><code>backend/app/plan/api.py:77</code></a></td><td>plan</td><td>Sí</td></tr>
+<tr data-filter="DELETE /plan/entries/{entry_id} plan"><td><span class="pill delete">DELETE</span></td><td><code>/plan/entries/{entry_id}</code></td><td><a href="./backend/app/plan/api.py"><code>backend/app/plan/api.py:89</code></a></td><td>plan</td><td>Sí</td></tr>
+</tbody></table></section>
+
+<section id="datos"><h2>Datos</h2><p>Relaciones principales. Las fechas del plan son calendario local; los bloques registran instantes. <a href="./backend/app/plan/models.py"><code>backend/app/plan/models.py:42</code></a> · <a href="./backend/app/timer/models.py"><code>backend/app/timer/models.py:47</code></a></p><table><thead><tr><th>Tabla</th><th>Relaciones y significado</th><th>Modelo</th></tr>
+</thead><tbody><tr><td><code>user</code></td><td>Cuenta; email verificado y versión de contraseña</td><td><a href="./backend/app/shared/user/models.py"><code>backend/app/shared/user/models.py:26</code></a></td></tr>
+<tr><td><code>email_token</code></td><td>user_id → user; verificación y reset</td><td><a href="./backend/app/shared/user/models.py"><code>backend/app/shared/user/models.py:52</code></a></td></tr>
+<tr><td><code>tag</code></td><td>user_id → user; etiqueta compartida por módulos</td><td><a href="./backend/app/shared/tag/models.py"><code>backend/app/shared/tag/models.py:26</code></a></td></tr>
+<tr><td><code>user_setting</code></td><td>user_id → user; preferencias</td><td><a href="./backend/app/shared/setting/models.py"><code>backend/app/shared/setting/models.py:25</code></a></td></tr>
+<tr><td><code>block</code></td><td>user_id → user; tag_id → tag; instantes UTC</td><td><a href="./backend/app/timer/models.py"><code>backend/app/timer/models.py:26</code></a></td></tr>
+<tr><td><code>block_interval</code></td><td>block_id → block; intervalos de trabajo</td><td><a href="./backend/app/timer/models.py"><code>backend/app/timer/models.py:58</code></a></td></tr>
+<tr><td><code>entry</code></td><td>user_id → user; tag_id → tag; fecha y hora local</td><td><a href="./backend/app/plan/models.py"><code>backend/app/plan/models.py:28</code></a></td></tr>
+</tbody></table><h3>Migraciones Alembic</h3><table><thead><tr><th>Fecha</th><th>Revisión</th><th>Cambio</th><th>Archivo</th></tr>
+</thead><tbody><tr><td>2026-09-11</td><td><code>9f3c2a1b7d4e</code> <span class="ok">HEAD</span></td><td>make block_interval.ended_at not null</td><td><a href="./backend/alembic/versions/9f3c2a1b7d4e_make_block_interval_ended_at_not_null.py"><code>backend/alembic/versions/9f3c2a1b7d4e_make_block_interval_ended_at_not_null.py:1</code></a></td></tr>
+<tr><td>2026-08-29 00:35:58.030295</td><td><code>2306d4340d39</code></td><td>add email verification and reset tokens</td><td><a href="./backend/alembic/versions/2306d4340d39_add_email_verification_and_reset_tokens.py"><code>backend/alembic/versions/2306d4340d39_add_email_verification_and_reset_tokens.py:1</code></a></td></tr>
+<tr><td>2026-08-16 21:36:51.178621</td><td><code>31c17e2aabb2</code></td><td>add block kind</td><td><a href="./backend/alembic/versions/31c17e2aabb2_add_block_kind.py"><code>backend/alembic/versions/31c17e2aabb2_add_block_kind.py:1</code></a></td></tr>
+<tr><td>2026-08-15 15:42:50.228879</td><td><code>c09ffda7809d</code></td><td>add entry table</td><td><a href="./backend/alembic/versions/c09ffda7809d_add_entry_table.py"><code>backend/alembic/versions/c09ffda7809d_add_entry_table.py:1</code></a></td></tr>
+<tr><td>2026-08-05 17:59:51.667783</td><td><code>c6a6c45f608d</code></td><td>add unique constraint on tag (user_id, name)</td><td><a href="./backend/alembic/versions/c6a6c45f608d_add_unique_constraint_on_tag_user_id_.py"><code>backend/alembic/versions/c6a6c45f608d_add_unique_constraint_on_tag_user_id_.py:1</code></a></td></tr>
+<tr><td>2026-08-05 17:34:59.312928</td><td><code>41457faa8aa7</code></td><td>remove redundant ix_block_user_id index</td><td><a href="./backend/alembic/versions/41457faa8aa7_remove_redundant_ix_block_user_id_index.py"><code>backend/alembic/versions/41457faa8aa7_remove_redundant_ix_block_user_id_index.py:1</code></a></td></tr>
+<tr><td>2026-08-05 16:33:37.785079</td><td><code>0a6628028d28</code></td><td>add user_setting table</td><td><a href="./backend/alembic/versions/0a6628028d28_add_user_setting_table.py"><code>backend/alembic/versions/0a6628028d28_add_user_setting_table.py:1</code></a></td></tr>
+<tr><td>2026-08-05 16:09:05.933225</td><td><code>5fb34efae4d6</code></td><td>add block and block_interval tables</td><td><a href="./backend/alembic/versions/5fb34efae4d6_add_block_and_block_interval_tables.py"><code>backend/alembic/versions/5fb34efae4d6_add_block_and_block_interval_tables.py:1</code></a></td></tr>
+<tr><td>2026-08-05 15:30:52.976361</td><td><code>ea94268241a7</code></td><td>add tag table</td><td><a href="./backend/alembic/versions/ea94268241a7_add_tag_table.py"><code>backend/alembic/versions/ea94268241a7_add_tag_table.py:1</code></a></td></tr>
+<tr><td>2026-08-05 15:24:30.397132</td><td><code>cc314d9dbd63</code></td><td>change created_at to timezone-aware</td><td><a href="./backend/alembic/versions/cc314d9dbd63_change_created_at_to_timezone_aware.py"><code>backend/alembic/versions/cc314d9dbd63_change_created_at_to_timezone_aware.py:1</code></a></td></tr>
+<tr><td>2026-08-05 15:22:57.314265</td><td><code>8dd0aa91ede9</code></td><td>add user table</td><td><a href="./backend/alembic/versions/8dd0aa91ede9_add_user_table.py"><code>backend/alembic/versions/8dd0aa91ede9_add_user_table.py:1</code></a></td></tr>
+</tbody></table></section>
+
+<section id="frontend"><h2>Frontend</h2><p>App Router. Las vistas públicas de auth y las vistas protegidas bajo <code>(app)</code> usan fetch del navegador. El layout de <code>(app)</code> aporta el shell, sin lectura de sesión en servidor. <a href="./frontend/app/(app)/layout.tsx"><code>frontend/app/(app)/layout.tsx:21</code></a> · <a href="./frontend/lib/api/client.ts"><code>frontend/lib/api/client.ts:109</code></a></p><table><thead><tr><th>Ruta</th><th>Página</th><th>Datos</th></tr>
+</thead><tbody><tr><td><code>/plan/day</code></td><td><a href="./frontend/app/(app)/(plan)/plan/day/page.tsx"><code>frontend/app/(app)/(plan)/plan/day/page.tsx:1</code></a></td><td>Entradas por fecha, tags</td></tr>
+<tr><td><code>/plan</code></td><td><a href="./frontend/app/(app)/(plan)/plan/page.tsx"><code>frontend/app/(app)/(plan)/plan/page.tsx:1</code></a></td><td>Entradas por fecha, tags</td></tr>
+<tr><td><code>/history</code></td><td><a href="./frontend/app/(app)/history/page.tsx"><code>frontend/app/(app)/history/page.tsx:1</code></a></td><td>Bloques, resumen y tags</td></tr>
+<tr><td><code>/</code></td><td><a href="./frontend/app/(app)/page.tsx"><code>frontend/app/(app)/page.tsx:1</code></a></td><td>Timer → settings, labels, blocks</td></tr>
+<tr><td><code>/settings</code></td><td><a href="./frontend/app/(app)/settings/page.tsx"><code>frontend/app/(app)/settings/page.tsx:1</code></a></td><td>Ajustes vía API</td></tr>
+<tr><td><code>/forgot-password</code></td><td><a href="./frontend/app/forgot-password/page.tsx"><code>frontend/app/forgot-password/page.tsx:1</code></a></td><td>Auth vía API</td></tr>
+<tr><td><code>/login</code></td><td><a href="./frontend/app/login/page.tsx"><code>frontend/app/login/page.tsx:1</code></a></td><td>Auth vía API</td></tr>
+<tr><td><code>/logo-preview</code></td><td><a href="./frontend/app/logo-preview/page.tsx"><code>frontend/app/logo-preview/page.tsx:1</code></a></td><td>Vista previa local, sin API</td></tr>
+<tr><td><code>/register</code></td><td><a href="./frontend/app/register/page.tsx"><code>frontend/app/register/page.tsx:1</code></a></td><td>Auth vía API</td></tr>
+<tr><td><code>/reset-password</code></td><td><a href="./frontend/app/reset-password/page.tsx"><code>frontend/app/reset-password/page.tsx:1</code></a></td><td>Auth vía API</td></tr>
+<tr><td><code>/verify-email</code></td><td><a href="./frontend/app/verify-email/page.tsx"><code>frontend/app/verify-email/page.tsx:1</code></a></td><td>Auth vía API</td></tr>
+</tbody></table><p>El timer calcula elapsed con timestamps y recupera localStorage. <a href="./frontend/lib/timer/engine.ts"><code>frontend/lib/timer/engine.ts:69</code></a> · <a href="./frontend/components/timer/TimerScreen.tsx"><code>frontend/components/timer/TimerScreen.tsx:281</code></a></p></section>
+
+<section id="contrato"><h2>Contrato frontend ↔ backend</h2><p class="ok">Las 24 rutas de producto tienen consumidores identificables en el frontend; no se detectaron llamadas sin endpoint. <code>/health</code> es operativa. Cruce hecho contra llamadas en <code>frontend/lib/api/</code> y pantallas de auth, y contra los routers reales. Los tipos TypeScript del cliente se mantienen manualmente frente a los schemas Pydantic; ese contrato puede divergir sin un generador. <a href="./frontend/lib/api/history.ts"><code>frontend/lib/api/history.ts:20</code></a> · <a href="./backend/app/timer/schemas.py"><code>backend/app/timer/schemas.py:20</code></a></p><table><thead><tr><th>Endpoint</th><th>Consumidor</th><th>Estado</th></tr>
+</thead><tbody><tr><td><span class="pill post">POST</span> <code>/auth/register</code></td><td><a href="./frontend/app/register/page.tsx"><code>frontend/app/register/page.tsx:41</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill post">POST</span> <code>/auth/verify-email</code></td><td><a href="./frontend/app/verify-email/page.tsx"><code>frontend/app/verify-email/page.tsx:49</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill post">POST</span> <code>/auth/resend-verification</code></td><td><a href="./frontend/app/register/page.tsx"><code>frontend/app/register/page.tsx:63</code></a> · login / verify</td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill post">POST</span> <code>/auth/login</code></td><td><a href="./frontend/app/login/page.tsx"><code>frontend/app/login/page.tsx:59</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill post">POST</span> <code>/auth/forgot-password</code></td><td><a href="./frontend/app/forgot-password/page.tsx"><code>frontend/app/forgot-password/page.tsx:39</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill post">POST</span> <code>/auth/reset-password</code></td><td><a href="./frontend/app/reset-password/page.tsx"><code>frontend/app/reset-password/page.tsx:47</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill get">GET</span> <code>/auth/me</code></td><td><a href="./frontend/lib/api/session.ts"><code>frontend/lib/api/session.ts:37</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill post">POST</span> <code>/tags</code></td><td><a href="./frontend/lib/api/tags.ts"><code>frontend/lib/api/tags.ts:41</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill get">GET</span> <code>/tags</code></td><td><a href="./frontend/lib/api/tags.ts"><code>frontend/lib/api/tags.ts:37</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill patch">PATCH</span> <code>/tags/{tag_id}</code></td><td><a href="./frontend/lib/api/tags.ts"><code>frontend/lib/api/tags.ts:49</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill delete">DELETE</span> <code>/tags/{tag_id}</code></td><td><a href="./frontend/lib/api/tags.ts"><code>frontend/lib/api/tags.ts:57</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill get">GET</span> <code>/settings</code></td><td><a href="./frontend/lib/api/settings.ts"><code>frontend/lib/api/settings.ts:20</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill put">PUT</span> <code>/settings</code></td><td><a href="./frontend/lib/api/settings.ts"><code>frontend/lib/api/settings.ts:24</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill get">GET</span> <code>/blocks/recent-labels</code></td><td><a href="./frontend/components/timer/LabelSheet.tsx"><code>frontend/components/timer/LabelSheet.tsx:38</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill get">GET</span> <code>/blocks</code></td><td><a href="./frontend/lib/api/history.ts"><code>frontend/lib/api/history.ts:39</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill get">GET</span> <code>/blocks/summary</code></td><td><a href="./frontend/lib/api/history.ts"><code>frontend/lib/api/history.ts:43</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill post">POST</span> <code>/blocks</code></td><td><a href="./frontend/lib/api/queue.ts"><code>frontend/lib/api/queue.ts:84</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill patch">PATCH</span> <code>/blocks/{block_id}</code></td><td><a href="./frontend/lib/api/history.ts"><code>frontend/lib/api/history.ts:59</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill delete">DELETE</span> <code>/blocks/{block_id}</code></td><td><a href="./frontend/lib/api/history.ts"><code>frontend/lib/api/history.ts:67</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill post">POST</span> <code>/plan/entries</code></td><td><a href="./frontend/lib/api/plan.ts"><code>frontend/lib/api/plan.ts:79</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill get">GET</span> <code>/plan/entries</code></td><td><a href="./frontend/lib/api/plan.ts"><code>frontend/lib/api/plan.ts:87</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill get">GET</span> <code>/plan/entries/{entry_id}</code></td><td><a href="./frontend/lib/api/plan.ts"><code>frontend/lib/api/plan.ts:94</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill patch">PATCH</span> <code>/plan/entries/{entry_id}</code></td><td><a href="./frontend/lib/api/plan.ts"><code>frontend/lib/api/plan.ts:98</code></a></td><td><span class="ok">OK</span></td></tr>
+<tr><td><span class="pill delete">DELETE</span> <code>/plan/entries/{entry_id}</code></td><td><a href="./frontend/lib/api/plan.ts"><code>frontend/lib/api/plan.ts:106</code></a></td><td><span class="ok">OK</span></td></tr>
+</tbody></table></section>
+
+<section id="deploy"><h2>Deploy</h2><div class="flow"><div class="card">VPS</div>
+<div class="arrow">→</div>
+<div class="card">nginx + certbot<br><small>host</small></div>
+<div class="arrow">→</div>
+<div class="card">frontend + backend<br><small>contenedores</small></div>
+<div class="arrow">→</div>
+<div class="card">db + pgdata<br><small>volumen</small></div>
+<div class="card">backup + backups<br><small>volumen</small></div>
+</div>
+<p><a href="./docker-compose.yml"><code>docker-compose.yml:22</code></a> · <a href="./infra/nginx.example.conf"><code>infra/nginx.example.conf:45</code></a></p><table><thead><tr><th>Servicio</th><th>Imagen</th><th>Puerto</th><th>Dependencia</th><th>Variables principales</th></tr>
+</thead><tbody><tr><td>frontend</td><td>Build propio; Next standalone</td><td>127.0.0.1:3001 → :3000</td><td>—</td><td>NEXT_PUBLIC_API_URL en build</td></tr>
+<tr><td>backend</td><td>Build propio; FastAPI</td><td>127.0.0.1:8000</td><td>db saludable</td><td>DATABASE_URL, SECRET_KEY, CORS_ORIGINS, RESEND_API_KEY, EMAIL_FROM, APP_BASE_URL</td></tr>
+<tr><td>db</td><td>postgres:16-alpine</td><td>Sin puerto host</td><td>—</td><td>POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB</td></tr>
+<tr><td>backup</td><td>Build propio; pg_dump + rclone opcional</td><td>Sin puerto</td><td>db saludable</td><td>PGHOST, PGUSER, PGPASSWORD, PGDATABASE, BACKUP_DIR</td></tr>
+</tbody></table><p>CI ejecuta pytest, ruff, Vitest, ESLint y tsc. Publish construye imágenes en GitHub Actions; el VPS las descarga. <a href="./.github/workflows/ci.yml"><code>.github/workflows/ci.yml:15</code></a> · <a href="./.github/workflows/publish.yml"><code>.github/workflows/publish.yml:3</code></a> · <a href="./docs/operations.md"><code>docs/operations.md</code></a></p></section>
+
+<section id="criticos"><h2>Archivos críticos</h2><div class="cards"><div class="card"><a href="./backend/app/main.py"><code>backend/app/main.py:28</code></a><p class="muted">Registro de routers, CORS y errores.</p></div>
+<div class="card"><a href="./backend/app/shared/user/session.py"><code>backend/app/shared/user/session.py:49</code></a><p class="muted">JWT y usuario actual.</p></div>
+<div class="card"><a href="./backend/app/timer/service.py"><code>backend/app/timer/service.py:1</code></a><p class="muted">Persistencia y consultas de bloques.</p></div>
+<div class="card"><a href="./backend/app/plan/service.py"><code>backend/app/plan/service.py:1</code></a><p class="muted">Ocurrencias semanales.</p></div>
+<div class="card"><a href="./frontend/lib/api/client.ts"><code>frontend/lib/api/client.ts:17</code></a><p class="muted">Base URL, Bearer y errores.</p></div>
+<div class="card"><a href="./frontend/lib/api/queue.ts"><code>frontend/lib/api/queue.ts:84</code></a><p class="muted">Sincronización offline.</p></div>
+<div class="card"><a href="./frontend/lib/timer/engine.ts"><code>frontend/lib/timer/engine.ts:69</code></a><p class="muted">Cálculo temporal.</p></div>
+<div class="card"><a href="./docker-compose.yml"><code>docker-compose.yml:22</code></a><p class="muted">Topología de producción.</p></div>
 </div>
 </section>
 
-<section id="arquitectura">
-<h2>Arquitectura</h2>
-<p class="sub">Flujo de petición · prod: un solo origen nginx (<code>infra/nginx.example.conf:17-19</code>)</p>
-<h3>Dev (dos orígenes, CORS)</h3>
-<div class="flow">
-<div class="box"><b>Navegador</b><span>:3000 next dev</span></div><div class="arrow">→</div>
-<div class="box"><b>Next.js :3000</b><span>frontend/app/layout.tsx:20</span></div><div class="arrow">→</div>
-<div class="box"><b>FastAPI :8000</b><span>backend/app/main.py:32 · CORS :36-42</span></div><div class="arrow">→</div>
-<div class="box"><b>Postgres :5432</b><span>contenedor db, sin publicar · docker-compose.yml:35-36</span></div>
-</div>
-<h3>Prod (nginx, CORS irrelevante)</h3>
-<div class="flow">
-<div class="box"><b>Internet :443</b><span>certbot --nginx · infra/nginx.example.conf:27-30</span></div><div class="arrow">→</div>
-<div class="box"><b>nginx VPS</b><span>/api/ → 127.0.0.1:8000 · / → 127.0.0.1:3001</span></div><div class="arrow">→</div>
-<div class="box"><b>frontend :3001</b><span>standalone · frontend/Dockerfile:31-38</span></div>
-<div class="box"><b>backend :8000</b><span>migrate+serve · docker-compose.prod.yml:51</span></div><div class="arrow">→</div>
-<div class="box"><b>db + backup</b><span>pgdata · backups · docker-compose.prod.yml:102-104</span></div>
-</div>
-<p style="font-size:13px;color:var(--mut)">Backend bind-mount en dev (<code>docker-compose.yml:26-27</code>) con reload; <code>NEXT_PUBLIC_API_URL</code> se batea en build (<code>frontend/Dockerfile:27-29</code>) — cambiar el host API exige rebuild. Sin WebSocket: el timer es 100% cliente, un POST por bloque (invariantes 1-3).</p>
-</section>
+<section id="convenciones"><h2>Convenciones y deuda</h2><ul><li>Timer y plan son independientes, con tests de borrado físico e imports. <a href="./backend/tests/test_deletability.py"><code>backend/tests/test_deletability.py</code></a> · <a href="./backend/tests/test_independence.py"><code>backend/tests/test_independence.py</code></a></li><li>Next se ejecuta como servidor Node, pero no hay Route Handlers, Server Actions ni fetch de datos de usuario en Server Components. <a href="./frontend/next.config.ts"><code>frontend/next.config.ts:3</code></a> · <a href="./frontend/lib/api/client.ts"><code>frontend/lib/api/client.ts:109</code></a></li><li>La API y los tipos del frontend son dos descripciones manuales del contrato; si se cambia un schema, revisar el tipo correspondiente. <a href="./backend/app/plan/schemas.py"><code>backend/app/plan/schemas.py:27</code></a> · <a href="./frontend/lib/api/plan.ts"><code>frontend/lib/api/plan.ts:24</code></a></li><li>El rate limit es memoria del proceso; aumentar réplicas cambiaría su semántica. <a href="./backend/app/core/ratelimit.py"><code>backend/app/core/ratelimit.py:20</code></a></li><li class="warn">Drift documental: el manual raíz dice que las vistas de historial semana/mes no están construidas; el código actual las implementa. <a href="./AGENTS.md"><code>AGENTS.md</code></a> · <a href="./frontend/components/timer/HistoryPage.tsx"><code>frontend/components/timer/HistoryPage.tsx:62</code></a></li></ul></section>
 
-<section id="estructura">
-<h2>Estructura</h2>
-<p class="sub">Monorepo <code>backend/ + frontend/</code> organizado por módulo, no por capa</p>
-<pre class="tree">Tempo/
-├── backend/app/
-│   ├── main.py            # factory, CORS, routers, X-Request-ID
-│   ├── core/              # config, security, db, ratelimit, email (sin lógica negocio)
-│   ├── shared/user|tag|setting/   # LO ÚNICO que ambos módulos pueden importar
-│   ├── timer/  api|models|schemas|service  # bloques e historial (fase 1)
-│   └── plan/   api|models|schemas|service  # entradas fechadas (fase 2)
-├── backend/alembic/versions/  # 10 migraciones, head 2306d4340d39
-├── backend/tests/             # espeja app/ + test_independence/deletability
-├── frontend/app/              # App Router: (app)/ shell, login/, plan/, settings/
-├── frontend/components/shared|timer|plan/ + lib/api|timer|plan|date/
-├── frontend/__tests__/        # *.test.ts(x) por área
-├── infra/backup/  backup.sh + Dockerfile  # pg_dump nocturno + rclone opcional
-├── infra/nginx.example.conf   # único ejemplo nginx (fuera de Compose)
-├── docker-compose.yml / .prod.yml  # dev 2 svc · prod 4 svc
-└── docs/ architecture, api, operations, DECISIONS + scripts/ci.sh</pre>
-<details><summary><code>backend/app/core/</code> — config, security, db, ratelimit, email</summary><p class="sub">Sin lógica de negocio. <code>config.py:20-42</code> settings; <code>security.py:25-52</code> bcrypt HS256 7d + SHA-256 tokens mail; <code>db.py:25-34</code> engine async; <code>ratelimit.py:17-21</code> in-memory por diseño; <code>email.py:17-22</code> Resend vía httpx plano.</p></details>
-<details><summary><code>backend/app/shared/</code> — user, tag, setting (dependencia común obligatoria)</summary><p class="sub">Routers montados siempre en <code>main.py:44-46</code>. Lo único importable desde timer/plan (invariante 11).</p></details>
-<details><summary><code>backend/app/timer/ + frontend timer/</code> — bloques, historial (fase 1, MVP)</summary><p class="sub">Defensiva su importación en <code>main.py:51-56</code> para seguir borrable. Vocabulario Pomodoro prohibido fuera de aquí (invariante 13).</p></details>
-<details><summary><code>backend/app/plan/ + frontend plan/</code> — entradas fechadas, repeat_weekly (fase 2)</summary><p class="sub">Toma <b>fechas</b>, no instantes (<code>plan/api.py:59</code>). Cabecera licencia distinta sin la palabra Pomodoro.</p></details>
-</section>
-
-<section id="api">
-<h2>API — 25 endpoints</h2>
-<p class="sub">Prefijo vive en cada APIRouter · auth = <code>Depends(current_user_dependency)</code> (<code>shared/user/session.py:95-99</code>, Bearer en <code>:39</code>, claims sub+pwd en <code>:55-92</code>) · errores <code>{code,message}</code> vía <code>main.py:62-71</code>, 500 con <code>X-Request-ID</code> (<code>:74-101</code>)</p>
-<input id="apiFilter" placeholder="Filtrar por método, ruta o archivo… (p. ej. blocks, plan, auth)">
-<table id="apiTable">
-<thead><tr><th>Método</th><th>Ruta</th><th>Definición</th><th>Auth</th></tr></thead>
-<tbody>
-<tr><td><span class="pill get">GET</span></td><td><code>/health</code></td><td>backend/app/main.py:104</td><td class="auth-n">no</td></tr>
-<tr><td><span class="pill post">POST</span></td><td><code>/auth/register</code> 201</td><td>backend/app/shared/user/api.py:48</td><td class="auth-n">no · ip+email guard</td></tr>
-<tr><td><span class="pill post">POST</span></td><td><code>/auth/verify-email</code></td><td>backend/app/shared/user/api.py:59</td><td class="auth-n">no</td></tr>
-<tr><td><span class="pill post">POST</span></td><td><code>/auth/resend-verification</code> 204</td><td>backend/app/shared/user/api.py:66</td><td class="auth-n">no · ip+email guard</td></tr>
-<tr><td><span class="pill post">POST</span></td><td><code>/auth/login</code></td><td>backend/app/shared/user/api.py:74</td><td class="auth-n">no · 403 si sin verificar</td></tr>
-<tr><td><span class="pill post">POST</span></td><td><code>/auth/forgot-password</code> 204</td><td>backend/app/shared/user/api.py:79</td><td class="auth-n">no · 204 siempre</td></tr>
-<tr><td><span class="pill post">POST</span></td><td><code>/auth/reset-password</code> 204</td><td>backend/app/shared/user/api.py:87</td><td class="auth-n">no</td></tr>
-<tr><td><span class="pill get">GET</span></td><td><code>/auth/me</code></td><td>backend/app/shared/user/api.py:92</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill post">POST</span></td><td><code>/tags</code> 201</td><td>backend/app/shared/tag/api.py:30</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill get">GET</span></td><td><code>/tags</code></td><td>backend/app/shared/tag/api.py:42</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill patch">PATCH</span></td><td><code>/tags/{tag_id}</code></td><td>backend/app/shared/tag/api.py:50</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill delete">DELETE</span></td><td><code>/tags/{tag_id}</code></td><td>backend/app/shared/tag/api.py:67</td><td class="auth-y">sí · no borra bloques</td></tr>
-<tr><td><span class="pill get">GET</span></td><td><code>/settings</code></td><td>backend/app/shared/setting/api.py:28</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill put">PUT</span></td><td><code>/settings</code></td><td>backend/app/shared/setting/api.py:38</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill get">GET</span></td><td><code>/blocks/recent-labels</code></td><td>backend/app/timer/api.py:40</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill get">GET</span></td><td><code>/blocks?from=&amp;to=</code> instantes UTC</td><td>backend/app/timer/api.py:48</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill get">GET</span></td><td><code>/blocks/summary?from=&amp;to=</code></td><td>backend/app/timer/api.py:61</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill post">POST</span></td><td><code>/blocks</code> 201</td><td>backend/app/timer/api.py:72</td><td class="auth-y">sí · UUID cliente</td></tr>
-<tr><td><span class="pill patch">PATCH</span></td><td><code>/blocks/{block_id}</code></td><td>backend/app/timer/api.py:86</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill delete">DELETE</span></td><td><code>/blocks/{block_id}</code> 204</td><td>backend/app/timer/api.py:99</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill post">POST</span></td><td><code>/plan/entries</code> 201</td><td>backend/app/plan/api.py:44</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill get">GET</span></td><td><code>/plan/entries?from=&amp;to=</code> <b>fechas</b></td><td>backend/app/plan/api.py:56</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill get">GET</span></td><td><code>/plan/entries/{entry_id}</code></td><td>backend/app/plan/api.py:67</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill patch">PATCH</span></td><td><code>/plan/entries/{entry_id}</code></td><td>backend/app/plan/api.py:76</td><td class="auth-y">sí</td></tr>
-<tr><td><span class="pill delete">DELETE</span></td><td><code>/plan/entries/{entry_id}</code> 204</td><td>backend/app/plan/api.py:88</td><td class="auth-y">sí</td></tr>
-</tbody>
-</table>
-<p style="font-size:13px;color:var(--mut)">Rate-limit: todo /auth por IP (<code>ratelimit.py:80-85</code>), los que envían mail además por email (<code>:88-101</code>) → 429 RATE_LIMITED. tag_id cliente siempre revalidado por user_id (frontera multi-tenant).</p>
-</section>
-
-<section id="datos">
-<h2>Datos</h2>
-<p class="sub">Base en <code>backend/app/shared/models.py:20-21</code> · todo timestamptz UTC salvo date/time naïve del plan</p>
-<table>
-<thead><tr><th>Modelo (tabla)</th><th>Campos clave</th><th>Relaciones / índices</th></tr></thead>
-<tbody>
-<tr><td><code>User (user)</code><br>shared/user/models.py:26</td><td>id UUID · email unique · hashed_password · email_verified_at · password_changed_at (pin pwd JWT :38-40)</td><td>—</td></tr>
-<tr><td><code>EmailToken</code><br>shared/user/models.py:52</td><td>token_hash SHA-256 unique · purpose verify/reset · expires_at · used_at (un solo uso)</td><td>FK user CASCADE, index</td></tr>
-<tr><td><code>Tag (tag)</code><br>shared/tag/models.py:26</td><td>name(100) · color #RRGGBB</td><td>Unique(user_id,name) :28 · FK user CASCADE</td></tr>
-<tr><td><code>UserSetting</code><br>shared/setting/models.py:25</td><td>focus 25 · short 5 · long 15 · blocks_per_cycle 4 · auto_* false · sound/notif true</td><td>FK user unique+index</td></tr>
-<tr><td><code>Block (block)</code><br>timer/models.py:26</td><td>id UUID <b>cliente-genera</b> :29 · status completed/aborted · kind focus/short|long_break · label(500) · started_at TZ</td><td>tag FK SET NULL · Index(user_id,started_at) :55 · intervals cascade delete-orphan</td></tr>
-<tr><td><code>BlockInterval</code><br>timer/models.py:58</td><td>started_at TZ · ended_at TZ null</td><td>FK block CASCADE</td></tr>
-<tr><td><code>Entry (entry)</code><br>plan/models.py:28</td><td>name(200) · <b>date naïve</b> :42 · all_day · start/end Time naïve · repeat_weekly</td><td>tag FK SET NULL · Index(user_id,date) :57 · sin FK a bloques (inv. 12)</td></tr>
-</tbody>
-</table>
-<h3>Timeline de migraciones (más reciente arriba · head marcado)</h3>
-<table>
-<thead><tr><th>Revisión</th><th>Mensaje</th><th>Fecha</th></tr></thead>
-<tbody>
-<tr><td><code>2306d4340d39 ★ head</code></td><td>add email verification and reset tokens</td><td>2026-08-29</td></tr>
-<tr><td><code>31c17e2aabb2</code></td><td>add block kind</td><td>2026-08-16</td></tr>
-<tr><td><code>c09ffda7809d</code></td><td>add entry table</td><td>2026-08-15</td></tr>
-<tr><td><code>c6a6c45f608d</code></td><td>unique constraint tag (user_id, name)</td><td>2026-08-05</td></tr>
-<tr><td><code>41457faa8aa7</code></td><td>remove redundant ix_block_user_id</td><td>2026-08-05</td></tr>
-<tr><td><code>0a6628028d28</code></td><td>add user_setting table</td><td>2026-08-05</td></tr>
-<tr><td><code>5fb34efae4d6</code></td><td>add block and block_interval tables</td><td>2026-08-05</td></tr>
-<tr><td><code>ea94268241a7</code></td><td>add tag table</td><td>2026-08-05</td></tr>
-<tr><td><code>cc314d9dbd63</code></td><td>created_at → timezone-aware</td><td>2026-08-05</td></tr>
-<tr><td><code>8dd0aa91ede9</code></td><td>add user table</td><td>2026-08-05</td></tr>
-</tbody>
-</table>
-<p style="font-size:13px;color:var(--mut)">Cadena única down_revision en <code>backend/alembic/versions/*.py</code>. Migrar siempre vía Alembic, nunca SQL a mano.</p>
-</section>
-
-<section id="frontend">
-<h2>Frontend — 11 rutas App Router</h2>
-<p class="sub">Sin pages/ · <code>(app)</code> y <code>(plan)</code> son grupos, no URL · base <code>API_BASE = NEXT_PUBLIC_API_URL || localhost:8000</code> (<code>lib/api/client.ts:17</code>) · wrapper <code>apiFetch</code> (<code>:109-135</code>) que lanza <code>ApiError{code,message}</code> · sin react-query/axios (<code>package.json:13-17</code>)</p>
-<table>
-<thead><tr><th>URL</th><th>Archivo</th><th>Datos que trae</th></tr></thead>
-<tbody>
-<tr><td><code>/</code></td><td>frontend/app/(app)/page.tsx:19 → TimerScreen</td><td>settings (<code>useSettings.ts:34</code>) · POST /blocks al completar (<code>TimerScreen.tsx:315</code> vía <code>lib/api/blocks.ts:32</code>)</td></tr>
-<tr><td><code>/history</code></td><td>frontend/app/(app)/history/page.tsx:19 → HistoryPage</td><td>GET /blocks + /summary (<code>HistoryPage.tsx:90</code>, rango <code>:88</code>) · tags (<code>:82</code>)</td></tr>
-<tr><td><code>/plan</code></td><td>frontend/app/(app)/(plan)/plan/page.tsx:36</td><td>GET /plan/entries?from,to vía <code>useOccurrences</code> (<code>lib/plan/hooks.ts:41</code>)</td></tr>
-<tr><td><code>/plan/day</code></td><td>frontend/app/(app)/(plan)/plan/day/page.tsx:38</td><td>igual rango día + marcador now (<code>PlanDayScreen.tsx:35-44</code>)</td></tr>
-<tr><td><code>/settings</code></td><td>frontend/app/(app)/settings/page.tsx:30</td><td>GET+PUT /settings (<code>:41</code>) · signOut (<code>:132</code>) · TagManager CRUD</td></tr>
-<tr><td><code>/login</code></td><td>frontend/app/login/page.tsx:26</td><td>POST /auth/login (<code>:59</code>) + adoptSession (<code>:79</code>)</td></tr>
-<tr><td><code>/register</code></td><td>frontend/app/register/page.tsx:25</td><td>POST /auth/register (<code>:41</code>) + resend (<code>:63</code>)</td></tr>
-<tr><td><code>/verify-email</code></td><td>frontend/app/verify-email/page.tsx:151</td><td>POST /auth/verify-email (<code>:49</code>) + adoptSession (<code>:59</code>)</td></tr>
-<tr><td><code>/forgot-password</code></td><td>frontend/app/forgot-password/page.tsx:25</td><td>POST /auth/forgot-password (<code>:39</code>)</td></tr>
-<tr><td><code>/reset-password</code></td><td>frontend/app/reset-password/page.tsx:116</td><td>POST /auth/reset-password (<code>:47</code>)</td></tr>
-<tr><td><code>/logo-preview</code></td><td>frontend/app/logo-preview/page.tsx:28</td><td>ninguna (hoja de pruebas del logo)</td></tr>
-</tbody>
-</table>
-<p style="font-size:13px;color:var(--mut)">Auth: token en <code>localStorage token</code> (<code>session.ts:58</code>), header Bearer (<code>client.ts:67-71</code>), 401 → limpia token y va a /login (<code>:95-107,119-121</code>). Cambio de cuenta = fence: borra todo <code>clocklog_*</code> (<code>client.ts:27-40</code>, <code>session.ts:34-61</code>). Cola offline: <code>lib/api/queue.ts:113 enqueueBlock, :141 flushQueue, :218 initQueueSync</code> montada por <code>QueueSync.tsx:29</code>. Timer deriva de startedAt en <code>lib/timer/engine.ts:17-48</code>; día local→UTC en <code>lib/date/instant.ts:31</code>.</p>
-</section>
-
-<section id="contrato">
-<h2>Contrato frontend ↔ backend</h2>
-<p class="sub">Cruce exhaustivo llamada → endpoint</p>
-<table>
-<thead><tr><th>Llamada frontend</th><th>Endpoint real</th><th>Estado</th></tr></thead>
-<tbody>
-<tr><td>POST /auth/* vía postAuth (<code>session.ts:89-93</code>)</td><td>7 rutas /auth (<code>user/api.py:48-92</code>)</td><td>✔ OK</td></tr>
-<tr><td>GET /auth/me (<code>session.ts:37-39</code>)</td><td>GET /auth/me (<code>user/api.py:92</code>)</td><td>✔ OK</td></tr>
-<tr><td>POST /blocks vía defaultPost (<code>queue.ts:61-65</code>)</td><td>POST /blocks (<code>timer/api.py:72</code>)</td><td>✔ OK</td></tr>
-<tr><td>GET /blocks?from,to (<code>history.ts:40</code>)</td><td>GET /blocks (<code>timer/api.py:48</code>)</td><td>✔ OK</td></tr>
-<tr><td>GET /blocks/summary (<code>history.ts:44</code>)</td><td>GET /blocks/summary (<code>timer/api.py:61</code>)</td><td>✔ OK</td></tr>
-<tr><td>PATCH/DELETE /blocks/id (<code>history.ts:59-67</code>)</td><td>PATCH/DELETE /blocks/{id} (<code>timer/api.py:86,99</code>)</td><td>✔ OK</td></tr>
-<tr><td>GET /blocks/recent-labels (<code>LabelSheet.tsx:38</code>)</td><td>GET /blocks/recent-labels (<code>timer/api.py:40</code>)</td><td>✔ OK</td></tr>
-<tr><td>CRUD /plan/entries (<code>plan.ts:79-107</code>)</td><td>5 rutas /plan/entries (<code>plan/api.py:44-88</code>)</td><td>✔ OK</td></tr>
-<tr><td>CRUD /tags (<code>tags.ts:37-58</code>)</td><td>4 rutas /tags (<code>tag/api.py:30-67</code>)</td><td>✔ OK</td></tr>
-<tr><td>GET+PUT /settings (<code>settings.ts:20-31</code>)</td><td>GET+PUT /settings (<code>setting/api.py:28,38</code>)</td><td>✔ OK</td></tr>
-</tbody>
-</table>
-<div class="ok"><b>Sin drift:</b> toda llamada del frontend tiene endpoint real y todo endpoint (salvo <code>/health</code>, liveness en <code>main.py:104</code>) es consumido por al menos una pantalla. No hay endpoints huérfanos ni llamadas sin backend. No existe auth alternativa, websockets ni SDKs.</div>
-</section>
-
-<section id="deploy">
-<h2>Deploy — VPS Docker + nginx</h2>
-<p class="sub">Despliegue: <code>cp .env.example .env</code> + <code>docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build</code> (<code>docs/operations.md:152-159</code>) · CI espejo en <code>.github/workflows/ci.yml:3-55</code> y <code>scripts/ci.sh:9-23</code></p>
-<h3>Dev — docker-compose.yml (2 servicios)</h3>
-<table><thead><tr><th>Svc</th><th>Build/ports/vol</th><th>Env</th></tr></thead><tbody>
-<tr><td><code>backend</code></td><td>./backend target dev (:3-5) · 127.0.0.1:8000:8000 (:12) · ./backend:/app (:26-27) · boot <code>alembic upgrade head &amp;&amp; fastapi run</code> (:6-7)</td><td>DATABASE_URL · SECRET_KEY=dev · TEST_DATABASE_URL clocklog_test · APP_BASE_URL :3000 · EMAIL_FROM (:13-22)</td></tr>
-<tr><td><code>db</code></td><td>postgres:16-alpine (:30) · sin puertos (:35-36) · pgdata (:37-38) · pg_isready (:39-43)</td><td>POSTGRES_USER/PASSWORD/DB=clocklog (:31-34)</td></tr>
-</tbody></table>
-<h3>Prod — overlay (4 servicios)</h3>
-<table><thead><tr><th>Svc</th><th>Build/ports/vol</th><th>Env</th></tr></thead><tbody>
-<tr><td><code>backend</code></td><td>stage prod (:32) · hereda :8000 · restart unless-stopped</td><td>DATABASE_URL · SECRET_KEY · LOGIN_* · AUTH_EMAIL_* · CORS_ORIGINS · RESEND_API_KEY · EMAIL_FROM · APP_BASE_URL (:34-46)</td></tr>
-<tr><td><code>frontend</code></td><td>./frontend (:54-58) · 127.0.0.1:3001:3000 (:60-61)</td><td>solo build-arg NEXT_PUBLIC_API_URL (horneado)</td></tr>
-<tr><td><code>db</code></td><td>postgres:16-alpine (:65) · pgdata (:71-72)</td><td>POSTGRES_* desde .env (:67-70)</td></tr>
-<tr><td><code>backup</code></td><td>./infra/backup (:83) · backups:/backups (:94-96) · depende db healthy</td><td>PGHOST/USER/PASS/DB · BACKUP_DIR/INTERVAL/KEEP/RCLONE (:85-93)</td></tr>
-</tbody></table>
-<p style="font-size:13px;color:var(--mut)">nginx ejemplo en <code>infra/nginx.example.conf</code>: <code>/api/ → 127.0.0.1:8000/</code> con trailing slash (<code>:78-87</code>, X-Forwarded-For para rate-limit) y <code>/ → 127.0.0.1:3001</code> (<code>:90-96</code>). Backup: <code>infra/backup/backup.sh:25-52</code> pg_dump -Fc + rotación; fallo rclone nunca pierde la copia (<code>:37-39</code>). Backend prod: imagen slim + <code>appuser</code> no-root (<code>backend/Dockerfile:13-19</code>). Vars completas en <code>.env.example</code> (SECRET_KEY, DATABASE_URL, LOGIN_*, AUTH_EMAIL_*, RESEND_API_KEY vacío=en dev solo log, EMAIL_FROM, APP_BASE_URL, CORS_ORIGINS, POSTGRES_*, NEXT_PUBLIC_API_URL, BACKUP_*).</p>
-</section>
-
-<section id="criticos">
-<h2>Archivos críticos</h2>
-<div class="grid">
-<div class="card"><b>backend/app/main.py</b><p>Factory, CORS bearer, montaje defensivo timer/plan, normalización {code,message}, X-Request-ID.</p></div>
-<div class="card"><b>backend/app/core/security.py + shared/user/session.py</b><p>JWT sub+pwd (revoca al cambiar pass), bcrypt siempre (timing plano), tokens mail SHA-256 un solo uso.</p></div>
-<div class="card"><b>backend/app/timer/api.py + service.py</b><p>Rangos de instantes UTC; un POST por bloque con UUID cliente (idempotencia offline).</p></div>
-<div class="card"><b>backend/app/plan/api.py + models.py</b><p>Excepción fechas: date/time naïve wall-clock. No copiar a history.</p></div>
-<div class="card"><b>backend/tests/test_independence.py + test_deletability.py</b><p>Pruebas mecánicas inv. 11/13: import timer↔plan prohibido, app bootea sin cada módulo.</p></div>
-<div class="card"><b>frontend/lib/timer/engine.ts</b><p>Única fuente de verdad elapsed = now-startedAt. No acumular ticks.</p></div>
-<div class="card"><b>frontend/lib/api/client.ts + session.ts + queue.ts</b><p>apiFetch, fence multicuenta clocklog_*, cola offline y flush.</p></div>
-<div class="card"><b>frontend/lib/date/instant.ts + plan/hooks.ts</b><p>Frontera días: cliente computa from/to UTC; servidor nunca razona "días".</p></div>
-<div class="card"><b>frontend/eslint.config.mjs</b><p>no-restricted-imports timer↔plan y shared→features.</p></div>
-<div class="card"><b>docker-compose.yml + .prod.yml + infra/nginx.example.conf</b><p>Topología, bakeo NEXT_PUBLIC_API_URL, strip /api, TLS fuera de Compose.</p></div>
-</div>
-</section>
-
-<section id="convenciones">
-<h2>Convenciones y deuda</h2>
-<p class="sub">Patrones detectados en código + AGENTS.md</p>
-<table>
-<thead><tr><th>Área</th><th>Convención / riesgo</th></tr></thead>
-<tbody>
-<tr><td>Tiempo</td><td>UTC + aware siempre; duraciones derivadas, nunca almacenadas (inv. 5-6). Bloque tras medianoche = día de inicio (inv. 7). Riesgo: cualquier fecha en servidor salvo plan rompe el invariante.</td></tr>
-<tr><td>Timer</td><td>Cliente puro, 1 POST/bloque, localStorage recovery, abortados se guardan (inv. 1-4, 8-9). Auto-start OFF por defecto: break arranca al cerrar LabelSheet.</td></tr>
-<tr><td>Módulos</td><td>timer/plan sin imports cruzados ni FK cruzadas ni vocabulario Pomodoro en plan (inv. 11-13, tests mecánicos). Fase 3 (checkbox timer en entries) exige renegociar 12-13 por escrito — no implementar.</td></tr>
-<tr><td>Backend</td><td>Routers finos → service.py (inv. 16). Schemas Pydantic en borde, sesiones async, {code} estable, ruff 100 col.</td></tr>
-<tr><td>Frontend</td><td>Mobile-first tab bar 56px (overlays en bottom-16 md:bottom-4) · Server Components por defecto · PrimaryButton único filled · tags único color saturado · tokens solo en globals.css · sin any.</td></tr>
-<tr><td>Seguridad</td><td>Sin framework auth; sin cookie (CORS credentials off); registro siempre abierto (nginx restringe); login plano en tiempo; 204 ambiguo en forgot/resend; cambio pass revoca sesiones.</td></tr>
-<tr><td>Deuda / vigilancia</td><td>Rate-limit in-memory (<code>ratelimit.py:17-21</code>) — se pierde al reiniciar, no escala a N réplicas. Sin tests UI exhaustivos por decisión (lógica día-frontera prioritaria). Cabeceras licencia con variante plan — romperla tumba <code>test_independence</code>.</td></tr>
-</tbody>
-</table>
-<div class="warn"><b>No existe:</b> websockets, premium (<code>is_premium</code> prohibido, inv. 15), export, charts, vistas semana/mes de historial, entrada manual, RRULE, SDK Resend, Makefile/scripts deploy. Pedirlos es expansión de alcance.</div>
-</section>
-<footer>Generado el 2026-09-07 · commit cedbfe4 · regenerar con /understand-codebase</footer>
-</main>
-<script>
-var f=document.getElementById('apiFilter'),t=document.getElementById('apiTable');
-f.addEventListener('input',function(){var q=f.value.toLowerCase(),rs=t.tBodies[0].rows;
-for(var i=0;i<rs.length;i++){rs[i].style.display=rs[i].textContent.toLowerCase().indexOf(q)>-1?'':'none'}});
-var links=document.querySelectorAll('#nav a'),secs=[].slice.call(document.querySelectorAll('main section'));
-var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('active',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-40% 0px -55% 0px'});
-secs.forEach(function(s){io.observe(s)});
-</script>
-</body>
-</html>
+<footer>Generado el 2026-09-25 · commit 59c02c1 · regenerar con /understand-codebase</footer></main><script>const links=[...document.querySelectorAll('nav a[href^="#"]')];const sections=links.map(a=>document.querySelector(a.hash)).filter(Boolean);const watch=new IntersectionObserver(entries=>{entries.forEach(x=>{if(x.isIntersecting){links.forEach(a=>a.classList.toggle('active',a.hash==='#'+x.target.id))}})},{rootMargin:'-10% 0px -75% 0px'});sections.forEach(x=>watch.observe(x));document.getElementById('filter').addEventListener('input',e=>{const q=e.target.value.toLowerCase().trim();document.querySelectorAll('#apiRows tr').forEach(r=>r.hidden=!r.dataset.filter.toLowerCase().includes(q))});</script></body></html>

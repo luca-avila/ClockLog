@@ -8,12 +8,14 @@ trusting a page.
 | [architecture.md](architecture.md) | How the system works | Current |
 | [api.md](api.md) | Endpoint reference | Current |
 | [operations.md](operations.md) | Runbook | Current |
+| [next-static-export-migration.md](next-static-export-migration.md) | Staged migration plan for a static Next.js frontend | Proposed — not implemented |
 | [decisions/](decisions/) | Architecture decision records (ADRs 001–011) | Current |
 | [../AGENTS.md](../AGENTS.md) | Contributor / agent operating manual | Current |
 
-Everything here describes the app as built. There is no separate design spec — the code
-is the source of truth for what each screen does, and `AGENTS.md` carries the invariants
-and conventions that constrain it.
+Pages marked Current describe the app as built. The proposed migration plan describes
+future work. There is no separate design spec — the code is the source of truth for
+what each screen does, and `AGENTS.md` carries the invariants and conventions that
+constrain it.
 
 Screen IDs (`SCR-01`…`SCR-40`) label screens in commits and component docstrings; the
 table in `AGENTS.md` defines them.
