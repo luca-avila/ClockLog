@@ -214,6 +214,17 @@ lie. With it OFF, the user dismisses the label sheet and presses START, so recor
 break time is always real break time. If the setting is ever turned ON, **the break
 clock must start when the label sheet is dismissed**, never at 00:00.
 
+How the engine honours both auto-start settings (`transition` in `lib/timer/engine.ts`):
+
+- **`autoStartBreaks`** — `labelSave` returns a running break started at the
+  dismissal instant, instead of idle with a pending break. Only after a block that ran
+  out: a block cut short with STOP still lands on the idle "start the break" screen.
+- **`autoStartNext`** — the `tick` that ends a break returns a running focus block
+  started at that tick. Only if the tick lands within `AUTO_START_GRACE_MS` (2 min) of
+  the break's end: later than that, the app was not running when the break ran out
+  (tab closed, machine asleep), so it goes idle rather than record focus nobody chose.
+  A stopped or skipped break never auto-starts anything.
+
 ### What is and is not recorded
 
 - **Aborted blocks are saved**, with `status = "aborted"` and the real elapsed time.

@@ -127,13 +127,16 @@ function loadStoredState(): TimerState | null {
 function alertBlockEnd(
   blockType: BlockType,
   settings: { sound: boolean; notifications: boolean },
-  nextBreak?: BlockType
+  nextBreak?: BlockType,
+  autoStarted?: boolean
 ) {
   let body: string;
   if (blockType === "focus") {
     body = nextBreak === "long_break" ? "Time for a long break" : "Time for a break";
   } else {
-    body = "Ready for the next focus block";
+    // Auto-start next already has the clock running — say so, or the user
+    // reaches for a START that is no longer there.
+    body = autoStarted ? "Next focus block started" : "Ready for the next focus block";
   }
   fireAlert(
     {
@@ -363,7 +366,7 @@ export default function TimerScreen() {
           /* queued for retry; the UI moves on regardless */
         });
       } else if (effect.type === "alert") {
-        alertBlockEnd(effect.blockType, settings, effect.nextBreak);
+        alertBlockEnd(effect.blockType, settings, effect.nextBreak, effect.autoStarted);
       }
     }
     rawDispatch({ kind: "drained", count: batch.length });

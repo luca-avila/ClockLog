@@ -26,6 +26,7 @@ import {
   deserializeState,
   defaultSettings,
   transition,
+  AUTO_START_GRACE_MS,
   type ClockDeps,
 } from "@/lib/timer/engine";
 import { formatCountdown } from "@/lib/date/instant";
@@ -1048,6 +1049,181 @@ describe("transition — labelSave", () => {
     // The saved intervals must agree with the effect's endedAt.
     const last = saveEffect.state.intervals[saveEffect.state.intervals.length - 1];
     expect(last.endedAt).toBe(tickInstant);
+  });
+});
+
+describe("transition — auto-start", () => {
+  const FOCUS_MS = 25 * 60 * 1000;
+  const SHORT_MS = 5 * 60 * 1000;
+
+  // Run a focus block to its natural end and return the ended state.
+  function endFocus(clock: ReturnType<typeof makeClock>, s: TimerSettings, completed = 0) {
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", tagId: null },
+      clock,
+      s,
+      completed,
+      false
+    );
+    clock.advance(FOCUS_MS + 1);
+    return transition(started.state, { kind: "tick" }, clock, s, completed, false).state;
+  }
+
+  it("auto-start breaks: the break clock starts when the label sheet is dismissed", () => {
+    const s = { ...settings, autoStartBreaks: true };
+    const clock = makeClock(1_000_000);
+    const ended = endFocus(clock, s);
+    // The sheet sits open for four minutes; none of that is break time.
+    clock.advance(4 * 60 * 1000);
+    const dismissedAt = clock.now();
+
+    const result = transition(
+      ended,
+      { kind: "labelSave", label: "my task", tagId: null },
+      clock,
+      s,
+      0,
+      false
+    );
+
+    expect(result.state).not.toBeNull();
+    expect(result.state!.type).toBe("short_break");
+    expect(result.state!.phase).toBe("running");
+    expect(result.state!.startedAt).toBe(dismissedAt);
+    expect(result.state!.intervals).toEqual([{ startedAt: dismissedAt }]);
+    expect(result.state!.focusBlocksCompleted).toBe(1);
+    expect(result.state!.id).not.toBe(ended!.id);
+    // The focus block is still saved, and no break is left pending.
+    expect(result.effects[0].type).toBe("save");
+    expect(result.effects[1]).toEqual({ type: "setCycle", completed: 1, pendingBreak: false });
+  });
+
+  it("auto-start breaks picks the long break at the end of a cycle", () => {
+    const s = { ...settings, autoStartBreaks: true };
+    const clock = makeClock(1_000_000);
+    const ended = endFocus(clock, s, 3);
+    const result = transition(
+      ended,
+      { kind: "labelSave", label: null, tagId: null },
+      clock,
+      s,
+      3,
+      false
+    );
+    expect(result.state!.type).toBe("long_break");
+    expect(result.state!.targetMs).toBe(15 * 60 * 1000);
+  });
+
+  it("auto-start breaks does not start a break after STOP", () => {
+    const s = { ...settings, autoStartBreaks: true };
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "focus", tagId: null },
+      clock,
+      s,
+      0,
+      false
+    );
+    clock.advance(60_000);
+    const stopped = transition(started.state, { kind: "stop" }, clock, s, 0, false);
+    const result = transition(
+      stopped.state,
+      { kind: "labelSave", label: null, tagId: null },
+      clock,
+      s,
+      0,
+      false
+    );
+    expect(result.state).toBeNull();
+    expect(result.effects[1]).toEqual({ type: "setCycle", completed: 1, pendingBreak: true });
+  });
+
+  it("auto-start breaks off leaves the break pending, as before", () => {
+    const clock = makeClock(1_000_000);
+    const ended = endFocus(clock, settings);
+    const result = transition(
+      ended,
+      { kind: "labelSave", label: null, tagId: null },
+      clock,
+      settings,
+      0,
+      false
+    );
+    expect(result.state).toBeNull();
+    expect(result.effects[1]).toEqual({ type: "setCycle", completed: 1, pendingBreak: true });
+  });
+
+  function runBreak(s: TimerSettings, overshootMs: number) {
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "short_break", tagId: null },
+      clock,
+      s,
+      1,
+      true
+    );
+    clock.advance(SHORT_MS + overshootMs);
+    const result = transition(started.state, { kind: "tick" }, clock, s, 1, false);
+    return { clock, started, result };
+  }
+
+  it("auto-start next: a break that runs out starts a focus block on that tick", () => {
+    const s = { ...settings, autoStartNext: true };
+    const { clock, started, result } = runBreak(s, 300);
+
+    expect(result.state).not.toBeNull();
+    expect(result.state!.type).toBe("focus");
+    expect(result.state!.phase).toBe("running");
+    expect(result.state!.startedAt).toBe(clock.now());
+    expect(result.state!.focusBlocksCompleted).toBe(1);
+    expect(result.state!.targetMs).toBe(FOCUS_MS);
+
+    const save = result.effects[0] as { type: "save"; state: TimerState; endedAt: number };
+    expect(save.type).toBe("save");
+    expect(save.state.id).toBe(started.state!.id);
+    expect(result.effects[1]).toEqual({
+      type: "alert",
+      blockType: "short_break",
+      autoStarted: true,
+    });
+  });
+
+  it("auto-start next stays idle when the break ran out while nobody was watching", () => {
+    const s = { ...settings, autoStartNext: true };
+    // Tab closed mid-break, reopened an hour later.
+    const { result } = runBreak(s, 60 * 60 * 1000);
+    expect(result.state).toBeNull();
+    expect(result.effects[1]).toEqual({ type: "alert", blockType: "short_break" });
+  });
+
+  it("auto-start next tolerates hidden-tab throttling up to the grace period", () => {
+    const s = { ...settings, autoStartNext: true };
+    expect(runBreak(s, AUTO_START_GRACE_MS).result.state!.type).toBe("focus");
+    expect(runBreak(s, AUTO_START_GRACE_MS + 1).result.state).toBeNull();
+  });
+
+  it("auto-start next off goes idle after a break, as before", () => {
+    const { result } = runBreak(settings, 300);
+    expect(result.state).toBeNull();
+  });
+
+  it("auto-start next does not fire on a stopped break", () => {
+    const s = { ...settings, autoStartNext: true };
+    const clock = makeClock(1_000_000);
+    const started = transition(
+      null,
+      { kind: "start", type: "short_break", tagId: null },
+      clock,
+      s,
+      1,
+      true
+    );
+    clock.advance(60_000);
+    const result = transition(started.state, { kind: "stop" }, clock, s, 1, false);
+    expect(result.state).toBeNull();
   });
 });
 

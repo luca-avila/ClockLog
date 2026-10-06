@@ -304,6 +304,39 @@ export function prepareFocusEnd(
 
 // ─── State machine ─────────────────────────────────────────────────
 
+/**
+ * How late a tick may notice a break ending and still auto-start the next
+ * focus block. Past this, the app was not watching when the break ran out
+ * (tab closed, machine asleep) — nobody was told it was over, so a block
+ * started now would record focus the user never chose. Two minutes clears
+ * Chrome's one-minute timer alignment in hidden tabs.
+ */
+export const AUTO_START_GRACE_MS = 2 * 60 * 1000;
+
+/** A fresh running block. START and both auto-starts build it here, so they cannot drift. */
+function newBlock(
+  type: BlockType,
+  at: number,
+  clock: ClockDeps,
+  settings: TimerSettings,
+  completed: number,
+  tagId: string | null
+): TimerState {
+  return {
+    id: clock.uuid(),
+    type,
+    phase: "running",
+    startedAt: at,
+    // No pre-block label: label is set only by labelSave.
+    label: null,
+    tagId,
+    focusBlocksCompleted: completed,
+    intervals: [{ startedAt: at }],
+    blockStatus: "completed",
+    targetMs: nextDuration(type, settings) * 1000,
+  };
+}
+
 export type TimerEvent =
   | { kind: "start"; type: BlockType; tagId: string | null }
   | { kind: "pause" }
@@ -316,7 +349,7 @@ export type TimerEvent =
 
 export type TimerEffect =
   | { type: "save"; state: TimerState; endedAt: number }
-  | { type: "alert"; blockType: BlockType; nextBreak?: BlockType }
+  | { type: "alert"; blockType: BlockType; nextBreak?: BlockType; autoStarted?: true }
   | { type: "showLabelSheet" }
   | { type: "setCycle"; completed: number; pendingBreak: boolean };
 
@@ -349,19 +382,7 @@ export function transition(
   switch (event.kind) {
     case "start": {
       const completed = cycleCompleted;
-      const newState: TimerState = {
-        id: clock.uuid(),
-        type: event.type,
-        phase: "running",
-        startedAt: now,
-        // No pre-block label: label is set only by labelSave.
-        label: null,
-        tagId: event.tagId,
-        focusBlocksCompleted: completed,
-        intervals: [{ startedAt: now }],
-        blockStatus: "completed",
-        targetMs: nextDuration(event.type, settings) * 1000,
-      };
+      const newState = newBlock(event.type, now, clock, settings, completed, event.tagId);
       return {
         state: newState,
         effects: cyclePendingBreak
@@ -443,10 +464,25 @@ export function transition(
         intervals: closed.intervals,
       };
       const nextCompleted = state.focusBlocksCompleted + 1;
+      const save: TimerEffect = { type: "save", state: finalState, endedAt: closed.endedAt };
+
+      // Auto-start breaks: the break clock starts now, as the sheet is
+      // dismissed — never back at the block's end, or time spent labelling
+      // (or away from the screen) would be recorded as break (AGENTS.md).
+      // Only after a block that ran out: STOP means the user is stopping,
+      // so a cut-short block still lands on the idle "start the break" screen.
+      if (settings.autoStartBreaks && state.blockStatus === "completed") {
+        const breakType = nextBreakType(nextCompleted, settings.blocksPerCycle);
+        return {
+          state: newBlock(breakType, now, clock, settings, nextCompleted, null),
+          effects: [save, { type: "setCycle", completed: nextCompleted, pendingBreak: false }],
+        };
+      }
+
       return {
         state: null,
         effects: [
-          { type: "save", state: finalState, endedAt: closed.endedAt },
+          save,
           {
             type: "setCycle",
             completed: nextCompleted,
@@ -513,23 +549,30 @@ export function transition(
         };
       }
 
-      // Break done → close the last interval, save, and go idle.
+      // Break done → close the last interval, save, and go idle — or,
+      // with auto-start next, straight into a focus block.
       // The recorded end must be the block's real end rather than a
       // default computed downstream in stateToPayload.
       const closed = closeBlock(state.intervals, now);
+      const save: TimerEffect = {
+        type: "save",
+        state: {
+          ...state,
+          intervals: closed.intervals,
+        },
+        endedAt: closed.endedAt,
+      };
+
+      if (settings.autoStartNext && e - target <= AUTO_START_GRACE_MS) {
+        return {
+          state: newBlock("focus", now, clock, settings, cycleCompleted, null),
+          effects: [save, { type: "alert", blockType: state.type, autoStarted: true }],
+        };
+      }
+
       return {
         state: null,
-        effects: [
-          {
-            type: "save",
-            state: {
-              ...state,
-              intervals: closed.intervals,
-            },
-            endedAt: closed.endedAt,
-          },
-          { type: "alert", blockType: state.type },
-        ],
+        effects: [save, { type: "alert", blockType: state.type }],
       };
     }
   }
