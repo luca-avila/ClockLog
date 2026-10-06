@@ -126,81 +126,84 @@ export default function DayView({ date, occurrences, today, nowMinutes }: DayVie
         </ul>
       )}
 
+      {/* The padding is the rail's margin: hour labels are centred on their
+          line, so the first and last would otherwise be clipped in half. */}
       <div
-        className="relative overflow-hidden rounded-xl border border-neutral-200 bg-white"
-        style={{ height: `${railHeight}px` }}
+        className="overflow-hidden rounded-xl border border-neutral-200 bg-white py-3"
         data-testid="timeline"
       >
-        {/* Hour lines and their labels. Each empty hour is a tap-to-create
-            target; labels wrap past midnight when a late entry extended
-            the rail. */}
-        {hours.map((h) => (
-          <div key={h} className="absolute inset-x-0" style={{ top: `${topPx(h * HOUR)}px` }}>
-            <div className="flex items-start">
-              <span className="w-12 shrink-0 -translate-y-1/2 pl-3 text-[11px] tabular-nums text-neutral-400">
-                {String(h % 24).padStart(2, "0")}
-              </span>
-              <span className="mt-0 h-px flex-1 bg-neutral-100" aria-hidden />
-            </div>
-            <Link
-              href={newEntryUrl(date, h % 24)}
-              className="absolute left-12 right-0 top-0"
-              style={{ height: `${PX_PER_HOUR}px` }}
-              aria-label={`Add entry at ${String(h % 24).padStart(2, "0")}:00`}
-            />
-          </div>
-        ))}
-
-        {/* Timed entries, positioned on the rail */}
-        <div className="absolute inset-y-0 left-12 right-1">
-          {laid.map(({ occ, lane, lanes, startMin, endMin }) => {
-            const pos = railPosition(startMin, endMin, rail);
-            if (!pos) return null;
-            const heightPx = ((endMin - startMin) / HOUR) * PX_PER_HOUR;
-            return (
+        <div className="relative" style={{ height: `${railHeight}px` }}>
+          {/* Hour lines and their labels. Each empty hour is a tap-to-create
+              target; labels wrap past midnight when a late entry extended
+              the rail. */}
+          {hours.map((h) => (
+            <div key={h} className="absolute inset-x-0" style={{ top: `${topPx(h * HOUR)}px` }}>
+              <div className="flex items-start">
+                <span className="w-12 shrink-0 -translate-y-1/2 pl-3 text-[11px] tabular-nums text-neutral-400">
+                  {String(h % 24).padStart(2, "0")}
+                </span>
+                <span className="mt-0 h-px flex-1 bg-neutral-100" aria-hidden />
+              </div>
               <Link
-                key={`${occ.entry_id}-${occ.date}`}
-                href={editEntryUrl(occ.entry_id, date)}
-                className="absolute overflow-hidden rounded-lg border border-neutral-200 bg-white pl-3 pr-2 py-1 transition-colors hover:border-neutral-400"
-                style={{
-                  top: `${pos.topPct}%`,
-                  height: `${pos.heightPct}%`,
-                  minHeight: "24px",
-                  left: `${(lane / lanes) * 100}%`,
-                  width: `${(1 / lanes) * 100}%`,
-                }}
-              >
-                {/* Tag as a spine on the leading edge — legible at a glance
-                    where a dot inside the card was not. */}
-                <span
-                  className={`absolute bottom-1 left-1 top-1 w-[3px] rounded-full ${occ.tag_color ? "" : "bg-neutral-300"}`}
-                  style={occ.tag_color ? { backgroundColor: occ.tag_color } : undefined}
-                  aria-hidden
-                />
-                <p className="truncate text-[13px] font-medium leading-tight text-neutral-900">
-                  {occ.name}
-                </p>
-                {heightPx >= TIME_LINE_MIN_PX && (
-                  <p className="mt-0.5 text-[11px] tabular-nums leading-tight text-neutral-500">
-                    {hhmm(occ.start_time)} – {hhmm(occ.end_time)}
-                  </p>
-                )}
-              </Link>
-            );
-          })}
-        </div>
+                href={newEntryUrl(date, h % 24)}
+                className="absolute left-12 right-0 top-0"
+                style={{ height: `${PX_PER_HOUR}px` }}
+                aria-label={`Add entry at ${String(h % 24).padStart(2, "0")}:00`}
+              />
+            </div>
+          ))}
 
-        {/* Now marker: only ever on today, and only inside the rail. */}
-        {showNow && (
-          <div
-            className="pointer-events-none absolute inset-x-0 flex items-center"
-            style={{ top: `${topPx(nowMinutes)}px` }}
-            aria-hidden
-          >
-            <span className="ml-11 h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-900" />
-            <span className="h-px flex-1 bg-neutral-900/40" />
+          {/* Timed entries, positioned on the rail */}
+          <div className="absolute inset-y-0 left-12 right-1">
+            {laid.map(({ occ, lane, lanes, startMin, endMin }) => {
+              const pos = railPosition(startMin, endMin, rail);
+              if (!pos) return null;
+              const heightPx = ((endMin - startMin) / HOUR) * PX_PER_HOUR;
+              return (
+                <Link
+                  key={`${occ.entry_id}-${occ.date}`}
+                  href={editEntryUrl(occ.entry_id, date)}
+                  className="absolute overflow-hidden rounded-lg border border-neutral-200 bg-white pl-3 pr-2 py-1 transition-colors hover:border-neutral-400"
+                  style={{
+                    top: `${pos.topPct}%`,
+                    height: `${pos.heightPct}%`,
+                    minHeight: "24px",
+                    left: `${(lane / lanes) * 100}%`,
+                    width: `${(1 / lanes) * 100}%`,
+                  }}
+                >
+                  {/* Tag as a spine on the leading edge — legible at a glance
+                      where a dot inside the card was not. */}
+                  <span
+                    className={`absolute bottom-1 left-1 top-1 w-[3px] rounded-full ${occ.tag_color ? "" : "bg-neutral-300"}`}
+                    style={occ.tag_color ? { backgroundColor: occ.tag_color } : undefined}
+                    aria-hidden
+                  />
+                  <p className="truncate text-[13px] font-medium leading-tight text-neutral-900">
+                    {occ.name}
+                  </p>
+                  {heightPx >= TIME_LINE_MIN_PX && (
+                    <p className="mt-0.5 text-[11px] tabular-nums leading-tight text-neutral-500">
+                      {hhmm(occ.start_time)} – {hhmm(occ.end_time)}
+                    </p>
+                  )}
+                </Link>
+              );
+            })}
           </div>
-        )}
+
+          {/* Now marker: only ever on today, and only inside the rail. */}
+          {showNow && (
+            <div
+              className="pointer-events-none absolute inset-x-0 flex items-center"
+              style={{ top: `${topPx(nowMinutes)}px` }}
+              aria-hidden
+            >
+              <span className="ml-11 h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-900" />
+              <span className="h-px flex-1 bg-neutral-900/40" />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
