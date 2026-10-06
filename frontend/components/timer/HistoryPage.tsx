@@ -350,17 +350,21 @@ export default function HistoryPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
-      <header className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+      <header className="mb-8">
         <div>
           <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-400">
             Time recorded
           </p>
           <h1 className="text-3xl font-light tracking-tight text-neutral-800 sm:text-4xl">History</h1>
           <p className="mt-2 text-sm text-neutral-500">{subtitle}</p>
+        </div>
+        {/* View switch and stepper share a row at every width: stacked, the
+            stepper spent a whole row of the phone screen on two arrows. */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           {/* Segmented control, not PrimaryButton: switching views is
               navigation, and PrimaryButton is reserved for actions that
               commit something. */}
-          <div className="mt-4 inline-flex rounded-full border border-neutral-200 bg-neutral-100 p-1">
+          <div className="inline-flex rounded-full border border-neutral-200 bg-neutral-100 p-1">
             {HISTORY_VIEWS.map((v) => (
               <button
                 key={v}
@@ -377,30 +381,30 @@ export default function HistoryPage() {
               </button>
             ))}
           </div>
-        </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <button
-            onClick={() => shift(-1)}
-            aria-label={`Previous ${view}`}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-neutral-200 text-lg text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-800"
-          >
-            <span aria-hidden>&lsaquo;</span>
-          </button>
-          {!onToday && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={goToday}
-              className="h-10 rounded-full border border-neutral-200 px-4 text-xs font-medium text-neutral-600 transition-colors hover:border-neutral-400 hover:text-neutral-900"
+              onClick={() => shift(-1)}
+              aria-label={`Previous ${view}`}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-neutral-200 text-lg text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-800"
             >
-              {CURRENT_LABEL[view]}
+              <span aria-hidden>&lsaquo;</span>
             </button>
-          )}
-          <button
-            onClick={() => shift(1)}
-            aria-label={`Next ${view}`}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-neutral-200 text-lg text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-800"
-          >
-            <span aria-hidden>&rsaquo;</span>
-          </button>
+            {!onToday && (
+              <button
+                onClick={goToday}
+                className="h-10 rounded-full border border-neutral-200 px-4 text-xs font-medium text-neutral-600 transition-colors hover:border-neutral-400 hover:text-neutral-900"
+              >
+                {CURRENT_LABEL[view]}
+              </button>
+            )}
+            <button
+              onClick={() => shift(1)}
+              aria-label={`Next ${view}`}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-neutral-200 text-lg text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-800"
+            >
+              <span aria-hidden>&rsaquo;</span>
+            </button>
+          </div>
         </div>
       </header>
 
