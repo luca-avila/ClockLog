@@ -58,102 +58,147 @@ export default function SettingsPage() {
     document.getElementById(id)?.scrollIntoView();
   }, [loading]);
 
-  if (loading) return <div className="p-8 text-sm text-neutral-400">Loading...</div>;
-
   return (
-    <div className="max-w-md mx-auto py-8 px-4">
-      <h1 className="text-lg font-medium text-neutral-800 mb-8">Settings</h1>
+    // Same frame and header as Timer and History, so moving between them
+    // never shifts the page under the eye.
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
+      <header className="mb-8">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-400">
+          Preferences
+        </p>
+        <h1 className="text-3xl font-light tracking-tight text-neutral-800 sm:text-4xl">
+          Settings
+        </h1>
+        <p className="mt-2 text-sm text-neutral-500">Changes save as you make them.</p>
+      </header>
 
-      <section className="mb-8">
-        <h2 className="text-xs uppercase tracking-widest text-neutral-400 mb-4">Timer</h2>
-        <div className="space-y-4">
-          <SelectRow
-            label="Focus"
-            options={DURATION_OPTIONS}
-            value={settings.focusDuration}
-            onChange={(focusDuration) => save({ focusDuration })}
-            unit="min"
-          />
-          <SelectRow
-            label="Short break"
-            options={DURATION_OPTIONS}
-            value={settings.shortBreakDuration}
-            onChange={(shortBreakDuration) => save({ shortBreakDuration })}
-            unit="min"
-          />
-          <SelectRow
-            label="Long break"
-            options={DURATION_OPTIONS}
-            value={settings.longBreakDuration}
-            onChange={(longBreakDuration) => save({ longBreakDuration })}
-            unit="min"
-          />
-          <SelectRow
-            label="Blocks per cycle"
-            options={[2, 3, 4, 5, 6]}
-            value={settings.blocksPerCycle}
-            onChange={(blocksPerCycle) => save({ blocksPerCycle })}
-          />
-          <ToggleRow
-            label="Auto-start breaks"
-            value={settings.autoStartBreaks}
-            onChange={(v) => save({ autoStartBreaks: v })}
-          />
-          <ToggleRow
-            label="Auto-start next focus"
-            value={settings.autoStartNext}
-            onChange={(v) => save({ autoStartNext: v })}
-          />
+      {loading ? (
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start" aria-label="Loading settings">
+          <div className="h-80 animate-pulse rounded-2xl bg-neutral-100" />
+          <div className="h-56 animate-pulse rounded-2xl bg-neutral-100" />
         </div>
-      </section>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          <div className="space-y-6">
+            <Section title="Timer">
+              <SelectRow
+                label="Focus"
+                options={DURATION_OPTIONS}
+                value={settings.focusDuration}
+                onChange={(focusDuration) => save({ focusDuration })}
+                unit="min"
+              />
+              <SelectRow
+                label="Short break"
+                options={DURATION_OPTIONS}
+                value={settings.shortBreakDuration}
+                onChange={(shortBreakDuration) => save({ shortBreakDuration })}
+                unit="min"
+              />
+              <SelectRow
+                label="Long break"
+                options={DURATION_OPTIONS}
+                value={settings.longBreakDuration}
+                onChange={(longBreakDuration) => save({ longBreakDuration })}
+                unit="min"
+              />
+              <SelectRow
+                label="Blocks per cycle"
+                options={[2, 3, 4, 5, 6]}
+                value={settings.blocksPerCycle}
+                onChange={(blocksPerCycle) => save({ blocksPerCycle })}
+              />
+              <ToggleRow
+                label="Auto-start breaks"
+                value={settings.autoStartBreaks}
+                onChange={(v) => save({ autoStartBreaks: v })}
+              />
+              <ToggleRow
+                label="Auto-start next focus"
+                value={settings.autoStartNext}
+                onChange={(v) => save({ autoStartNext: v })}
+              />
+            </Section>
 
-      <section className="mb-8">
-        <h2 className="text-xs uppercase tracking-widest text-neutral-400 mb-4">Alerts</h2>
-        <ToggleRow
-          label="Sound"
-          value={settings.sound}
-          onChange={(v) => save({ sound: v })}
-        />
-        <ToggleRow
-          label="Notifications"
-          value={settings.notifications}
-          onChange={(v) => save({ notifications: v })}
-        />
-      </section>
+            <Section title="Alerts">
+              <ToggleRow
+                label="Sound"
+                value={settings.sound}
+                onChange={(v) => save({ sound: v })}
+              />
+              <ToggleRow
+                label="Notifications"
+                value={settings.notifications}
+                onChange={(v) => save({ notifications: v })}
+              />
+            </Section>
+          </div>
 
-      <section className="mb-8" id="tags">
-        <h2 className="text-xs uppercase tracking-widest text-neutral-400 mb-4">Data: Tags</h2>
-        <TagManager />
-      </section>
+          <div className="space-y-6">
+            <Section
+              id="tags"
+              title="Tags"
+              description="Deleting a tag keeps everything it was on — those items just become untagged."
+            >
+              <TagManager />
+            </Section>
 
-      <section className="mb-8">
-        <h2 className="text-xs uppercase tracking-widest text-neutral-400 mb-4">Account</h2>
-        <button
-          onClick={() => {
-            // The fence lives in signOut — the confirm and the sweep are one
-            // place, not a second copy. Navigation stays client-side.
-            if (signOut()) router.push("/login");
-          }}
-          className="text-sm text-red-500 hover:text-red-600 transition-colors"
-        >
-          Sign out
-        </button>
-      </section>
+            <Section title="Account">
+              <div className="flex min-h-14 items-center justify-between gap-4 py-3">
+                <span className="text-sm text-neutral-700">Sign out of this browser</span>
+                <button
+                  onClick={() => {
+                    // The fence lives in signOut — the confirm and the sweep are one
+                    // place, not a second copy. Navigation stays client-side.
+                    if (signOut()) router.push("/login");
+                  }}
+                  className="h-9 rounded-full border border-neutral-200 px-4 text-xs font-medium text-red-500 transition-colors hover:border-red-300 hover:text-red-600"
+                >
+                  Sign out
+                </button>
+              </div>
+            </Section>
+          </div>
+        </div>
+      )}
 
       {(error || saved) && (
         <Toast slot="page">
-          {error ? (
-            <div role="alert" className="text-xs text-red-600 bg-red-50 px-3 py-1.5 rounded-full">
-              {error}
-            </div>
-          ) : (
-            <div className="text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
-              Saved
-            </div>
-          )}
+          {/* Neutral like the Timer's notice: tag colors are the only
+              saturated ink, and red stays reserved for the error text. */}
+          <div
+            role={error ? "alert" : "status"}
+            className={`rounded-full bg-neutral-100 px-3 py-1.5 text-xs ${
+              error ? "text-red-500" : "text-neutral-500"
+            }`}
+          >
+            {error ?? "Saved"}
+          </div>
         </Toast>
       )}
     </div>
+  );
+}
+
+/** A settings card: the same white, bordered surface as the Timer's cycle panel. */
+function Section({
+  id,
+  title,
+  description,
+  children,
+}: {
+  id?: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    // scroll-mt clears the mobile header when the sidebar's Tags link jumps here.
+    <section id={id} className="scroll-mt-6 rounded-2xl border border-neutral-200 bg-white px-5 pt-5 pb-2">
+      <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">{title}</h2>
+      {description && <p className="mt-1.5 text-sm text-neutral-500">{description}</p>}
+      <div className="mt-2 divide-y divide-neutral-100">{children}</div>
+    </section>
   );
 }
 
@@ -171,21 +216,37 @@ function SelectRow({
   unit?: string;
 }) {
   return (
-    <div className="flex items-center justify-between py-1">
-      <span className="text-sm text-neutral-600">{label}</span>
-      <select
-        aria-label={label}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="text-sm text-neutral-600 border rounded px-2 py-1"
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {unit ? `${o} ${unit}` : o}
-          </option>
-        ))}
-      </select>
-    </div>
+    <label className="flex min-h-14 items-center justify-between gap-4 py-3">
+      <span className="text-sm text-neutral-700">{label}</span>
+      {/* appearance-none drops the OS chrome that ignored the palette; the
+          chevron is drawn back on top, out of the pointer's way. */}
+      <span className="relative">
+        <select
+          aria-label={label}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="h-9 cursor-pointer appearance-none rounded-full border border-neutral-200 bg-white pl-4 pr-9 text-sm tabular-nums text-neutral-700 transition-colors hover:border-neutral-400 focus-visible:border-neutral-500 focus-visible:outline-none"
+        >
+          {options.map((o) => (
+            <option key={o} value={o}>
+              {unit ? `${o} ${unit}` : o}
+            </option>
+          ))}
+        </select>
+        <svg
+          viewBox="0 0 16 16"
+          className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="m4.5 6.5 3.5 3.5 3.5-3.5" />
+        </svg>
+      </span>
+    </label>
   );
 }
 
@@ -199,16 +260,22 @@ function ToggleRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between py-1">
-      <span className="text-sm text-neutral-600">{label}</span>
+    <div className="flex min-h-14 items-center justify-between gap-4 py-3">
+      <span className="text-sm text-neutral-700">{label}</span>
+      {/* role="switch" + aria-checked: without them a screen reader heard an
+          unnamed button with no state. */}
       <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        aria-label={label}
         onClick={() => onChange(!value)}
-        className={`w-10 h-6 rounded-full transition-colors ${
+        className={`relative h-6 w-10 shrink-0 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-500 ${
           value ? "bg-neutral-800" : "bg-neutral-200"
         }`}
       >
-        <div
-          className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform ${
+        <span
+          className={`absolute left-0 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform ${
             value ? "translate-x-5" : "translate-x-1"
           }`}
         />

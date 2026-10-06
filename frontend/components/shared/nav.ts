@@ -32,7 +32,7 @@ const DESTINATIONS: readonly NavDestination[] = [
   { href: "/", label: "Timer", icon: "timer", tiers: ["tab", "rail"] },
   { href: "/history", label: "History", icon: "history", tiers: ["tab", "rail"] },
   { href: "/plan", label: "Plan", icon: "plan", tiers: ["tab", "rail"] },
-  // Tags live under Settings' Data section (SCR-40), so this tier is about
+  // Tags live in a card on Settings (SCR-40), so this tier is about
   // the app rather than about time — it sits at the foot of the rail.
   { href: "/settings#tags", label: "Tags", icon: "tags", tiers: ["rail-foot"] },
   { href: "/settings", label: "Settings", icon: "settings", tiers: ["rail-foot"] },

@@ -25,8 +25,16 @@ import {
   type Tag,
 } from "@/lib/api/tags";
 
+const TEXT_INPUT =
+  "min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-800 placeholder:text-neutral-400 outline-none transition-colors focus:border-neutral-500";
+
+// The native color input is a grey box around a swatch in every browser;
+// these strip it down to the swatch, round like the dots it produces.
+const SWATCH_INPUT =
+  "h-6 w-6 shrink-0 cursor-pointer appearance-none overflow-hidden rounded-full border border-neutral-200 bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-0 [&::-moz-color-swatch]:rounded-full [&::-moz-color-swatch]:border-0";
+
 /**
- * SCR-40 "Data: Tags". Deleting a tag never deletes blocks or entries
+ * SCR-40, the Tags card. Deleting a tag never deletes blocks or entries
  * (invariant 10) — they become untagged, and the delete response's
  * affected count is surfaced so that consequence is visible.
  */
@@ -99,37 +107,37 @@ export default function TagManager() {
 
   return (
     <div>
-      <ul className="space-y-2 mb-4">
+      <ul className="divide-y divide-neutral-100">
         {tags.length === 0 && (
-          <li className="text-sm text-neutral-400">No tags yet</li>
+          <li className="py-3 text-sm text-neutral-400">No tags yet</li>
         )}
         {tags.map((t) => (
-          <li key={t.id} className="flex items-center gap-2 text-sm">
-            <span
-              className="w-2.5 h-2.5 rounded-full shrink-0"
-              style={{ backgroundColor: t.color }}
-              aria-hidden
-            />
+          <li key={t.id} className="flex min-h-12 items-center gap-3 py-2 text-sm">
             {editingId === t.id ? (
               <>
-                <input
-                  aria-label="Tag name"
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="flex-1 min-w-0 text-sm border-b border-neutral-200 focus:border-neutral-500 outline-none pb-0.5"
-                />
                 <input
                   aria-label="Tag color"
                   type="color"
                   value={editColor}
                   onChange={(e) => setEditColor(e.target.value)}
-                  className="w-8 h-6 p-0 border-0 bg-transparent cursor-pointer"
+                  className={SWATCH_INPUT}
+                />
+                <input
+                  aria-label="Tag name"
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveEdit(t.id);
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                  autoFocus
+                  className={`${TEXT_INPUT} h-8`}
                 />
                 <button
                   type="button"
                   onClick={() => handleSaveEdit(t.id)}
-                  className="text-xs text-neutral-500 hover:text-neutral-800"
+                  className="text-xs font-medium text-neutral-700 hover:text-neutral-900"
                 >
                   Save
                 </button>
@@ -141,87 +149,101 @@ export default function TagManager() {
                   Cancel
                 </button>
               </>
-            ) : confirmingId === t.id ? (
-              <>
-                <span className="flex-1 text-neutral-600">{t.name}</span>
-                <span className="text-xs text-neutral-400">
-                  Items keep their data, untagged
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(t.id)}
-                  className="text-xs text-red-500 hover:text-red-600"
-                >
-                  Confirm
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmingId(null)}
-                  className="text-xs text-neutral-400 hover:text-neutral-600"
-                >
-                  Keep
-                </button>
-              </>
             ) : (
               <>
-                <span className="flex-1 text-neutral-600">{t.name}</span>
-                <button
-                  type="button"
-                  aria-label={`Edit tag ${t.name}`}
-                  onClick={() => {
-                    setEditingId(t.id);
-                    setEditName(t.name);
-                    setEditColor(t.color);
-                  }}
-                  className="text-xs text-neutral-400 hover:text-neutral-600"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Delete tag ${t.name}`}
-                  onClick={() => setConfirmingId(t.id)}
-                  className="text-xs text-neutral-400 hover:text-red-500"
-                >
-                  Delete
-                </button>
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: t.color }}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 truncate text-neutral-700">{t.name}</span>
+                {confirmingId === t.id ? (
+                  <>
+                    <span className="hidden text-xs text-neutral-400 sm:inline">
+                      Items keep their data, untagged
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(t.id)}
+                      className="text-xs font-medium text-red-500 hover:text-red-600"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingId(null)}
+                      className="text-xs text-neutral-400 hover:text-neutral-600"
+                    >
+                      Keep
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      aria-label={`Edit tag ${t.name}`}
+                      onClick={() => {
+                        setEditingId(t.id);
+                        setEditName(t.name);
+                        setEditColor(t.color);
+                      }}
+                      className="text-xs text-neutral-400 hover:text-neutral-700"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete tag ${t.name}`}
+                      onClick={() => setConfirmingId(t.id)}
+                      className="text-xs text-neutral-400 hover:text-red-500"
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
               </>
             )}
           </li>
         ))}
       </ul>
 
-      <div className="flex items-center gap-2">
+      {/* A form, so Enter in the name field adds the tag. */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleCreate();
+        }}
+        className="flex items-center gap-3 border-t border-neutral-100 py-3"
+      >
+        <input
+          aria-label="New tag color"
+          type="color"
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+          className={SWATCH_INPUT}
+        />
         <input
           aria-label="New tag name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="New tag"
-          className="flex-1 min-w-0 text-sm border-b border-neutral-200 focus:border-neutral-500 outline-none pb-1"
-        />
-        <input
-          aria-label="New tag color"
-          type="color"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-          className="w-8 h-6 p-0 border-0 bg-transparent cursor-pointer"
+          className={`${TEXT_INPUT} h-9`}
         />
         <button
-          type="button"
-          onClick={handleCreate}
-          className="text-xs text-neutral-500 hover:text-neutral-800"
+          type="submit"
+          className="h-9 shrink-0 rounded-full border border-neutral-300 px-4 text-xs font-medium text-neutral-700 transition-colors hover:border-neutral-500 hover:text-neutral-900"
         >
           Add
         </button>
-      </div>
+      </form>
 
       {error && (
-        <p role="alert" className="text-xs text-red-500 mt-2">
+        <p role="alert" className="pb-2 text-xs text-red-500">
           {error}
         </p>
       )}
-      {notice && <p className="text-xs text-neutral-400 mt-2">{notice}</p>}
+      {notice && <p className="pb-2 text-xs text-neutral-400">{notice}</p>}
     </div>
   );
 }
