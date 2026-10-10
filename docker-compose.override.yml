@@ -25,7 +25,7 @@
 # logging the link and conftest (empty RESEND_API_KEY mandatory in tests) stays
 # green. This file also pins the dev runtime credentials (clocklog/clocklog).
 # Interpolation applies to profile-excluded services, so dev needs the
-# NEXT_PUBLIC_API_URL required by the base in .env even though the frontend does
+# VITE_API_URL required by the base in .env even though the frontend does
 # not run in Compose in dev.
 
 services:
@@ -52,7 +52,7 @@ services:
       POSTGRES_DB: clocklog
 
   # Services present in the base (prod) that must not start in dev/CI:
-  # the dev frontend runs on the host (`npm run dev`) and the nightly backup
+  # the dev frontend runs on the host (`npm run dev`, Vite) and the nightly backup
   # has no business in a local stack. Starting them requires --profile prod-sidecars.
   frontend:
     profiles: ["prod-sidecars"]

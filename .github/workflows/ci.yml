@@ -29,7 +29,7 @@ jobs:
       POSTGRES_USER: clocklog
       POSTGRES_PASSWORD: clocklog
       POSTGRES_DB: clocklog
-      NEXT_PUBLIC_API_URL: http://localhost:3000
+      VITE_API_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
 
@@ -66,6 +66,17 @@ jobs:
 
       - name: Frontend — tsc
         run: npx tsc --noEmit
+        working-directory: frontend
+
+      # The generated client must match the backend that is running right
+      # now: a Pydantic change without `npm run gen:api` fails here, before
+      # the frontend ships types for an API that no longer exists.
+      - name: Frontend — API types up to date
+        run: npm run gen:api && git diff --exit-code lib/api/schema.gen.ts
+        working-directory: frontend
+
+      - name: Frontend — build
+        run: npm run build
         working-directory: frontend
 
       - name: Tear down

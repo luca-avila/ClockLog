@@ -80,12 +80,13 @@ services:
     build:
       context: ./frontend
       args:
-        # Build-time: changing NEXT_PUBLIC_API_URL requires a rebuild, not a restart.
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL required in .env}
+        # Build-time: changing VITE_API_URL requires a rebuild, not a restart.
+        VITE_API_URL: ${VITE_API_URL:?VITE_API_URL required in .env}
     image: ghcr.io/luca-avila/clocklog-frontend:${TAG:-latest}
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3001:3000"
+      # Static files served by nginx inside the image (frontend/nginx.conf).
+      - "127.0.0.1:3001:80"
     logging: *default-logging
 
   # Nightly pg_dump with local rotation; uploads off-site when

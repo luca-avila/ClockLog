@@ -7,7 +7,7 @@ name: Publish
 #
 # Setup (once):
 #   1. Repo variable: Settings -> Secrets and variables -> Actions ->
-#      Variables -> NEXT_PUBLIC_API_URL = https://clocklog.net/api
+#      Variables -> VITE_API_URL = https://clocklog.net/api
 #      (baked into the frontend bundle at build time; no default on purpose).
 #   2. Images are private: one `docker login ghcr.io` on the VPS with a PAT
 #      that has read:packages.
@@ -28,10 +28,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check NEXT_PUBLIC_API_URL variable
+      - name: Check VITE_API_URL variable
         run: |
-          if [ -z "${{ vars.NEXT_PUBLIC_API_URL }}" ]; then
-            echo "::error::Repo variable NEXT_PUBLIC_API_URL is not set (Settings -> Secrets and variables -> Actions -> Variables). Refusing to bake an empty API URL."
+          if [ -z "${{ vars.VITE_API_URL }}" ]; then
+            echo "::error::Repo variable VITE_API_URL is not set (Settings -> Secrets and variables -> Actions -> Variables). Refusing to bake an empty API URL."
             exit 1
           fi
 
@@ -63,7 +63,7 @@ jobs:
           platforms: linux/amd64
           push: true
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
+            VITE_API_URL=${{ vars.VITE_API_URL }}
           tags: |
             ghcr.io/luca-avila/clocklog-frontend:latest
             ghcr.io/luca-avila/clocklog-frontend:${{ github.sha }}

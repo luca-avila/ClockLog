@@ -22,4 +22,11 @@ npm run lint
 echo "== frontend: tsc =="
 npx tsc --noEmit
 
+echo "== frontend: API types match the running backend =="
+npm run gen:api
+git diff --exit-code lib/api/schema.gen.ts
+
+echo "== frontend: build =="
+npm run build
+
 echo "ALL CHECKS PASSED"
