@@ -93,8 +93,10 @@ class BlockUpdate(BaseModel):
 class BlockResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
-    status: str
-    kind: str
+    # Literals, not str: the DB enums already guarantee these values, and the
+    # OpenAPI schema the frontend client is generated from should say so.
+    status: Literal["completed", "aborted"]
+    kind: Literal["focus", "short_break", "long_break"]
     label: str | None
     tag_id: uuid.UUID | None
     started_at: datetime
