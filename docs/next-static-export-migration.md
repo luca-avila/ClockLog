@@ -1,6 +1,8 @@
 # Migración por etapas: Next.js estático + FastAPI
 
-**Estado:** propuesta; no implementada.  
+**Estado:** reemplazada por [ADR-012](decisions/012-vite-spa-frontend.md) — el frontend
+pasó a ser una SPA de Vite servida por nginx, sin Next. Se conserva como historial; no
+describe el sistema actual.  
 **Objetivo:** servir el frontend como archivos estáticos en producción y conservar
 FastAPI, PostgreSQL y el contrato HTTP actual.
 

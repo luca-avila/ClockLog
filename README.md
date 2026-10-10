@@ -97,7 +97,8 @@ cd frontend && npm run lint && npx tsc --noEmit
 ## Stack
 
 Python 3.12 · FastAPI · SQLAlchemy 2 (async) · Alembic · Pydantic v2 · PostgreSQL 16 ·
-Next.js 16 (App Router) · React 19 · TypeScript (strict) · Tailwind v4 ·
+Vite · React 19 · TypeScript (strict) · TanStack Router · TanStack Query ·
+openapi-typescript + openapi-fetch · Tailwind v4 + shadcn/ui ·
 pytest · Vitest · Docker Compose.
 
 ## Contributing

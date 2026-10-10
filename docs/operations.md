@@ -10,7 +10,7 @@ back it up, and diagnose it. One VPS, Docker Compose.
 ```bash
 docker compose up -d              # backend + Postgres, migrations applied on boot
 docker compose logs -f backend    # follow backend logs
-cd frontend && npm run dev        # frontend on :3000, hot reload
+cd frontend && npm run dev        # Vite on :3000, hot reload
 ```
 
 `docker compose up` auto-loads `docker-compose.override.yml` (dev-only: `dev` stage,
@@ -31,7 +31,7 @@ placeholders only have to exist for interpolation — including a non-secret
 the override empties at runtime. A missing required variable fails fast: `docker
 compose config` exits non-zero with a `... required in .env` message.
 
-Interpolation covers profile-excluded services too: `NEXT_PUBLIC_API_URL` must exist
+Interpolation covers profile-excluded services too: `VITE_API_URL` must exist
 in `.env` even though the frontend does not run in Compose in dev (it runs on the
 host via `npm run dev`), and the `backup` sidecar only starts in prod. The GitHub
 workflow injects the same values as job-level `env` because a runner has no `.env`.
@@ -137,11 +137,28 @@ docker compose exec backend pytest tests/timer/test_history.py
 docker compose exec backend pytest -k aborted
 cd frontend && npm run test                           # vitest
 npx vitest run -t "round-trips an in-progress"     # one test by name
+cd frontend && npm run gen:api                        # regenerate the typed API client
 ```
 
 `.github/workflows/ci.yml` runs the same sequence on pushes and PRs to `main`: Compose
 up, wait for the backend, then pytest, `ruff check`, `ruff format --check`, vitest,
-eslint, `tsc --noEmit`.
+eslint, `tsc --noEmit`, the API-types drift check, and `npm run build`.
+
+### The typed API client
+
+`frontend/lib/api/schema.gen.ts` is generated from the backend's OpenAPI schema by
+`openapi-typescript`; `lib/api/client.ts` wraps it in an `openapi-fetch` client. After
+changing a Pydantic schema or an endpoint, with the backend up:
+
+```bash
+cd frontend && npm run gen:api && npx tsc --noEmit
+```
+
+`tsc` then lists every call site the change broke. Commit the regenerated file with the
+backend change. CI regenerates it against the backend it just booted and fails on any
+diff (`git diff --exit-code lib/api/schema.gen.ts`), so a stale client cannot merge.
+`OPENAPI_URL` overrides the source (default `http://localhost:8000/openapi.json`) — it
+takes a file path too.
 
 ### Test database safety
 
@@ -167,7 +184,7 @@ nginx and TLS (certbot) run on the VPS itself, outside Compose. Compose services
 Prod images are built in CI, not on the VPS. Every push to `main` triggers
 `.github/workflows/publish.yml`, which compiles the prod stages and pushes them to
 GHCR (`ghcr.io/luca-avila/clocklog-backend|frontend|backup`, tags `:latest` and
-`:<sha>`). The VPS only pulls and restarts — no `npm ci`, no Next build, no `pip
+`:<sha>`). The VPS only pulls and restarts — no `npm ci`, no Vite build, no `pip
 install` on the small machine.
 
 ```bash
@@ -183,7 +200,7 @@ docker compose -f docker-compose.yml pull
 docker compose -f docker-compose.yml up -d
 ```
 
-One-time GitHub setup: repo variable `NEXT_PUBLIC_API_URL =
+One-time GitHub setup: repo variable `VITE_API_URL =
 https://clocklog.net/api` (Settings -> Secrets and variables -> Actions ->
 Variables). The frontend build bakes it into the bundle, so `publish.yml` refuses
 to build while the variable is empty rather than shipping a bundle that points
@@ -218,7 +235,7 @@ one under test:
 cp .env.example /tmp/prod-env-complete
 sed -i 's/^RESEND_API_KEY=.*/RESEND_API_KEY=test-only-not-a-real-key/' /tmp/prod-env-complete
 for v in SECRET_KEY DATABASE_URL CORS_ORIGINS EMAIL_FROM APP_BASE_URL \
-         POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB NEXT_PUBLIC_API_URL \
+         POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB VITE_API_URL \
          RESEND_API_KEY; do
   grep -v "^$v=" /tmp/prod-env-complete > "/tmp/prod-env-without-$v"
   docker compose -f docker-compose.yml --env-file "/tmp/prod-env-without-$v" \
@@ -261,11 +278,11 @@ change, which moves `password_changed_at`.
 | `EMAIL_FROM` | backend | Verified sender address |
 | `APP_BASE_URL` | backend | Frontend origin the emailed links point at |
 | `TEST_DATABASE_URL` | backend (dev/CI) | Must end in `_test` |
-| `NEXT_PUBLIC_API_URL` | frontend | **Baked in at build time** |
+| `VITE_API_URL` | frontend | **Baked in at build time** (was `NEXT_PUBLIC_API_URL` before ADR-012) |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | db | |
 | `BACKUP_INTERVAL_SECONDS` / `BACKUP_KEEP` / `BACKUP_RCLONE_REMOTE` | backup | Dump cadence, local copies kept, optional off-site remote |
 
-**`NEXT_PUBLIC_API_URL` is compiled into the client bundle.** Changing it requires
+**`VITE_API_URL` is compiled into the client bundle.** Changing it requires
 rebuilding the frontend image — restarting the container does nothing.
 
 ### Images
@@ -273,7 +290,10 @@ rebuilding the frontend image — restarting the container does nothing.
 - `backend/Dockerfile` is multi-stage: `dev` (adds pytest, ruff, httpx) and `prod`
   (runtime deps only, non-root `appuser`). The base `docker-compose.yml` targets
   `prod`; `docker-compose.override.yml` switches it to `dev` for local work.
-- `frontend/Dockerfile` builds a Next.js standalone server on `node:20-alpine`.
+- `frontend/Dockerfile` builds the Vite bundle on `node:20-alpine` and serves `dist/`
+  from `nginx:alpine` — no Node at runtime. `frontend/nginx.conf` falls back to
+  `index.html` for client-side routes, caches the hashed `/assets/` forever, and never
+  caches `index.html`, so a deploy or rollback is picked up on the next load.
 - Prod images live in GHCR (`ghcr.io/luca-avila/clocklog-*`, private) and are
   published by `.github/workflows/publish.yml` on every push to `main` (`:latest`
   plus `:<sha>`, `linux/amd64`, BuildKit `gha` cache). The compose file keeps its
@@ -284,7 +304,7 @@ rebuilding the frontend image — restarting the container does nothing.
 
 The base file requires `SECRET_KEY`, `DATABASE_URL`, `CORS_ORIGINS`, `EMAIL_FROM`,
 `APP_BASE_URL`, `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`,
-`NEXT_PUBLIC_API_URL` and `RESEND_API_KEY`. While one is missing or empty,
+`VITE_API_URL` and `RESEND_API_KEY`. While one is missing or empty,
 `docker compose -f docker-compose.yml config` exits non-zero naming the variable —
 the stack will not boot half-configured, in dev or in prod.
 
@@ -311,7 +331,8 @@ location /api/ { proxy_pass http://127.0.0.1:8000/; }   # strips the /api prefix
 location /     { proxy_pass http://127.0.0.1:3001; }    # frontend host port
 ```
 
-The frontend binds host port **3001** (moved off 3000), and the backend 8000. The
+The frontend binds host port **3001** (its container's nginx listens on 80), and the
+backend 8000. The
 `/api/` proxy_pass has a trailing slash so `/api/auth/register` reaches the backend as
 `/auth/register` — the backend routers mount at the app root.
 
@@ -390,7 +411,7 @@ Liveness: `curl -fsS http://localhost:8000/health`.
 | `pytest` errors with `TEST_DATABASE_URL must point at a *_test database` | The resolved URL does not end in `_test`. Fix the env var — never the assertion. |
 | Backend won't start, Alembic errors on boot | A migration failed. `docker compose logs backend`, then `alembic current` / `alembic history`. |
 | Frontend fetches fail with a CORS error | `CORS_ORIGINS` does not list the browser's origin. Dev default is `http://localhost:3000`. |
-| Frontend still calls the old API host | `NEXT_PUBLIC_API_URL` is baked in at build time — rebuild the frontend image. |
+| Frontend still calls the old API host | `VITE_API_URL` is baked in at build time — rebuild the frontend image. |
 | Backend code changes have no effect | The bind mount covers `.py` files, so this usually means a dependency or Dockerfile change: `docker compose up -d --build backend`. |
 | `docker compose config` fails with `... required in .env` | A required variable is missing from `.env` (or the shell). Fill it in; in dev, `cp .env.example .env` provides placeholders the override then replaces at runtime. |
 | `./backend:/app` or `target: dev` shows up in a prod compose config | The dev override was auto-loaded — the command must pass an explicit `-f`, e.g. `docker compose -f docker-compose.yml config`. |

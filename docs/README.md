@@ -8,12 +8,12 @@ trusting a page.
 | [architecture.md](architecture.md) | How the system works | Current |
 | [api.md](api.md) | Endpoint reference | Current |
 | [operations.md](operations.md) | Runbook | Current |
-| [next-static-export-migration.md](next-static-export-migration.md) | Staged migration plan for a static Next.js frontend | Proposed — not implemented |
-| [decisions/](decisions/) | Architecture decision records (ADRs 001–011) | Current |
+| [next-static-export-migration.md](next-static-export-migration.md) | Staged migration plan for a static Next.js frontend | Superseded by ADR-012 — kept for history |
+| [decisions/](decisions/) | Architecture decision records (ADRs 001–012) | Current |
 | [../AGENTS.md](../AGENTS.md) | Contributor / agent operating manual | Current |
 
-Pages marked Current describe the app as built. The proposed migration plan describes
-future work. There is no separate design spec — the code is the source of truth for
+Pages marked Current describe the app as built. The superseded migration plan describes
+work that was replaced by the Vite migration (ADR-012) and is not current. There is no separate design spec — the code is the source of truth for
 what each screen does, and `AGENTS.md` carries the invariants and conventions that
 constrain it.
 

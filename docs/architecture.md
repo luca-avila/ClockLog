@@ -9,8 +9,8 @@ the [decision records](decisions/).
 ## 1. Shape of the system
 
 ```
-browser (Next.js 16, React 19)
-  │  Authorization: Bearer <JWT>          fetch, JSON
+browser — static SPA (Vite, React 19, TanStack Router + Query)
+  │  Authorization: Bearer <JWT>          openapi-fetch, JSON (types generated from /openapi.json)
   ▼
 FastAPI (uvicorn, async)  ──────────────►  PostgreSQL 16
   │                            asyncpg
@@ -63,7 +63,8 @@ Two consequences worth knowing before you touch shared code:
   the header line `ClockLog — a timer and weekly planner`, because the standard header
   contains the word "Pomodoro" and the scan reads whole files.
 
-**Known, deliberate gap:** frontend *routes* still hard-import timer components, so
+**Known, deliberate gap:** frontend *routes* (`frontend/routes/`) still hard-import
+feature components, so
 frontend deletability is not proven the way the backend's is. Recorded in
 [ADR-009](decisions/009-module-deletability.md); closing it would be its own change.
 
@@ -359,38 +360,58 @@ name and color in a summary.
 
 ## 8. Frontend structure
 
+A client-only SPA: Vite builds it to static files, nginx serves them (ADR-012).
+
 ```
-app/
-  (app)/                 authenticated shell (AppShell: sidebar, tab bar, QueueSync)
-    page.tsx             SCR-11  timer
-    history/             SCR-20  history
-    (plan)/plan/         SCR-31  week
-    (plan)/plan/day/     SCR-31  day timeline
-    settings/            SCR-40
-  login/  register/  verify-email/    SCR-02..05, render bare —
-  forgot-password/  reset-password/   outside the shell
+main.tsx                 QueryClient + router, mounted on index.html's #root
+routes/                  TanStack Router file routes → routeTree.gen.ts (generated)
+  __root.tsx             root (404 screen)
+  _app.tsx               pathless shell: AppShell + signed-in guard (beforeLoad)
+  _app/index.tsx         SCR-11  timer
+  _app/history.tsx       SCR-20  history
+  _app/plan/index.tsx    SCR-31  week     ┐ validateSearch: parsePlanSearch
+  _app/plan/day.tsx      SCR-31  day      ┘
+  _app/settings.tsx      SCR-40
+  login.tsx  register.tsx  verify-email.tsx     SCR-02..05, render bare —
+  forgot-password.tsx  reset-password.tsx       outside the shell
 components/
-  shared/  timer/  plan/
+  shared/  timer/  plan/  auth/  settings/
+  ui/                    shadcn/ui primitives (copied in, ours to edit)
 lib/
-  api/     client, session (auth), queue, per-resource modules
+  api/     schema.gen.ts (generated) · client (openapi-fetch, ApiError, unwrap) ·
+           session (auth) · queue · per-resource fetchers
+  queries/ TanStack Query keys + queryOptions, one file per resource
   timer/   engine.ts — the state machine
-  plan/    view.ts (URL → view), urls.ts (view → URL), hooks.ts, layout.ts
+  plan/    view.ts (URL → view), urls.ts (view → link), hooks.ts, layout.ts
   date/    instant.ts (blocks), week.ts (entries)
   alerts/  plan.ts (pure) + runtime.ts (browser effects)
 ```
 
+Data flow: **server state lives in TanStack Query's cache; the timer's state never
+does.** Every read is a `useQuery` over a `queryOptions` factory in `lib/queries/`,
+whose `queryFn` calls a typed fetcher in `lib/api/`. Writes are `useMutation`s that
+invalidate the keys they touch (saving an entry invalidates `["entries"]`, deleting a
+tag invalidates everything). The offline block queue (`lib/api/queue.ts`) stays outside
+Query on purpose: its retry, dedupe and drop semantics are invariants 3, 8 and 9, not a
+cache policy.
+
 Conventions that carry design intent:
 
-- **Server Components by default**; `"use client"` only where interactivity demands it.
+- **Types come from the backend.** `lib/api/schema.gen.ts` is generated from FastAPI's
+  OpenAPI schema; request and response types are aliases of it (`Schemas["TagResponse"]`),
+  never hand-written copies. Narrower client types (the occurrence union, `BlockPatch`)
+  are built *from* the generated ones. CI fails if the file is stale.
 - **Mobile-first.** Bottom tab bar (`Timer · History · Plan`) on phones, with Settings
   behind the header gear; a persistent sidebar plus a two-pane history on desktop.
 - **The shell knows no feature module.** It navigates by `href`, which is what lets
   either module be deleted.
-- **Plan view state lives in the URL** (`?week=`, `?date=`, `?new=1`, `?edit=`, `?hour=`,
-  `?t=`). Writer and reader of the one format live together in `lib/plan/`: the pure
-  builders in `urls.ts` construct every URL and the pure `readPlanView` in `view.ts`
-  parses it. Neither imports `next/navigation`, so the sheet is linkable, the writer's
-  grammar is pinned by roundtrip tests, and the parser is testable on its own.
+- **Plan view state lives in the URL** (`?week=`, `?date=`, `?new=1`, `?edit=`,
+  `?hour=`). Writer and reader of the one format live together in `lib/plan/`: the pure
+  builders in `urls.ts` return typed `{ to, search }` links, `parsePlanSearch` is the
+  routes' `validateSearch`, and `readPlanView` turns the search into a view. None of
+  them imports the router, so the sheet is linkable, the grammar is pinned by
+  roundtrip tests, and the parser is testable on its own. (The old `?t=` cache-buster
+  is gone: the editor invalidates the query cache instead.)
 - **Alerts split pure from impure**: `planAlert()` decides which channels fire; only
   `fireAlert()` touches the browser, and each channel fails independently without
   throwing.
