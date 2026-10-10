@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { describe, it, expect } from "vitest";
-import { focusName } from "@/components/timer/HistoryPage";
+import { focusName } from "@/lib/timer/history-group";
 
 describe("focusName", () => {
   it("returns the label when present", () => {

@@ -14,24 +14,20 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"use client";
-
 import { useEffect, useState } from "react";
 import DayView from "./DayView";
 import { useOccurrences } from "@/lib/plan/hooks";
 
 export default function PlanDayScreen({
   date,
-  tick,
   today,
 }: {
   date: string;
-  tick: string;
   today: string;
 }) {
-  const occurrences = useOccurrences(date, date, tick);
-  // Read off the clock on every tick, never accumulated (and null on the
-  // server, so the first client render matches the markup it hydrates).
+  const occurrences = useOccurrences(date, date);
+  // Read off the clock every minute, never accumulated; null until the
+  // first read.
   const [clockMinutes, setClockMinutes] = useState<number | null>(null);
   const isToday = date === today;
 

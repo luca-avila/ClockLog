@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 
 interface PrimaryButtonProps {
   children: ReactNode;
@@ -26,7 +27,9 @@ interface PrimaryButtonProps {
 
 /**
  * The single filled neutral-900 button. Every call site that commits an
- * action — START, RESUME, SAVE, SIGN IN — routes through this.
+ * action — START, RESUME, SAVE, SIGN IN — routes through this. It wraps the
+ * shadcn Button at a fixed variant and size, and still takes no className:
+ * a per-call-site override is how the divergent copies happened before.
  */
 export default function PrimaryButton({
   children,
@@ -36,14 +39,8 @@ export default function PrimaryButton({
   "aria-label": ariaLabel,
 }: PrimaryButtonProps) {
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={ariaLabel}
-      className="px-10 py-2.5 bg-neutral-900 text-white text-sm font-medium rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-50"
-    >
+    <Button type={type} onClick={onClick} disabled={disabled} aria-label={ariaLabel} size="lg">
       {children}
-    </button>
+    </Button>
   );
 }

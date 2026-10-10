@@ -1,0 +1,111 @@
+// ClockLog — a Pomodoro timer and weekly planner
+// Copyright (C) 2024  Luca
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published
+// by the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import { useState, type FormEvent } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { api, clearSession, unwrap } from "@/lib/api/client";
+import { authCall, authErrorMessage } from "@/lib/api/session";
+import Logo from "@/components/Logo";
+import PrimaryButton from "@/components/shared/PrimaryButton";
+
+/**
+ * SCR-05, reset half. The landing page of the emailed reset link. Resetting
+ * revokes every session of the account — including this browser's — so the
+ * way out is a fresh sign-in, not a redirect into the app.
+ */
+export default function ResetPasswordScreen({ token }: { token: string }) {
+  const navigate = useNavigate();
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [invalid, setInvalid] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // authCall never redirects: unauthenticated screen on a public route.
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await authCall(() =>
+        unwrap(api.POST("/auth/reset-password", { body: { token, password } }))
+      );
+      if (result.ok) {
+        // Every session was just revoked; this browser's token (if any) is
+        // dead weight, and any persisted state belongs to a signed-out world.
+        clearSession();
+        void navigate({ to: "/login", search: { reset: 1 } });
+        return;
+      }
+      // INVALID_RESET_TOKEN is the flow's own code — it swaps the whole
+      // form for the "request a new link" state, not just an error line.
+      if (result.code === "INVALID_RESET_TOKEN") {
+        setInvalid(true);
+      } else {
+        setError(authErrorMessage(result.code, "Could not reset — try again"));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="max-w-xs mx-auto min-h-[80vh] flex flex-col justify-center px-4">
+      <h1 className="text-xl text-neutral-800 mb-2 text-center">
+        <Logo />
+      </h1>
+      <p className="text-sm text-neutral-400 mb-8 text-center">Choose a new password</p>
+
+      {invalid ? (
+        <div className="flex flex-col gap-4 text-center">
+          <p className="text-sm text-neutral-600">
+            This link is invalid or has expired.
+          </p>
+          <Link to="/forgot-password" className="text-xs text-neutral-400 hover:text-neutral-600">
+            Request a new link
+          </Link>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs uppercase tracking-widest text-neutral-400">
+              New password
+            </span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+              autoComplete="new-password"
+              className="text-sm text-neutral-700 border border-neutral-200 rounded-lg px-3 py-2 outline-none focus:border-neutral-400 transition-colors"
+            />
+            <span className="text-xs text-neutral-400">At least 8 characters</span>
+          </label>
+
+          {error && (
+            <p className="text-xs text-red-500" role="alert">
+              {error}
+            </p>
+          )}
+
+          <PrimaryButton type="submit" disabled={busy}>
+            RESET PASSWORD
+          </PrimaryButton>
+        </form>
+      )}
+    </div>
+  );
+}

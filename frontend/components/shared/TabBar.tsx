@@ -14,17 +14,14 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link, useLocation } from "@tanstack/react-router";
 import NavIcon from "./NavIcon";
 import { destinationsIn, isActivePath } from "./nav";
 
 const tabs = destinationsIn("tab");
 
 export default function TabBar() {
-  const pathname = usePathname();
+  const pathname = useLocation({ select: (l) => l.pathname });
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-10 bg-white border-t border-neutral-200">
@@ -34,7 +31,12 @@ export default function TabBar() {
           return (
             <Link
               key={tab.href}
-              href={tab.href}
+              to={tab.to}
+              hash={tab.hash}
+              // isActivePath owns the active state. The router marks a link active on
+              // its own too; matching the hash keeps it from lighting a section link
+              // (/settings#tags) on the plain /settings page.
+              activeOptions={{ includeHash: true }}
               aria-current={active ? "page" : undefined}
               className={`flex flex-col items-center gap-0.5 px-4 py-1 text-[10px] uppercase tracking-widest transition-colors ${
                 active

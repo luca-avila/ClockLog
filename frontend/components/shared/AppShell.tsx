@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import Link from "next/link";
+import type { ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import Logo from "@/components/Logo";
 import NavIcon from "./NavIcon";
 import Sidebar from "./Sidebar";
@@ -24,20 +25,20 @@ import QueueSync from "./QueueSync";
 // SCR-01: mobile = bottom tab bar + header gear to Settings; desktop =
 // persistent sidebar. The shell knows no module beyond shared/ — it
 // navigates by href, so either feature module stays deletable (invariant 11).
-export default function AppShell({ children }: { children: React.ReactNode }) {
+export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-full">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <header className="md:hidden flex items-center justify-between px-5 py-3 border-b border-neutral-100">
-          <Link href="/" className="text-lg text-neutral-800">
+          <Link to="/" className="text-lg text-neutral-800">
             <Logo />
           </Link>
           {/* Settings is reached from the gear, never a fourth tab. The same
               drawn icon as the sidebar's, not an emoji glyph; the -mr-2
               keeps the icon on the gutter while the tap target stays 36px. */}
           <Link
-            href="/settings"
+            to="/settings"
             aria-label="Settings"
             className="-mr-2 grid h-9 w-9 place-items-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800"
           >

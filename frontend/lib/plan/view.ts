@@ -18,10 +18,15 @@
 
 import { isCalendarDate, weekBounds } from "@/lib/date/week";
 
-/** Just enough of URLSearchParams to read a view — so this module never
- *  imports next/navigation and stays testable with a plain URLSearchParams. */
-export interface ParamReader {
-  get(name: string): string | null;
+/** The plan screens' search params, as the router hands them over after
+ *  `parsePlanSearch` has dropped anything malformed. Typed: a Link that
+ *  writes a param this shape does not have fails `tsc`. */
+export interface PlanSearch {
+  week?: string;
+  date?: string;
+  new?: 1;
+  edit?: string;
+  hour?: number;
 }
 
 /** Moved here from EntrySheet: the URL constructs this, the sheet consumes it. */
@@ -35,39 +40,44 @@ export interface PlanView {
   date: string;
   /** Monday-start bounds of the week the week screen shows. */
   week: { from: string; to: string };
-  /** Cache-buster the editor appends on save so the screen behind refetches. */
-  tick: string;
   sheet: EntrySheetMode | null;
 }
 
-/** Absent, empty, non-numeric, non-integer, or outside 0..23 -> null.
- *  Number(null) is 0, so the absent case must be rejected before the
- *  numeric check, or a link with no hour would prefill 00:00. */
-function readHour(params: ParamReader): number | null {
-  const raw = params.get("hour");
-  if (raw === null || raw.trim() === "") return null;
+/** Absent, empty, non-numeric, non-integer, or outside 0..23 -> undefined.
+ *  The router hands over `?hour=9` as the number 9 but a hand-typed oddity
+ *  as a string; Number("") and Number(" ") are 0, so blank strings must be
+ *  rejected before the numeric check, or a link with no hour would prefill
+ *  00:00. */
+function readHour(raw: unknown): number | undefined {
+  if (typeof raw === "string" && raw.trim() === "") return undefined;
+  if (typeof raw !== "string" && typeof raw !== "number") return undefined;
   const n = Number(raw);
-  if (!Number.isInteger(n) || n < 0 || n > 23) return null;
+  if (!Number.isInteger(n) || n < 0 || n > 23) return undefined;
   return n;
 }
 
-export function readPlanView(params: ParamReader, today: string): PlanView {
-  const dateParam = params.get("date");
-  const date = isCalendarDate(dateParam) ? dateParam : today;
+/** validateSearch for both plan routes: the one place URL input is trusted. */
+export function parsePlanSearch(raw: Record<string, unknown>): PlanSearch {
+  const out: PlanSearch = {};
+  if (isCalendarDate(raw.week)) out.week = raw.week;
+  if (isCalendarDate(raw.date)) out.date = raw.date;
+  if (raw.new === 1 || raw.new === "1") out.new = 1;
+  if (typeof raw.edit === "string" && raw.edit !== "") out.edit = raw.edit;
+  const hour = readHour(raw.hour);
+  if (hour !== undefined) out.hour = hour;
+  return out;
+}
 
-  const weekParam = params.get("week");
-  const week = weekBounds(isCalendarDate(weekParam) ? weekParam : today);
+export function readPlanView(search: PlanSearch, today: string): PlanView {
+  const date = search.date ?? today;
+  const week = weekBounds(search.week ?? today);
 
-  const tick = params.get("t") ?? "";
-
-  const editId = params.get("edit");
-  const isNew = params.get("new") === "1";
   let sheet: EntrySheetMode | null = null;
-  if (editId) {
-    sheet = { kind: "edit", entryId: editId };
-  } else if (isNew) {
-    sheet = { kind: "create", date, hour: readHour(params) };
+  if (search.edit) {
+    sheet = { kind: "edit", entryId: search.edit };
+  } else if (search.new === 1) {
+    sheet = { kind: "create", date, hour: search.hour ?? null };
   }
 
-  return { today, date, week, tick, sheet };
+  return { today, date, week, sheet };
 }

@@ -14,20 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"use client";
-
 import WeekView from "./WeekView";
 import { useOccurrences } from "@/lib/plan/hooks";
 
 export default function PlanWeekScreen({
   week,
-  tick,
   today,
 }: {
   week: { from: string; to: string };
-  tick: string;
   today: string;
 }) {
-  const occurrences = useOccurrences(week.from, week.to, tick);
+  const occurrences = useOccurrences(week.from, week.to);
   return <WeekView week={week} occurrences={occurrences} today={today} />;
 }

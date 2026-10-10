@@ -1,5 +1,3 @@
-"use client";
-
 // ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //

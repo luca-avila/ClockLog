@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { describe, it, expect } from "vitest";
-import { renderToStaticMarkup } from "react-dom/server";
+import { staticMarkup } from "@/__tests__/helpers/providers";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import WeekView from "@/components/plan/WeekView";
@@ -40,7 +40,7 @@ const ONE_ENTRY: EntryOccurrence[] = [
 
 describe("EmptyWeek (SCR-33, G-5 resolved)", () => {
   it("renders for a week with no occurrences, with week navigation kept", () => {
-    const markup = renderToStaticMarkup(
+    const markup = staticMarkup(
       <WeekView week={WEEK} occurrences={[]} />
     );
     expect(markup).toContain("Nothing planned yet");
@@ -52,7 +52,7 @@ describe("EmptyWeek (SCR-33, G-5 resolved)", () => {
   });
 
   it("contains no timer vocabulary at all — G-5 dropped the line, invariant 13 unscoped", () => {
-    const markup = renderToStaticMarkup(<EmptyWeek from={WEEK.from} />);
+    const markup = staticMarkup(<EmptyWeek from={WEEK.from} />);
     expect(markup).not.toMatch(/timer|block|focus|cycle|pomodoro/i);
     expect(markup).toContain("Nothing planned yet");
 
@@ -65,20 +65,20 @@ describe("EmptyWeek (SCR-33, G-5 resolved)", () => {
   });
 
   it("copy is literal, never fabricated encouragement", () => {
-    const markup = renderToStaticMarkup(<EmptyWeek from={WEEK.from} />);
+    const markup = staticMarkup(<EmptyWeek from={WEEK.from} />);
     // Exact honest copy, and none of the hype shapes.
     expect(markup).toContain("Write down your week — work, classes, errands, anything.");
     expect(markup).not.toMatch(/great|amazing|journey|let's|let\u2019s|!/i);
   });
 
   it("offers ADD FIRST ENTRY into the editor, dated to the week's Monday", () => {
-    const markup = renderToStaticMarkup(<EmptyWeek from={WEEK.from} />);
+    const markup = staticMarkup(<EmptyWeek from={WEEK.from} />);
     expect(markup).toContain("ADD FIRST ENTRY");
     expect(markup).toContain('href="/plan?new=1&amp;date=2026-08-03"');
   });
 
   it("does not render when the week has entries", () => {
-    const markup = renderToStaticMarkup(
+    const markup = staticMarkup(
       <WeekView week={WEEK} occurrences={ONE_ENTRY} />
     );
     expect(markup).not.toContain("Nothing planned yet");
@@ -86,7 +86,7 @@ describe("EmptyWeek (SCR-33, G-5 resolved)", () => {
   });
 
   it("no Copy last week — out of scope until it is deliberately scheduled", () => {
-    const markup = renderToStaticMarkup(<EmptyWeek from={WEEK.from} />);
+    const markup = staticMarkup(<EmptyWeek from={WEEK.from} />);
     expect(markup).not.toMatch(/copy last week/i);
   });
 });

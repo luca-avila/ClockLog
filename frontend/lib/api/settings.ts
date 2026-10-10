@@ -14,19 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import type { TimerSettings } from "@/lib/timer/engine";
-import { apiFetch } from "./client";
+import { api, unwrap, type Schemas } from "./client";
 
-export async function fetchSettings(): Promise<TimerSettings> {
-  return apiFetch("/settings");
+/** Mirrors backend SettingsResponse — the camelCase keys are the wire format. */
+export type Settings = Schemas["SettingsResponse"];
+export type SettingsUpdate = Schemas["SettingsUpdate"];
+
+export async function fetchSettings(): Promise<Settings> {
+  return unwrap(api.GET("/settings"));
 }
 
-export async function updateSettings(
-  data: Partial<TimerSettings>
-): Promise<TimerSettings> {
-  return apiFetch("/settings", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+export async function updateSettings(data: SettingsUpdate): Promise<Settings> {
+  return unwrap(api.PUT("/settings", { body: data }));
 }

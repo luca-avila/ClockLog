@@ -14,7 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import createClient, { type Middleware } from "openapi-fetch";
+import type { components, paths } from "./schema.gen";
+
+/** Baked in at build time (Vite inlines `import.meta.env.VITE_*`). */
+export const API_BASE: string = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+/** Every request and response body the backend declares, generated from its
+ *  OpenAPI schema (`npm run gen:api`). Change a Pydantic schema, regenerate,
+ *  and `tsc` points at every screen the change breaks. */
+export type Schemas = components["schemas"];
 
 /** The account this browser was last signed in as — user id, set on sign-in. */
 export const LAST_USER_KEY = "clocklog_last_user";
@@ -64,12 +73,6 @@ export function isSignedIn(): boolean {
   return getToken() !== null;
 }
 
-export function authHeaders(): Record<string, string> {
-  const token = getToken();
-  if (!token) return {};
-  return { Authorization: `Bearer ${token}` };
-}
-
 /**
  * The routes where a 401 is a form error, never a redirect. A screen listed
  * here is unauthenticated by design; add a future public screen here.
@@ -102,35 +105,61 @@ export function handleUnauthorized(): void {
   if (isPublicAuthPath(window.location.pathname)) return;
   // Hard navigation on purpose: runs outside React, mid-promise, and must
   // tear down whatever screen made the request.
-  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.href = "/login";
 }
 
-export async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { ...authHeaders(), ...options.headers },
-  });
-  if (!res.ok) {
+/** The bearer header on every request that does not already carry one, and
+ *  the 401 policy above on every response. adoptSession passes its own header
+ *  for a token it has not stored yet; that one wins. */
+const session: Middleware = {
+  onRequest({ request }) {
+    const token = getToken();
+    if (token && !request.headers.has("Authorization")) {
+      request.headers.set("Authorization", `Bearer ${token}`);
+    }
+    return request;
+  },
+  onResponse({ response }) {
     // Expired/invalid session: the 401 policy above is the one owner (c6).
-    if (res.status === 401 && typeof window !== "undefined") {
-      handleUnauthorized();
-    }
-    const body = await res.text().catch(() => "");
-    let code = "UNKNOWN";
-    let message = `${res.status} ${body}`;
-    try {
-      const parsed = JSON.parse(body) as { code?: string; message?: string };
-      if (parsed && typeof parsed.code === "string") code = parsed.code;
-      if (parsed && typeof parsed.message === "string") message = parsed.message;
-    } catch {
-      /* non-JSON body — keep the status + raw text */
-    }
-    throw new ApiError(res.status, code, message);
+    if (response.status === 401) handleUnauthorized();
+    return response;
+  },
+};
+
+/**
+ * The typed API client. Paths, params, bodies and responses all come from
+ * `schema.gen.ts`, so a call the backend no longer accepts fails `tsc`.
+ * `fetch` is resolved per call, not captured at creation, so tests can stub
+ * the global after this module has loaded.
+ */
+export const api = createClient<paths>({
+  baseUrl: API_BASE,
+  fetch: (request) => globalThis.fetch(request),
+});
+api.use(session);
+
+/** What every openapi-fetch call resolves to, reduced to what unwrap reads. */
+interface CallResult<T> {
+  data?: T;
+  error?: unknown;
+  response: Response;
+}
+
+/**
+ * The data of a successful call, or an ApiError carrying the backend's stable
+ * `code` (UNKNOWN for a non-JSON body). A network failure rejects with the
+ * fetch TypeError, as before. Query functions and mutations go through this,
+ * so TanStack Query sees one error shape.
+ */
+export async function unwrap<T>(call: Promise<CallResult<T>>): Promise<T> {
+  const { data, error, response } = await call;
+  if (response.ok) return data as T;
+  let code = "UNKNOWN";
+  let message = `${response.status} ${typeof error === "string" ? error : ""}`.trim();
+  if (typeof error === "object" && error !== null) {
+    const body = error as { code?: unknown; message?: unknown };
+    if (typeof body.code === "string") code = body.code;
+    if (typeof body.message === "string") message = body.message;
   }
-  if (res.status === 204) return undefined as T;
-  return res.json();
+  throw new ApiError(response.status, code, message);
 }

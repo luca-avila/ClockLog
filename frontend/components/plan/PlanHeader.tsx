@@ -16,7 +16,8 @@
 
 // Header omits the word this module may never contain (invariant 13).
 
-import Link from "next/link";
+import { Link } from "@tanstack/react-router";
+import type { PlanLink } from "@/lib/plan/urls";
 
 export interface PlanHeaderProps {
   /** Small-caps line above the title — what this screen is. */
@@ -25,16 +26,16 @@ export interface PlanHeaderProps {
   /** Quiet line under the title: counts and totals, never encouragement. */
   meta?: string;
   view: "week" | "day";
-  weekHref: string;
-  dayHref: string;
-  prevHref: string;
-  nextHref: string;
+  weekHref: PlanLink;
+  dayHref: PlanLink;
+  prevHref: PlanLink;
+  nextHref: PlanLink;
   prevLabel: string;
   nextLabel: string;
   /** Only rendered when the screen is off the current week or day. */
-  currentHref?: string;
+  currentHref?: PlanLink;
   currentLabel: string;
-  newHref: string;
+  newHref: PlanLink;
 }
 
 const PILL =
@@ -84,7 +85,7 @@ export default function PlanHeader({
           ).map(([label, href, active]) => (
             <Link
               key={label}
-              href={href}
+              {...href}
               aria-current={active ? "page" : undefined}
               className={`rounded-full px-3 py-1.5 transition-colors ${
                 active
@@ -98,18 +99,18 @@ export default function PlanHeader({
         </div>
 
         <div className="flex items-center gap-2">
-          <Link href={prevHref} aria-label={prevLabel} className={PILL}>
+          <Link {...prevHref} aria-label={prevLabel} className={PILL}>
             <span aria-hidden>&lsaquo;</span>
           </Link>
           {currentHref && (
             <Link
-              href={currentHref}
+              {...currentHref}
               className="h-9 rounded-full border border-neutral-200 px-4 text-xs font-medium leading-9 text-neutral-600 transition-colors hover:border-neutral-400 hover:text-neutral-900"
             >
               {currentLabel}
             </Link>
           )}
-          <Link href={nextHref} aria-label={nextLabel} className={PILL}>
+          <Link {...nextHref} aria-label={nextLabel} className={PILL}>
             <span aria-hidden>&rsaquo;</span>
           </Link>
         </div>
@@ -117,7 +118,7 @@ export default function PlanHeader({
         {/* Outlined on purpose: opening the editor commits nothing, and the
             filled treatment belongs to PrimaryButton alone. */}
         <Link
-          href={newHref}
+          {...newHref}
           className="h-9 rounded-full border border-neutral-300 px-4 text-xs font-medium leading-9 text-neutral-700 transition-colors hover:border-neutral-500 hover:text-neutral-900"
         >
           + New entry

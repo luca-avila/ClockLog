@@ -62,6 +62,7 @@ vi.mock("@/lib/api/settings", () => ({
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
 import TimerScreen from "@/components/timer/TimerScreen";
+import { withProviders } from "@/__tests__/helpers/providers";
 
 const STORAGE_KEY = "clocklog_clock";
 const CYCLE_KEY = "clocklog_cycle";
@@ -84,7 +85,7 @@ function render() {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  act(() => root.render(<TimerScreen />));
+  act(() => root.render(withProviders(<TimerScreen />).element));
   return { container, root };
 }
 
@@ -105,7 +106,7 @@ describe("hydration", () => {
       CYCLE_KEY,
       JSON.stringify({ completed: 2, pendingBreak: true })
     );
-    const markup = renderToStaticMarkup(<TimerScreen />);
+    const markup = renderToStaticMarkup(withProviders(<TimerScreen />).element);
     expect(markup).not.toContain("25:00");
     expect(markup).not.toContain("05:00");
     expect(markup).not.toContain("START");
@@ -368,7 +369,7 @@ describe("completed focus block shows label sheet", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
-    act(() => root.render(<TimerScreen />));
+    act(() => root.render(withProviders(<TimerScreen />).element));
 
     // No label sheet yet (just started)
     expect(container.querySelector('[data-testid="label-sheet"]')).toBeNull();

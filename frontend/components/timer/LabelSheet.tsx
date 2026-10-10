@@ -1,5 +1,3 @@
-"use client";
-
 // ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
@@ -16,12 +14,13 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useState, useEffect } from "react";
-import { apiFetch } from "@/lib/api/client";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { recentLabelsQuery } from "@/lib/queries/history";
 import TagPicker from "@/components/shared/TagPicker";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 import Sheet from "@/components/shared/Sheet";
-import { fetchTags, type Tag } from "@/lib/api/tags";
+import { tagsQuery } from "@/lib/queries/tags";
 
 interface LabelSheetProps {
   onSave: (label: string, tagId: string | null) => void;
@@ -30,18 +29,10 @@ interface LabelSheetProps {
 
 export default function LabelSheet({ onSave, onSkip }: LabelSheetProps) {
   const [label, setLabel] = useState("");
-  const [recent, setRecent] = useState<string[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
+  // Both are suggestions: offline or signed out, the sheet works without them.
+  const recent = useQuery(recentLabelsQuery()).data ?? [];
+  const tags = useQuery(tagsQuery()).data ?? [];
   const [tagId, setTagId] = useState<string | null>(null);
-
-  useEffect(() => {
-    apiFetch<string[]>("/blocks/recent-labels")
-      .then(setRecent)
-      .catch(() => {});
-    fetchTags()
-      .then(setTags)
-      .catch(() => {});
-  }, []);
 
   function handleSave() {
     onSave(label, tagId);

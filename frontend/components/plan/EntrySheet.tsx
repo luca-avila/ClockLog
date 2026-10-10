@@ -16,34 +16,29 @@
 
 // Header omits the word this module may never contain (invariant 13).
 
-"use client";
-
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import TagPicker from "@/components/shared/TagPicker";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 import Sheet from "@/components/shared/Sheet";
-import {
-  createEntry,
-  deleteEntry,
-  fetchEntry,
-  updateEntry,
-  type Entry,
-} from "@/lib/api/plan";
-import { fetchTags, type Tag } from "@/lib/api/tags";
+import { createEntry, deleteEntry, updateEntry, type EntryCreate } from "@/lib/api/plan";
+import { entryKeys, entryQuery } from "@/lib/queries/plan";
+import { tagsQuery } from "@/lib/queries/tags";
 import type { EntrySheetMode } from "@/lib/plan/view";
 import { hhmm } from "@/lib/date/week";
-import { withTick } from "@/lib/plan/urls";
+import type { PlanLink } from "@/lib/plan/urls";
 
 export default function EntrySheet({
   mode,
   returnTo,
 }: {
   mode: EntrySheetMode;
-  returnTo: string;
+  returnTo: PlanLink;
 }) {
-  const router = useRouter();
-  const [tags, setTags] = useState<Tag[]>([]);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const tags = useQuery(tagsQuery()).data ?? [];
   const [name, setName] = useState("");
   const [date, setDate] = useState(mode.kind === "create" ? mode.date : "");
   const [allDay, setAllDay] = useState(false);
@@ -59,50 +54,56 @@ export default function EntrySheet({
   );
   const [tagId, setTagId] = useState<string | null>(null);
   const [repeatWeekly, setRepeatWeekly] = useState(false);
-  const [editing, setEditing] = useState<Entry | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const editId = mode.kind === "edit" ? mode.entryId : null;
+  // The stored row is the truth — an occurrence only identifies it.
+  const entry = useQuery({ ...entryQuery(editId ?? ""), enabled: editId !== null });
+  const editing = editId !== null ? (entry.data ?? null) : null;
 
+  // Copy the stored row into the form once it arrives: the fields are the
+  // user's to edit from then on, so this runs per loaded row, not per render.
   useEffect(() => {
-    let cancelled = false;
-    fetchTags()
-      .then((t) => {
-        if (!cancelled) setTags(t);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!editing) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- seeding a form from a fetched row */
+    setName(editing.name);
+    setDate(editing.date);
+    setAllDay(editing.all_day);
+    setStart(editing.start_time ? hhmm(editing.start_time) : "");
+    setEnd(editing.end_time ? hhmm(editing.end_time) : "");
+    setTagId(editing.tag_id);
+    setRepeatWeekly(editing.repeat_weekly);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [editing]);
 
-  useEffect(() => {
-    if (editId === null) return;
-    let cancelled = false;
-    // The stored row is the truth — an occurrence only identifies it.
-    fetchEntry(editId)
-      .then((e) => {
-        if (cancelled) return;
-        setEditing(e);
-        setName(e.name);
-        setDate(e.date);
-        setAllDay(e.all_day);
-        setStart(e.start_time ? hhmm(e.start_time) : "");
-        setEnd(e.end_time ? hhmm(e.end_time) : "");
-        setTagId(e.tag_id);
-        setRepeatWeekly(e.repeat_weekly);
-      })
-      .catch(() => setError("Could not load the entry"));
-    return () => {
-      cancelled = true;
-    };
-  }, [editId]);
+  const loadError = entry.isError ? "Could not load the entry" : null;
+
+  // Save/delete invalidate every cached range, so the screen behind refetches
+  // whatever it shows; cancel below navigates back and invalidates nothing.
+  function closeChanged() {
+    void queryClient.invalidateQueries({ queryKey: entryKeys.all });
+    void navigate({ ...returnTo, replace: true });
+  }
+
+  const save = useMutation({
+    mutationFn: (payload: EntryCreate) =>
+      editing ? updateEntry(editing.id, payload) : createEntry(payload),
+    onSuccess: closeChanged,
+    onError: () => setError("Could not save — try again"),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteEntry(id),
+    onSuccess: closeChanged,
+    onError: () => setError("Could not delete — try again"),
+  });
+
+  const busy = save.isPending || remove.isPending;
 
   // Wall-clock note, not an error: the server accepts midnight spans (S-19).
   const spansMidnight = !allDay && start !== "" && end !== "" && end <= start;
 
-  async function handleSave() {
+  function handleSave() {
     if (!name.trim()) {
       setError("Give the entry a name");
       return;
@@ -115,9 +116,8 @@ export default function EntrySheet({
       setError("Set from and to, or check All day");
       return;
     }
-    setBusy(true);
     setError(null);
-    const payload = {
+    save.mutate({
       name: name.trim(),
       date,
       all_day: allDay,
@@ -125,36 +125,19 @@ export default function EntrySheet({
       end_time: allDay ? null : end,
       tag_id: tagId,
       repeat_weekly: repeatWeekly,
-    };
-    try {
-      if (editing) await updateEntry(editing.id, payload);
-      else await createEntry(payload);
-      // Save/delete append a fresh tick so the screen behind refetches
-      // (withTick, lib/plan/urls.ts); cancel below returns without one.
-      router.replace(withTick(returnTo, Date.now()));
-    } catch {
-      setError("Could not save — try again");
-      setBusy(false);
-    }
+    });
   }
 
   // The sheet had no way out but Save or Delete — leaving it needed the
-  // browser's back button. Cancel returns without a tick: nothing changed,
-  // so the screen behind has nothing to refetch.
+  // browser's back button. Cancel invalidates nothing: nothing changed, so
+  // the screen behind has nothing to refetch.
   function handleClose() {
-    router.replace(returnTo);
+    void navigate({ ...returnTo, replace: true });
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (!editing || busy) return;
-    setBusy(true);
-    try {
-      await deleteEntry(editing.id);
-      router.replace(withTick(returnTo, Date.now()));
-    } catch {
-      setError("Could not delete — try again");
-      setBusy(false);
-    }
+    remove.mutate(editing.id);
   }
 
   const LABEL =
@@ -276,9 +259,9 @@ export default function EntrySheet({
           <TagPicker tags={tags} value={tagId} onChange={setTagId} />
         </div>
 
-        {error && (
+        {(error ?? loadError) && (
           <p role="alert" className="mt-4 text-xs text-red-500">
-            {error}
+            {error ?? loadError}
           </p>
         )}
 

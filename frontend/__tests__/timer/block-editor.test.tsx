@@ -26,6 +26,7 @@ vi.mock("@/lib/api/history", () => ({ updateBlock, deleteBlock }));
 vi.mock("@/lib/api/tags", () => ({ fetchTags: vi.fn().mockResolvedValue([]) }));
 
 import BlockEditor from "@/components/timer/BlockEditor";
+import { withProviders } from "@/__tests__/helpers/providers";
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -64,7 +65,7 @@ function render(block: BlockData) {
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() =>
-    root.render(<BlockEditor block={block} tags={[]} onDone={vi.fn()} />)
+    root.render(withProviders(<BlockEditor block={block} tags={[]} onDone={vi.fn()} />).element)
   );
   return { container, root };
 }

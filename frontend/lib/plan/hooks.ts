@@ -16,41 +16,15 @@
 
 // Header omits the word this module may never contain (invariant 13).
 
-"use client";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import type { EntryOccurrence } from "@/lib/api/plan";
+import { occurrencesQuery } from "@/lib/queries/plan";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { fetchOccurrences, type EntryOccurrence } from "@/lib/api/plan";
-import { localTodayIso } from "@/lib/date/week";
-import { readPlanView, type PlanView } from "@/lib/plan/view";
-
-/** The view the current URL asks for. Only the two plan pages call this —
- *  screens take what they need as props. */
-export function usePlanView(): PlanView {
-  const params = useSearchParams();
-  return readPlanView(params, localTodayIso());
-}
-
-/** Occurrences for a date range, refetched when `tick` changes. Owns the
- *  cancel flag; a failed fetch (signed out or offline) yields an empty range. */
-export function useOccurrences(from: string, to: string, tick: string): EntryOccurrence[] {
-  const [occurrences, setOccurrences] = useState<EntryOccurrence[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchOccurrences(from, to)
-      .then((data) => {
-        if (!cancelled) setOccurrences(data);
-      })
-      .catch(() => {
-        if (!cancelled) setOccurrences([]); // signed out or offline: empty range
-      });
-    return () => {
-      cancelled = true;
-    };
-    // EntrySheet closes save/delete via withTick() (lib/plan/urls.ts); the
-    // fresh t= param becomes this tick, which is what makes this refetch.
-  }, [from, to, tick]);
-
-  return occurrences;
+/** Occurrences for a date range, cached per range. The editor invalidates
+ *  every range on save/delete (entryKeys.all), which is what refetches the
+ *  screen behind it. Stepping weeks keeps the previous range on screen until
+ *  the next arrives; a failed fetch (signed out or offline) is an empty range. */
+export function useOccurrences(from: string, to: string): EntryOccurrence[] {
+  const { data } = useQuery({ ...occurrencesQuery(from, to), placeholderData: keepPreviousData });
+  return data ?? [];
 }

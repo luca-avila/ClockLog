@@ -14,10 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link, useLocation } from "@tanstack/react-router";
 import Logo from "@/components/Logo";
 import NavIcon from "./NavIcon";
 import { destinationsIn, isActivePath, type NavDestination } from "./nav";
@@ -28,14 +25,19 @@ const primary = destinationsIn("rail");
 const secondary = destinationsIn("rail-foot");
 
 export default function Sidebar() {
-  const pathname = usePathname();
+  const pathname = useLocation({ select: (l) => l.pathname });
 
   function renderItem(item: NavDestination) {
     const active = isActivePath(pathname, item.href);
     return (
       <Link
         key={item.href}
-        href={item.href}
+        to={item.to}
+        hash={item.hash}
+        // isActivePath owns the active state. The router marks a link active on
+        // its own too; matching the hash keeps it from lighting a section link
+        // (/settings#tags) on the plain /settings page.
+        activeOptions={{ includeHash: true }}
         aria-current={active ? "page" : undefined}
         className={`group flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition-colors ${
           // The border is on both states, transparent when idle: an active
@@ -63,7 +65,7 @@ export default function Sidebar() {
     <aside className="sticky top-0 hidden md:flex h-dvh w-56 shrink-0 flex-col border-r border-neutral-200 px-3 py-5">
       {/* The dot that used to stand in for a mark is gone: the wordmark's
           own ring is the mark, and two circles in a row read as a bullet. */}
-      <Link href="/" className="mb-7 block px-3 text-lg text-neutral-800">
+      <Link to="/" className="mb-7 block px-3 text-lg text-neutral-800">
         <Logo />
       </Link>
 

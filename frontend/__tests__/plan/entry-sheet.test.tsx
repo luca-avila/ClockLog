@@ -20,11 +20,8 @@ import { act } from "react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import EntrySheet from "@/components/plan/EntrySheet";
-
-const replace = vi.hoisted(() => vi.fn());
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace }),
-}));
+import { flushQueries, withProviders, type Harness } from "@/__tests__/helpers/providers";
+import { currentWeekLink } from "@/lib/plan/urls";
 
 const api = vi.hoisted(() => ({
   createEntry: vi.fn(),
@@ -58,12 +55,26 @@ const STORED = {
   created_at: "x",
 };
 
+let harness: Harness;
+let navigate: ReturnType<typeof vi.spyOn>;
+
+function sheet(mode: React.ComponentProps<typeof EntrySheet>["mode"]) {
+  return withProviders(<EntrySheet mode={mode} returnTo={currentWeekLink()} />, harness).element;
+}
+
 function setup(mode: React.ComponentProps<typeof EntrySheet>["mode"]) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  act(() => root.render(<EntrySheet mode={mode} returnTo="/plan" />));
+  act(() => root.render(sheet(mode)));
   return { container, root };
+}
+
+/** Closed after a change: back to the screen it came from, history replaced,
+ *  and every cached range invalidated so that screen refetches. */
+function expectClosedWithRefetch() {
+  expect(navigate).toHaveBeenCalledWith({ to: "/plan", search: {}, replace: true });
+  expect(harness.queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["entries"] });
 }
 
 function byLabel(container: HTMLElement, label: string) {
@@ -91,13 +102,14 @@ function click(container: HTMLElement, label: string) {
   });
 }
 
-async function flush() {
-  await act(async () => {});
-}
+const flush = flushQueries;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  replace.mockReset();
+  const { router, queryClient } = withProviders(null);
+  harness = { router, queryClient };
+  navigate = vi.spyOn(router, "navigate").mockResolvedValue(undefined);
+  vi.spyOn(queryClient, "invalidateQueries");
   tagsApi.fetchTags.mockResolvedValue(TAGS);
   api.fetchEntry.mockResolvedValue(STORED);
   api.createEntry.mockResolvedValue({});
@@ -216,8 +228,7 @@ describe("editing", () => {
       "e1",
       expect.objectContaining({ date: "2026-07-28", repeat_weekly: true })
     );
-    expect(replace).toHaveBeenCalled();
-    expect(String(replace.mock.calls[0][0])).toMatch(/^\/plan\?t=/);
+    expectClosedWithRefetch();
   });
 
   it("a re-render with an equal mode object does not refetch the entry", async () => {
@@ -232,7 +243,7 @@ describe("editing", () => {
     // object. Keying the effect on that identity refetched and clobbered the
     // form under the user's cursor.
     act(() =>
-      root.render(<EntrySheet mode={{ kind: "edit", entryId: "e1" }} returnTo="/plan" />)
+      root.render(sheet({ kind: "edit", entryId: "e1" }))
     );
     await flush();
 
@@ -249,8 +260,7 @@ describe("editing", () => {
     });
 
     expect(api.deleteEntry).toHaveBeenCalledWith("e1");
-    expect(replace).toHaveBeenCalled();
-    expect(String(replace.mock.calls[0][0])).toMatch(/^\/plan\?t=/);
+    expectClosedWithRefetch();
   });
 });
 

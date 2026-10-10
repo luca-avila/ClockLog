@@ -14,20 +14,22 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { describe, it, expect, vi } from "vitest";
-import { renderToStaticMarkup } from "react-dom/server";
+import { describe, it, expect } from "vitest";
+import { staticMarkup } from "@/__tests__/helpers/providers";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const nav = vi.hoisted(() => ({ pathname: "/" }));
-vi.mock("next/navigation", () => ({
-  usePathname: () => nav.pathname,
-}));
+// The location the shell is rendered at; each test sets it before rendering.
+const nav = { pathname: "/" };
 
 import AppShell from "@/components/shared/AppShell";
 import TabBar from "@/components/shared/TabBar";
 import Sidebar from "@/components/shared/Sidebar";
 import { destinationsIn, isActivePath } from "@/components/shared/nav";
+
+function markupAt(ui: React.ReactNode): string {
+  return staticMarkup(ui, nav.pathname);
+}
 
 const DESTINATIONS = ["/", "/history", "/plan"] as const;
 
@@ -37,7 +39,7 @@ function hrefs(markup: string): string[] {
 
 describe("navigation destinations", () => {
   it("the tab bar carries exactly three destinations", () => {
-    const markup = renderToStaticMarkup(<TabBar />);
+    const markup = markupAt(<TabBar />);
     // Consumption with a fixed expectation, not content: the registry's own
     // content is pinned in the "nav registry" describe below, and this literal
     // href list fails loudly if TabBar ever stops rendering one of the three
@@ -49,10 +51,10 @@ describe("navigation destinations", () => {
   });
 
   it("Settings is never a fourth tab — only the header gear reaches it", () => {
-    const tabMarkup = renderToStaticMarkup(<TabBar />);
+    const tabMarkup = markupAt(<TabBar />);
     expect(tabMarkup).not.toContain("/settings");
 
-    const shellMarkup = renderToStaticMarkup(
+    const shellMarkup = markupAt(
       <AppShell>
         <p>x</p>
       </AppShell>
@@ -73,7 +75,7 @@ describe("navigation destinations", () => {
 
   it("marks one sidebar item on /settings, not Tags as well", () => {
     nav.pathname = "/settings";
-    const markup = renderToStaticMarkup(<Sidebar />);
+    const markup = markupAt(<Sidebar />);
     const active = [...markup.matchAll(/<a[^>]*aria-current="page"[^>]*>/g)].map(
       (m) => m[0]
     );
@@ -86,7 +88,7 @@ describe("navigation destinations", () => {
 
   it("highlights Plan on /plan/day, not nothing", () => {
     nav.pathname = "/plan/day";
-    const markup = renderToStaticMarkup(<TabBar />);
+    const markup = markupAt(<TabBar />);
     const active = [...markup.matchAll(/<a[^>]*aria-current="page"[^>]*>/g)].map(
       (m) => m[0]
     );
@@ -97,14 +99,14 @@ describe("navigation destinations", () => {
 
   it("highlights History on /history and nothing on a non-route prefix", () => {
     nav.pathname = "/history";
-    const markup = renderToStaticMarkup(<TabBar />);
+    const markup = markupAt(<TabBar />);
     const active = [...markup.matchAll(/<a[^>]*aria-current="page"[^>]*>/g)].map(
       (m) => m[0]
     );
     expect(active).toHaveLength(1);
     expect(active[0]).toContain('href="/history"');
     nav.pathname = "/planX";
-    expect(renderToStaticMarkup(<TabBar />)).not.toContain('aria-current="page"');
+    expect(markupAt(<TabBar />)).not.toContain('aria-current="page"');
     nav.pathname = "/";
   });
 });
@@ -166,15 +168,15 @@ describe("nav registry", () => {
 
 describe("responsive shape (mobile-first)", () => {
   it("mobile renders the tab bar and no sidebar; md: inverts", () => {
-    const shell = renderToStaticMarkup(
+    const shell = markupAt(
       <AppShell>
         <p>x</p>
       </AppShell>
     );
     // Tab bar hidden from md up; sidebar hidden until md.
-    const tabBar = renderToStaticMarkup(<TabBar />);
+    const tabBar = markupAt(<TabBar />);
     expect(tabBar).toMatch(/class="[^"]*md:hidden/);
-    const sidebar = renderToStaticMarkup(<Sidebar />);
+    const sidebar = markupAt(<Sidebar />);
     expect(sidebar).toMatch(/class="[^"]*hidden md:flex/);
     // Both shapes are present in the shell; CSS decides which shows.
     expect(shell).toContain("md:hidden");
@@ -210,7 +212,7 @@ describe("module independence of the shell", () => {
   });
 
   it("navigates by href, so either module can be deleted and the shell still compiles", () => {
-    const markup = renderToStaticMarkup(<TabBar />);
+    const markup = markupAt(<TabBar />);
     for (const d of DESTINATIONS) {
       expect(markup).toContain(`href="${d}"`);
     }

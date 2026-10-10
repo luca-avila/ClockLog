@@ -25,6 +25,7 @@ const fetchSummaryMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/history", () => ({
   fetchBlocks: (...args: unknown[]) => fetchBlocksMock(...args),
   fetchSummary: (...args: unknown[]) => fetchSummaryMock(...args),
+  fetchRecentLabels: vi.fn().mockResolvedValue([]),
   // BlockEditor imports these; nothing in these tests opens the editor.
   updateBlock: vi.fn(),
   deleteBlock: vi.fn(),
@@ -48,6 +49,7 @@ afterAll(() => {
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
 import HistoryPage from "@/components/timer/HistoryPage";
+import { flushQueries, withProviders } from "@/__tests__/helpers/providers";
 
 // Wed Sep 16 2026, midday, Madrid.
 const NOW = new Date(2026, 8, 16, 12, 0, 0);
@@ -93,14 +95,13 @@ async function renderPage() {
   document.body.appendChild(container);
   const root = createRoot(container);
   await act(async () => {
-    root.render(<HistoryPage />);
+    root.render(withProviders(<HistoryPage />).element);
   });
+  await flushQueries();
   return { container, root };
 }
 
-async function flush() {
-  await act(async () => {});
-}
+const flush = flushQueries;
 
 async function clickButton(container: HTMLElement, text: string) {
   const target = [...container.querySelectorAll("button")].find((b) =>

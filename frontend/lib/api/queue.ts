@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { apiFetch, ApiError, isSignedIn } from "./client";
+import { api, ApiError, isSignedIn, unwrap } from "./client";
 
 export interface BlockIntervalPayload {
   started_at: string;
@@ -80,12 +80,10 @@ export interface QueueDeps {
   storage: Pick<Storage, "getItem" | "setItem" | "removeItem"> | null;
 }
 
-function defaultPost(payload: BlockPayload): Promise<void> {
-  return apiFetch<void>("/blocks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+async function defaultPost(payload: BlockPayload): Promise<void> {
+  // Typed against the generated BlockCreate: if the backend's create schema
+  // drifts from BlockPayload, this line stops compiling.
+  await unwrap(api.POST("/blocks", { body: payload }));
 }
 
 const defaultDeps: QueueDeps = {

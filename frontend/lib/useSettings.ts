@@ -14,37 +14,19 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"use client";
-
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { type TimerSettings, defaultSettings } from "@/lib/timer/engine";
-import { fetchSettings } from "@/lib/api/settings";
+import { settingsQuery } from "@/lib/queries/settings";
 
 /**
- * Settings shared by the timer and the settings page. Starts from
- * defaults so the idle screen renders immediately; the server value
+ * Settings shared by the timer and the settings page, read from one cache
+ * entry — a change saved on /settings is what the timer reads next. Starts
+ * from defaults so the idle screen renders immediately; the server value
  * replaces them when it arrives. Offline or signed out: defaults.
  */
-export function useSettings() {
-  const [settings, setSettings] = useState<TimerSettings>(defaultSettings);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchSettings()
-      .then((s) => {
-        if (!cancelled) setSettings(s);
-      })
-      .catch(() => {
-        /* offline — defaults keep the timer usable */
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { settings, setSettings, loading };
+export function useSettings(): { settings: TimerSettings; loading: boolean } {
+  const query = useQuery(settingsQuery());
+  // isPending, not isLoading: a failed fetch (offline) stops "loading" too,
+  // and the defaults below keep the timer usable.
+  return { settings: query.data ?? defaultSettings, loading: query.isPending };
 }

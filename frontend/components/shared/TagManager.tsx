@@ -1,5 +1,3 @@
-"use client";
-
 // ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
@@ -16,14 +14,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useEffect, useState } from "react";
-import {
-  fetchTags,
-  createTag,
-  updateTag,
-  deleteTag,
-  type Tag,
-} from "@/lib/api/tags";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createTag, deleteTag, updateTag } from "@/lib/api/tags";
+import { tagKeys, tagsQuery } from "@/lib/queries/tags";
 
 const TEXT_INPUT =
   "min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-800 placeholder:text-neutral-400 outline-none transition-colors focus:border-neutral-500";
@@ -39,7 +33,9 @@ const SWATCH_INPUT =
  * affected count is surfaced so that consequence is visible.
  */
 export default function TagManager() {
-  const [tags, setTags] = useState<Tag[]>([]);
+  const queryClient = useQueryClient();
+  const tagsResult = useQuery(tagsQuery());
+  const tags = tagsResult.data ?? [];
   const [name, setName] = useState("");
   const [color, setColor] = useState("#6ee7b7");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -49,15 +45,13 @@ export default function TagManager() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function reload() {
-    fetchTags()
-      .then(setTags)
-      .catch(() => setError("Could not load tags"));
-  }
+  const loadError = tagsResult.isError ? "Could not load tags" : null;
 
-  useEffect(() => {
-    reload();
-  }, []);
+  // Every picker in the app reads the same cache entry, so one invalidation
+  // refreshes them all.
+  function reload() {
+    void queryClient.invalidateQueries({ queryKey: tagKeys.all });
+  }
 
   async function handleCreate() {
     if (!name.trim()) {
@@ -99,7 +93,10 @@ export default function TagManager() {
           : "Tag deleted"
       );
       setConfirmingId(null);
-      reload();
+      // Everything that carried the tag is untagged now — history summaries
+      // and plan entries included. Shared code names no feature's cache key,
+      // so it refreshes the lot.
+      void queryClient.invalidateQueries();
     } catch {
       setError("Could not delete the tag");
     }
@@ -238,9 +235,9 @@ export default function TagManager() {
         </button>
       </form>
 
-      {error && (
+      {(error ?? loadError) && (
         <p role="alert" className="pb-2 text-xs text-red-500">
-          {error}
+          {error ?? loadError}
         </p>
       )}
       {notice && <p className="pb-2 text-xs text-neutral-400">{notice}</p>}

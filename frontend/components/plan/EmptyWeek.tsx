@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import Link from "next/link";
-import { newEntryUrl } from "@/lib/plan/urls";
+import { Link } from "@tanstack/react-router";
+import { newEntryLink } from "@/lib/plan/urls";
 
 // Honest and literal (SCR-33, G-5): no fabricated encouragement, no
 // vocabulary from the other module.
@@ -32,7 +32,7 @@ export default function EmptyWeek({ from }: { from: string }) {
         Write down your week — work, classes, errands, anything.
       </p>
       <Link
-        href={newEntryUrl(from)}
+        {...newEntryLink(from)}
         className="mt-3 rounded-full border border-neutral-300 px-6 py-2.5 text-xs font-medium tracking-wide text-neutral-700 transition-colors hover:border-neutral-500 hover:text-neutral-900"
       >
         + ADD FIRST ENTRY

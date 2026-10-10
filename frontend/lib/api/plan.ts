@@ -17,19 +17,15 @@
 // Dates are plain "YYYY-MM-DD" strings and times "HH:MM:SS" — the plan API
 // speaks wall-clock calendar data, never UTC instants (see docs/decisions/008-plan-dates-not-instants.md).
 
-import { apiFetch } from "./client";
+import { api, unwrap, type Schemas } from "./client";
+
+type WireOccurrence = Schemas["EntryOccurrence"];
 
 // A timed entry always carries both times; an all-day entry carries
 // neither. Server-enforced on write — the union makes the invariant
-// travel with the data so views never assert around it.
-export interface OccurrenceBase {
-  entry_id: string;
-  name: string;
-  date: string;
-  tag_id: string | null;
-  tag_color: string | null;
-  repeat_weekly: boolean;
-}
+// travel with the data so views never assert around it. Built from the
+// generated schema, which can only say "string | null" for each time.
+export type OccurrenceBase = Omit<WireOccurrence, "all_day" | "start_time" | "end_time">;
 
 export interface TimedOccurrence extends OccurrenceBase {
   all_day: false;
@@ -43,66 +39,30 @@ export interface AllDayOccurrence extends OccurrenceBase {
 
 export type EntryOccurrence = TimedOccurrence | AllDayOccurrence;
 
-export interface Entry {
-  id: string;
-  user_id: string;
-  tag_id: string | null;
-  name: string;
-  date: string;
-  all_day: boolean;
-  start_time: string | null;
-  end_time: string | null;
-  repeat_weekly: boolean;
-  created_at: string;
-}
-
-export interface EntryCreate {
-  name: string;
-  date: string;
-  all_day?: boolean;
-  start_time?: string | null;
-  end_time?: string | null;
-  tag_id?: string | null;
-  repeat_weekly?: boolean;
-}
-
-export interface EntryUpdate {
-  name?: string;
-  date?: string;
-  all_day?: boolean;
-  start_time?: string | null;
-  end_time?: string | null;
-  tag_id?: string | null;
-  repeat_weekly?: boolean;
-}
+export type Entry = Schemas["EntryResponse"];
+export type EntryCreate = Schemas["EntryCreate"];
+export type EntryUpdate = Schemas["EntryUpdate"];
 
 export async function createEntry(data: EntryCreate): Promise<Entry> {
-  return apiFetch("/plan/entries", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  return unwrap(api.POST("/plan/entries", { body: data }));
 }
 
-export async function fetchOccurrences(
-  from: string,
-  to: string
-): Promise<EntryOccurrence[]> {
-  return apiFetch(`/plan/entries?from=${from}&to=${to}`);
+export async function fetchOccurrences(from: string, to: string): Promise<EntryOccurrence[]> {
+  const rows = await unwrap(api.GET("/plan/entries", { params: { query: { from, to } } }));
+  // The one place the wire shape is narrowed into the union.
+  return rows as EntryOccurrence[];
 }
 
 export async function fetchEntry(id: string): Promise<Entry> {
-  return apiFetch(`/plan/entries/${id}`);
+  return unwrap(api.GET("/plan/entries/{entry_id}", { params: { path: { entry_id: id } } }));
 }
 
 export async function updateEntry(id: string, data: EntryUpdate): Promise<Entry> {
-  return apiFetch(`/plan/entries/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  return unwrap(
+    api.PATCH("/plan/entries/{entry_id}", { params: { path: { entry_id: id } }, body: data })
+  );
 }
 
 export async function deleteEntry(id: string): Promise<void> {
-  return apiFetch(`/plan/entries/${id}`, { method: "DELETE" });
+  return unwrap(api.DELETE("/plan/entries/{entry_id}", { params: { path: { entry_id: id } } }));
 }

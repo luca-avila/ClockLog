@@ -15,12 +15,14 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { describe, it, expect } from "vitest";
-import { readPlanView } from "@/lib/plan/view";
+import { parsePlanSearch, readPlanView } from "@/lib/plan/view";
 
 const TODAY = "2026-08-19";
 
+/** Raw query strings, as a hand-typed URL would carry them: every value a
+ *  string. The router hands numbers over for `?hour=9`; both must parse. */
 function view(qs: string) {
-  return readPlanView(new URLSearchParams(qs), TODAY);
+  return readPlanView(parsePlanSearch(Object.fromEntries(new URLSearchParams(qs))), TODAY);
 }
 
 describe("readPlanView", () => {
@@ -28,7 +30,6 @@ describe("readPlanView", () => {
     const v = view("");
     expect(v.date).toBe(TODAY);
     expect(v.week).toEqual({ from: "2026-08-17", to: "2026-08-23" });
-    expect(v.tick).toBe("");
     expect(v.sheet).toBeNull();
   });
 
@@ -65,7 +66,13 @@ describe("readPlanView", () => {
     expect(view("edit=abc&new=1").sheet).toEqual({ kind: "edit", entryId: "abc" });
   });
 
-  it("tick mirrors the t param", () => {
-    expect(view("t=12345").tick).toBe("12345");
+  it("accepts the router's parsed values — numbers for new and hour", () => {
+    const v = readPlanView(parsePlanSearch({ new: 1, hour: 9, date: "2026-08-03" }), TODAY);
+    expect(v.sheet).toEqual({ kind: "create", date: "2026-08-03", hour: 9 });
+    expect(parsePlanSearch({ hour: 9.5 })).toEqual({});
+  });
+
+  it("drops unknown and malformed params instead of passing them through", () => {
+    expect(parsePlanSearch({ t: "123", week: "soon", edit: "" })).toEqual({});
   });
 });

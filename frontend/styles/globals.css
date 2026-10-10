@@ -1,0 +1,84 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+/* Light only. Theming is not built (AGENTS.md § Scope boundaries): a dark
+   palette here repaints body while every component stays neutral-on-white. */
+
+/* Sepia paper: warm cream ground, brown ink.
+   The whole UI is authored in `neutral-*` + `white`, so the palette lives
+   here and nowhere else: overriding the scale repaints every screen without
+   touching a component. Chroma stays low — tag colors remain the only
+   saturated color in the app. */
+@theme {
+  --color-white: #fdfbf6;
+  --color-neutral-50: #f6f1e7;
+  --color-neutral-100: #efe7d9;
+  --color-neutral-200: #e2d8c6;
+  --color-neutral-300: #cfc3ad;
+  --color-neutral-400: #9c8f79;
+  --color-neutral-500: #7b6f5c;
+  --color-neutral-600: #5e5447;
+  --color-neutral-700: #493f35;
+  --color-neutral-800: #372f28;
+  --color-neutral-900: #2b2521;
+}
+
+/* shadcn/ui semantic tokens. They are aliases of the scale above, never new
+   colors: a shadcn component (bg-primary, border-input, ...) paints with the
+   same sepia ink as a hand-written neutral-* screen, and repainting the scale
+   still repaints both. */
+:root {
+  --radius: 0.5rem;
+  --background: #faf6ee;
+  --foreground: var(--color-neutral-900);
+  --card: var(--color-white);
+  --card-foreground: var(--color-neutral-900);
+  --popover: var(--color-white);
+  --popover-foreground: var(--color-neutral-900);
+  --primary: var(--color-neutral-900);
+  --primary-foreground: var(--color-white);
+  --secondary: var(--color-neutral-100);
+  --secondary-foreground: var(--color-neutral-800);
+  --muted: var(--color-neutral-100);
+  --muted-foreground: var(--color-neutral-500);
+  --accent: var(--color-neutral-100);
+  --accent-foreground: var(--color-neutral-800);
+  --destructive: #b4432f;
+  --border: var(--color-neutral-200);
+  --input: var(--color-neutral-200);
+  --ring: var(--color-neutral-500);
+}
+
+@theme inline {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}

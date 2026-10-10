@@ -15,9 +15,16 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { LAST_USER_KEY, clearSession, handleUnauthorized, isPublicAuthPath } from "@/lib/api/client";
+import {
+  LAST_USER_KEY,
+  api,
+  clearSession,
+  handleUnauthorized,
+  isPublicAuthPath,
+  unwrap,
+} from "@/lib/api/client";
 import { enqueueBlock, type BlockPayload } from "@/lib/api/queue";
-import { adoptSession, authErrorMessage, postAuth, signOut } from "@/lib/api/session";
+import { adoptSession, authCall, authErrorMessage, signOut } from "@/lib/api/session";
 
 function blockPayload(id: string): BlockPayload {
   return {
@@ -230,7 +237,14 @@ describe("signOut", () => {
   });
 });
 
-describe("postAuth", () => {
+/** The login call every auth screen's shape is built on, typed end to end. */
+function login(password: string) {
+  return authCall(() =>
+    unwrap(api.POST("/auth/login", { body: { email: "u@example.com", password } }))
+  );
+}
+
+describe("authCall", () => {
   it("returns { ok: true, data } on a success JSON response", async () => {
     const res = new Response(JSON.stringify({ access_token: "tok" }), {
       status: 200,
@@ -238,10 +252,7 @@ describe("postAuth", () => {
     });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
 
-    const result = await postAuth<{ access_token: string }>("/auth/login", {
-      email: "u@example.com",
-      password: "secret12",
-    });
+    const result = await login("secret12");
 
     expect(result).toEqual({ ok: true, data: { access_token: "tok" } });
   });
@@ -254,10 +265,7 @@ describe("postAuth", () => {
     );
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
 
-    const result = await postAuth("/auth/login", {
-      email: "u@example.com",
-      password: "wrong",
-    });
+    const result = await login("wrong");
 
     expect(result).toEqual({
       ok: false,
@@ -270,7 +278,7 @@ describe("postAuth", () => {
     const res = new Response("<html>bad gateway</html>", { status: 502 });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
 
-    const result = await postAuth("/auth/login", { email: "u@example.com", password: "x" });
+    const result = await login("x");
 
     expect(result).toMatchObject({ ok: false, status: 502, code: "UNKNOWN" });
   });
@@ -278,7 +286,7 @@ describe("postAuth", () => {
   it("maps a rejected fetch to NETWORK_ERROR, never throwing", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
 
-    const result = await postAuth("/auth/login", { email: "u@example.com", password: "x" });
+    const result = await login("x");
 
     expect(result).toEqual({ ok: false, status: 0, code: "NETWORK_ERROR" });
   });

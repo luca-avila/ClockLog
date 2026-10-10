@@ -27,7 +27,7 @@ vi.mock("@/lib/api/history", () => ({
 }));
 vi.mock("@/lib/api/tags", () => ({ fetchTags: vi.fn() }));
 
-import { bucketDayFocus } from "@/components/timer/HistoryPage";
+import { bucketDayFocus } from "@/lib/timer/history-group";
 
 // Local-day bucketing reads the host timezone, so pin a DST-observing zone
 // before any Date is constructed (Vitest isolates per file).

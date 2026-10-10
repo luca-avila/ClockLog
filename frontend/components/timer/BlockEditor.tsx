@@ -1,5 +1,3 @@
-"use client";
-
 // ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
@@ -17,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import TagPicker from "@/components/shared/TagPicker";
 import PrimaryButton from "@/components/shared/PrimaryButton";
 import {
@@ -53,13 +52,24 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
   const [start, setStart] = useState(() => formatClock(originalStartIso));
   const [end, setEnd] = useState(() => formatClock(originalEndIso));
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // onDone is the caller's refetch: the history screen invalidates its range.
+  const save = useMutation({
+    mutationFn: (payload: BlockPatch) => updateBlock(block.id, payload),
+    onSuccess: onDone,
+    onError: () => setError("Could not save — try again"),
+  });
+  const remove = useMutation({
+    mutationFn: () => deleteBlock(block.id),
+    onSuccess: onDone,
+    onError: () => setError("Could not delete — try again"),
+  });
+  const busy = save.isPending || remove.isPending;
 
   // A stored block is always closed (invariants 2 and 3), so the end is
   // mandatory.
   const endRequired = end.length === 0;
 
-  async function handleSave() {
+  function handleSave() {
     if (busy) return;
     if (endRequired) {
       setError("End is required");
@@ -88,27 +98,13 @@ export default function BlockEditor({ block, tags, onDone }: BlockEditorProps) {
       return;
     }
 
-    setBusy(true);
-    try {
-      await updateBlock(block.id, payload);
-      onDone();
-    } catch {
-      setError("Could not save — try again");
-      setBusy(false);
-    }
+    save.mutate(payload);
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (busy) return;
-    setBusy(true);
     setError(null);
-    try {
-      await deleteBlock(block.id);
-      onDone();
-    } catch {
-      setError("Could not delete — try again");
-      setBusy(false);
-    }
+    remove.mutate();
   }
 
   return (

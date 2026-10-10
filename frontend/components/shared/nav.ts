@@ -19,7 +19,13 @@ import type { NavIconName } from "./NavIcon";
 export type NavTier = "tab" | "rail" | "rail-foot";
 
 export interface NavDestination {
+  /** The full href, hash included — what the active rule and tests read. */
   readonly href: string;
+  /** The router target and optional hash, split from `href`. Typed as a
+   *  plain string on purpose: the shell names destinations by URL, never by
+   *  a feature module's route, so either module stays deletable. */
+  readonly to: string;
+  readonly hash?: string;
   readonly label: string;
   readonly icon: NavIconName;
   readonly tiers: readonly NavTier[];
@@ -28,7 +34,9 @@ export interface NavDestination {
 // Single registry of navigation destinations (SCR-01). The three primary
 // destinations are carried by both surfaces that navigate between screens:
 // the mobile tab bar ("tab") and the desktop sidebar rail ("rail").
-const DESTINATIONS: readonly NavDestination[] = [
+type Entry = Omit<NavDestination, "to" | "hash">;
+
+const ENTRIES: readonly Entry[] = [
   { href: "/", label: "Timer", icon: "timer", tiers: ["tab", "rail"] },
   { href: "/history", label: "History", icon: "history", tiers: ["tab", "rail"] },
   { href: "/plan", label: "Plan", icon: "plan", tiers: ["tab", "rail"] },
@@ -37,6 +45,11 @@ const DESTINATIONS: readonly NavDestination[] = [
   { href: "/settings#tags", label: "Tags", icon: "tags", tiers: ["rail-foot"] },
   { href: "/settings", label: "Settings", icon: "settings", tiers: ["rail-foot"] },
 ];
+
+const DESTINATIONS: readonly NavDestination[] = ENTRIES.map((e) => {
+  const [to, hash] = e.href.split("#");
+  return { ...e, to, hash };
+});
 
 export function destinationsIn(tier: NavTier): readonly NavDestination[] {
   return DESTINATIONS.filter((d) => d.tiers.includes(tier));

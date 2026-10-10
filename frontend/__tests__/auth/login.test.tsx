@@ -17,29 +17,36 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
-import LoginPage from "@/app/login/page";
+import LoginScreen from "@/components/auth/LoginScreen";
+import { withProviders } from "@/__tests__/helpers/providers";
 
-const push = vi.hoisted(() => vi.fn());
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 const adoptSession = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/session", async (importOriginal) => {
-  // Only the fence is stubbed: postAuth is the real implementation, which is
-  // what makes these tests exercise apiFetch against the global fetch mock.
+  // Only the fence is stubbed: authCall is the real implementation, which is
+  // what makes these tests exercise the typed client against the fetch mock.
   const actual = await importOriginal<typeof import("@/lib/api/session")>();
   return { ...actual, adoptSession };
 });
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
-const fetchMock = vi.fn();
+const fetchMock = vi.fn<(request: Request) => Promise<Response>>();
 vi.stubGlobal("fetch", fetchMock);
+let navigate: ReturnType<typeof vi.spyOn>;
 
 function setup() {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  act(() => root.render(<LoginPage />));
+  const { element, router } = withProviders(<LoginScreen />, { path: "/login" });
+  navigate = vi.spyOn(router, "navigate").mockResolvedValue(undefined);
+  act(() => root.render(element));
   return { container, root };
+}
+
+/** The URLs the client requested, in order — openapi-fetch sends Requests. */
+function requestedUrls(): string[] {
+  return fetchMock.mock.calls.map(([request]) => request.url);
 }
 
 const valueSetter = Object.getOwnPropertyDescriptor(
@@ -68,18 +75,15 @@ async function submit(container: HTMLElement) {
 }
 
 function unverifiedFetch() {
-  return {
-    ok: false,
+  return new Response(JSON.stringify({ code: "EMAIL_NOT_VERIFIED" }), {
     status: 403,
-    // apiFetch reads res.text() before parsing — the error body must be there.
-    text: async () => JSON.stringify({ code: "EMAIL_NOT_VERIFIED" }),
-  };
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 beforeEach(() => {
   fetchMock.mockReset();
   adoptSession.mockReset();
-  push.mockReset();
 });
 
 afterEach(() => {
@@ -105,26 +109,27 @@ describe("login — SIGN IN always available (SCR-02)", () => {
   });
 
   it("retries login successfully after verifying in another tab — no reload", async () => {
-    fetchMock.mockResolvedValueOnce(unverifiedFetch()).mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => ({ access_token: "tok" }),
-    });
+    fetchMock.mockResolvedValueOnce(unverifiedFetch()).mockResolvedValueOnce(
+      new Response(JSON.stringify({ access_token: "tok" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
     adoptSession.mockResolvedValueOnce(true);
     const { container } = setup();
     fillForm(container);
     await submit(container);
     await submit(container);
 
-    expect(push).toHaveBeenCalledWith("/");
-    const loginCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes("/auth/login"));
+    expect(navigate).toHaveBeenCalledWith({ to: "/" });
+    const loginCalls = requestedUrls().filter((url) => url.includes("/auth/login"));
     expect(loginCalls).toHaveLength(2);
   });
 
   it("resend fires /auth/resend-verification and keeps SIGN IN", async () => {
     fetchMock
       .mockResolvedValueOnce(unverifiedFetch())
-      .mockResolvedValueOnce({ ok: true, status: 204, json: async () => ({}) });
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
     const { container } = setup();
     fillForm(container);
     await submit(container);
@@ -136,10 +141,7 @@ describe("login — SIGN IN always available (SCR-02)", () => {
       resend.click();
     });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/auth/resend-verification"),
-      expect.anything()
-    );
+    expect(requestedUrls().some((url) => url.includes("/auth/resend-verification"))).toBe(true);
     expect(container.textContent).toContain("Link sent — check your inbox");
     expect(container.querySelector('button[type="submit"]')!.textContent).toContain("SIGN IN");
   });

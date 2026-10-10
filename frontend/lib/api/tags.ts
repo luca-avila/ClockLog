@@ -14,46 +14,24 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { apiFetch } from "./client";
+import { api, unwrap, type Schemas } from "./client";
 
-export interface Tag {
-  id: string;
-  user_id: string;
-  name: string;
-  color: string;
-  created_at: string;
-}
-
-export interface TagCreate {
-  name: string;
-  color: string;
-}
-
-export interface TagUpdate {
-  name?: string;
-  color?: string;
-}
+export type Tag = Schemas["TagResponse"];
+export type TagCreate = Schemas["TagCreate"];
+export type TagUpdate = Schemas["TagUpdate"];
 
 export async function fetchTags(): Promise<Tag[]> {
-  return apiFetch("/tags");
+  return unwrap(api.GET("/tags"));
 }
 
 export async function createTag(data: TagCreate): Promise<Tag> {
-  return apiFetch("/tags", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  return unwrap(api.POST("/tags", { body: data }));
 }
 
 export async function updateTag(id: string, data: TagUpdate): Promise<Tag> {
-  return apiFetch(`/tags/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  return unwrap(api.PATCH("/tags/{tag_id}", { params: { path: { tag_id: id } }, body: data }));
 }
 
-export async function deleteTag(id: string): Promise<{ affected: number }> {
-  return apiFetch(`/tags/${id}`, { method: "DELETE" });
+export async function deleteTag(id: string): Promise<Schemas["TagDeleteResponse"]> {
+  return unwrap(api.DELETE("/tags/{tag_id}", { params: { path: { tag_id: id } } }));
 }

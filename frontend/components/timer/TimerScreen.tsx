@@ -1,5 +1,3 @@
-"use client";
-
 // ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
@@ -149,7 +147,6 @@ function alertBlockEnd(
   );
   markBlockCompleted();
 }
-
 
 // ─── Presentation helpers ───────────────────────────────────────────
 
@@ -408,7 +405,6 @@ export default function TimerScreen() {
 
   // Nothing to reset on a fresh cycle — the control would be noise.
   const showReset = machine.completed > 0 || machine.pendingBreak;
-
 
   // ─── Presentation (SCR-11 / SCR-13) ─────────────────────────────
   // The dial is painted in every state, idle included: starting a block

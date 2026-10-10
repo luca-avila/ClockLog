@@ -77,3 +77,25 @@ export function groupByLocalDay(blocks: BlockData[]): HistoryDayGroup[] {
   }
   return groups;
 }
+
+/** Focus seconds per local day, one slot per entry in `days`. Focus-only and
+ *  keyed by the local day a block *started*, identical to the day headings
+ *  (invariants 5 and 7). */
+export function bucketDayFocus(blocks: BlockData[], days: readonly Date[]): number[] {
+  const index = new Map(days.map((d, i) => [localDayKey(d.toISOString()), i]));
+  const totals = days.map(() => 0);
+  for (const block of blocks) {
+    if (block.kind !== "focus") continue;
+    const slot = index.get(localDayKey(blockStart(block)));
+    if (slot === undefined) continue;
+    totals[slot] += durationSeconds(block.intervals);
+  }
+  return totals;
+}
+
+// Render-time fallback: a block with no label but a tag shows the tag name.
+// `label` stays null, so renaming the tag updates the display and the user
+// can still overwrite the label independently.
+export function focusName(label: string | null, tagName: string | undefined) {
+  return label || tagName || "Unlabeled";
+}

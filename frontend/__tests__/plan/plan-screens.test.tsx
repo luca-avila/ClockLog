@@ -15,14 +15,14 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { describe, it, expect } from "vitest";
-import { renderToStaticMarkup } from "react-dom/server";
+import { staticMarkup } from "@/__tests__/helpers/providers";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import WeekView from "@/components/plan/WeekView";
 import DayView from "@/components/plan/DayView";
 import { railFor, railPosition, timelineLanes } from "@/lib/plan/layout";
 import { minutesBetween } from "@/lib/date/week";
-import { newEntryUrl } from "@/lib/plan/urls";
+
 import type { EntryOccurrence, TimedOccurrence } from "@/lib/api/plan";
 
 const WEEK = { from: "2026-07-27", to: "2026-08-02" };
@@ -58,7 +58,7 @@ describe("WeekView (SCR-30)", () => {
   it("renders exactly the occurrences it is given — never expands repeats itself", () => {
     // One stored occurrence in this week: one row. Expansion is the
     // server's job (S-19B); the view is a mirror of the data.
-    const markup = renderToStaticMarkup(
+    const markup = staticMarkup(
       <WeekView week={WEEK} occurrences={[occ("Gym", "2026-07-28", "18:30", "19:30")]} />
     );
     expect(markup).toContain("Gym");
@@ -66,7 +66,7 @@ describe("WeekView (SCR-30)", () => {
 
     // A weekly-flagged occurrence must NOT be fabricated onto other days:
     // the view renders the row it was handed, once, and nothing derived.
-    const flagged = renderToStaticMarkup(
+    const flagged = staticMarkup(
       <WeekView
         week={WEEK}
         occurrences={[
@@ -78,7 +78,7 @@ describe("WeekView (SCR-30)", () => {
   });
 
   it("paints the tag dot from tag_color — the UI's only saturated color", () => {
-    const markup = renderToStaticMarkup(
+    const markup = staticMarkup(
       <WeekView
         week={WEEK}
         occurrences={[
@@ -95,7 +95,7 @@ describe("WeekView (SCR-30)", () => {
     expect(markup).toContain("bg-neutral-300");
   });
 
-  it("renders the summary line from the data", () => {    const markup = renderToStaticMarkup(
+  it("renders the summary line from the data", () => {    const markup = staticMarkup(
       <WeekView
         week={WEEK}
         occurrences={[
@@ -111,7 +111,7 @@ describe("WeekView (SCR-30)", () => {
   });
 
   it("renders all-day entries in the day header band, not at a time slot", () => {
-    const markup = renderToStaticMarkup(
+    const markup = staticMarkup(
       <WeekView
         week={WEEK}
         occurrences={[occ("Trip to Porto", "2026-07-29", null, null)]}
@@ -127,7 +127,7 @@ describe("WeekView (SCR-30)", () => {
 
   it("renders every day of the week, empty ones included", () => {
     // One entry anywhere: the day list renders, not the empty state.
-    const markup = renderToStaticMarkup(
+    const markup = staticMarkup(
       <WeekView
         week={WEEK}
         occurrences={[occ("Gym", "2026-07-28", "18:30", "19:30")]}
@@ -148,7 +148,7 @@ describe("DayView (SCR-31)", () => {
   const DAY = "2026-07-28";
 
   it("renders overlapping entries side by side — both present", () => {
-    const markup = renderToStaticMarkup(
+    const markup = staticMarkup(
       <DayView
         date={DAY}
         occurrences={[
@@ -162,7 +162,7 @@ describe("DayView (SCR-31)", () => {
   });
 
   it("renders an hour rail and positions timed entries by their times", () => {
-    const markup = renderToStaticMarkup(
+    const markup = staticMarkup(
       <DayView date={DAY} occurrences={[occ("Gym", DAY, "18:30", "19:30")]} />
     );
     expect(markup).toContain("18:30");
@@ -171,20 +171,20 @@ describe("DayView (SCR-31)", () => {
   });
 
   it("offers tap-to-create at an hour in empty space", () => {
-    const markup = renderToStaticMarkup(
+    const markup = staticMarkup(
       <DayView date={DAY} occurrences={[]} />
     );
     // Hour cells link into the (S-21) editor with the hour prefilled. The
-    // writer now guarantees param order, so the pin is exact — the href is
-    // the builder's output with its & escaped as &amp; in HTML attributes.
+    // builder fixes param order, so the pin is exact — the router's href with
+    // its & escaped as &amp; in HTML attributes.
     expect(markup).toContain(
-      `href="${newEntryUrl(DAY, 14).replaceAll("&", "&amp;")}"`
+      `href="/plan?new=1&amp;date=${DAY}&amp;hour=14"`
     );
   });
 
   it("a midnight-spanning entry renders at the correct height — same computation as the rail", () => {
     const entries = [occ("Party", DAY, "23:00", "01:00")];
-    const markup = renderToStaticMarkup(
+    const markup = staticMarkup(
       <DayView date={DAY} occurrences={entries} />
     );
     const rail = railFor(entries as EntryOccurrence[]);
@@ -328,10 +328,10 @@ describe("plan screens carry no timer vocabulary (invariants 11, 13)", () => {
   const files = ["WeekView.tsx", "DayView.tsx"];
 
   it("no ⏱ marker and no cycle indicator anywhere", () => {
-    const week = renderToStaticMarkup(
+    const week = staticMarkup(
       <WeekView week={WEEK} occurrences={[occ("Gym", "2026-07-28", "18:30", "19:30")]} />
     );
-    const day = renderToStaticMarkup(
+    const day = staticMarkup(
       <DayView date="2026-07-28" occurrences={[]} />
     );
     for (const markup of [week, day]) {

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { API_BASE, ApiError, LAST_USER_KEY, apiFetch, clearSession } from "./client";
+import { ApiError, LAST_USER_KEY, api, clearSession } from "./client";
 import { readQueue } from "./queue";
 
 /**
@@ -34,10 +34,12 @@ import { readQueue } from "./queue";
 export async function adoptSession(accessToken: string): Promise<boolean> {
   let userId: string | null = null;
   try {
-    const me = await fetch(`${API_BASE}/auth/me`, {
+    // The new token rides explicitly: it is not stored yet, and the client's
+    // middleware leaves a request that already carries one alone.
+    const { data } = await api.GET("/auth/me", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (me.ok) userId = (await me.json())?.id ?? null;
+    userId = data?.id ?? null;
   } catch {
     /* unreachable server right after a successful auth call is unlikely;
        without an id we skip the fence rather than block sign-in */
@@ -80,18 +82,15 @@ export type AuthResult<T> =
   | { ok: false; status: number; code: string };
 
 /**
- * Unauthenticated POST for the auth screens: never throws, branches on
- * `code`. apiFetch's 401 policy does not apply here — every auth screen is a
- * public path, so a failed login stays a form error.
+ * Runs one unauthenticated auth call and never throws: the screen branches on
+ * `code`. The call itself is typed — `authCall(() => unwrap(api.POST(
+ * "/auth/login", { body })))` checks the body and the result against the
+ * generated schema. The client's 401 policy is a no-op here: every auth
+ * screen is a public path, so a failed login stays a form error.
  */
-export async function postAuth<T>(path: string, body: unknown): Promise<AuthResult<T>> {
+export async function authCall<T>(call: () => Promise<T>): Promise<AuthResult<T>> {
   try {
-    const data = await apiFetch<T>(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    return { ok: true, data };
+    return { ok: true, data: await call() };
   } catch (err) {
     if (err instanceof ApiError) return { ok: false, status: err.status, code: err.code };
     return { ok: false, status: 0, code: "NETWORK_ERROR" };

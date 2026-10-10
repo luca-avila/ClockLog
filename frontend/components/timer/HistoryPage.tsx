@@ -1,5 +1,3 @@
-"use client";
-
 // ClockLog — a Pomodoro timer and weekly planner
 // Copyright (C) 2024  Luca
 //
@@ -16,14 +14,11 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  fetchBlocks,
-  fetchSummary,
-  type BlockData,
-  type TagSummary,
-} from "@/lib/api/history";
-import { fetchTags, type Tag } from "@/lib/api/tags";
+import { useMemo, useState, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { BlockData } from "@/lib/api/history";
+import { blockKeys, blockRangeQuery } from "@/lib/queries/history";
+import { tagsQuery } from "@/lib/queries/tags";
 import {
   localDayRange,
   localWeekRange,
@@ -35,7 +30,13 @@ import {
   formatDuration,
   durationSeconds,
 } from "@/lib/date/instant";
-import { blockStart, groupByLocalDay, localDayKey } from "@/lib/timer/history-group";
+import {
+  blockStart,
+  bucketDayFocus,
+  focusName,
+  groupByLocalDay,
+  localDayKey,
+} from "@/lib/timer/history-group";
 import Sheet from "@/components/shared/Sheet";
 import BlockEditor from "./BlockEditor";
 
@@ -110,21 +111,6 @@ function daysInRange(from: string, to: string): Date[] {
   return days;
 }
 
-/** Focus seconds per local day, one slot per entry in `days`. Focus-only and
- *  keyed by the local day a block *started*, identical to the day headings
- *  (invariants 5 and 7). */
-export function bucketDayFocus(blocks: BlockData[], days: readonly Date[]): number[] {
-  const index = new Map(days.map((d, i) => [localDayKey(d.toISOString()), i]));
-  const totals = days.map(() => 0);
-  for (const block of blocks) {
-    if (block.kind !== "focus") continue;
-    const slot = index.get(localDayKey(blockStart(block)));
-    if (slot === undefined) continue;
-    totals[slot] += durationSeconds(block.intervals);
-  }
-  return totals;
-}
-
 function formatBarDay(date: Date): string {
   return date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 }
@@ -135,58 +121,35 @@ function dayFromKey(key: string): Date {
   return new Date(year, month - 1, day);
 }
 
-// Render-time fallback: a block with no label but a tag shows the tag name.
-// `label` stays null, so renaming the tag updates the display and the user
-// can still overwrite the label independently.
-export function focusName(label: string | null, tagName: string | undefined) {
-  return label || tagName || "Unlabeled";
-}
-
 function blockEnd(b: BlockData): string {
   return b.intervals[b.intervals.length - 1].ended_at;
 }
+
+const EMPTY_BLOCKS: BlockData[] = [];
 
 export default function HistoryPage() {
   const [view, setView] = useState<HistoryView>("day");
   // The anchor keeps its position inside the active view: the day within
   // the shown week/month, so switching tabs never jumps elsewhere.
   const [anchor, setAnchor] = useState<Date>(() => startOfLocalDay(new Date()));
-  const [blocks, setBlocks] = useState<BlockData[]>([]);
-  const [summary, setSummary] = useState<TagSummary[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [reload, setReload] = useState(0);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetchTags()
-      .then(setTags)
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const { from, to } = rangeFor(view, anchor);
-    let cancelled = false;
-    Promise.all([fetchBlocks(from, to), fetchSummary(from, to)])
-      .then(([b, s]) => {
-        if (cancelled) return;
-        setBlocks(b);
-        setSummary(s);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [anchor, view, reload]);
+  const tags = useQuery(tagsQuery()).data ?? [];
+  // Cached per UTC range: stepping back to a day already seen renders at
+  // once, then revalidates in the background.
+  const { from, to } = rangeFor(view, anchor);
+  const range = useQuery(blockRangeQuery(from, to));
+  const blocks = range.data?.blocks ?? EMPTY_BLOCKS;
+  const summary = range.data?.summary ?? [];
+  // Pending = nothing cached for this range yet. A failed fetch (offline)
+  // ends loading with an empty range rather than a skeleton forever.
+  const loading = range.isPending;
 
   // One unit of the active view per click. The month case keeps the day of
   // month and lets Date roll over (Jan 31 + 1 month → Mar 3): the range is
   // the month of the resulting anchor, never the day.
   function shift(delta: number) {
-    setLoading(true);
     setSelectedId(null);
     setAnchor((prev) => {
       if (view === "month") {
@@ -199,13 +162,11 @@ export default function HistoryPage() {
 
   function changeView(next: HistoryView) {
     if (next === view) return;
-    setLoading(true);
     setSelectedId(null);
     setView(next);
   }
 
   function goToday() {
-    setLoading(true);
     setSelectedId(null);
     setAnchor(startOfLocalDay(new Date()));
   }
@@ -213,7 +174,6 @@ export default function HistoryPage() {
   // Drill-down is a state change, not navigation: Day becomes the view and
   // the clicked date its anchor, so the same screen (and inspector) stays put.
   function handleDrillDown(day: Date) {
-    setLoading(true);
     setSelectedId(null);
     setView("day");
     setAnchor(startOfLocalDay(day));
@@ -265,8 +225,7 @@ export default function HistoryPage() {
 
   function afterEditorDone() {
     setSelectedId(null);
-    setLoading(true);
-    setReload((n) => n + 1);
+    void queryClient.invalidateQueries({ queryKey: blockKeys.all });
   }
 
   // One row, shared by every view: the same rail, dot, clock, duration and
