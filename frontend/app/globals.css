@@ -28,32 +28,36 @@
   --color-neutral-900: #2b2521;
 }
 
-/* Sepia at night: espresso ground, cream ink. Each token keeps its role,
-   not its lightness — `neutral-900` is still "ink", `white` is still "raised
-   surface" — so no component needs a `dark:` variant, and the one filled
-   button turns cream-on-espresso by itself. `white` sits just above the
-   ground because a sheet must still lift off its darkened backdrop.
+/* Midnight: the paper-and-ink idea, turned over. The ground is a deep
+   ink blue and the ink is the daytime paper, a warm cream; the steps in
+   between drift from blue-grey (surfaces, borders, muted text) to cream
+   (body text), so the low end reads as night and the high end as paper.
+   Chroma stays low, so tag colors still own the saturation. Each token
+   keeps its role, not its lightness — `neutral-900` is still "ink", `white`
+   is still "raised surface" — so no component needs a `dark:` variant, and
+   the one filled button turns cream-on-ink-blue by itself. `white` sits just
+   above the ground because a sheet must still lift off its darkened backdrop.
    Unlayered on purpose: it has to beat Tailwind's `@layer theme`. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #1b1714;
-    --foreground: #ece4d5;
+    --background: #0e1320;
+    --foreground: #f0e8d8;
 
-    --color-white: #24201b;
-    --color-neutral-50: #221d19;
-    --color-neutral-100: #2b2520;
-    --color-neutral-200: #3a322b;
-    --color-neutral-300: #4f463c;
-    --color-neutral-400: #7f7362;
-    --color-neutral-500: #9b8f7b;
-    --color-neutral-600: #b8ac97;
-    --color-neutral-700: #cfc4b0;
-    --color-neutral-800: #e0d6c4;
-    --color-neutral-900: #ece4d5;
+    --color-white: #161c2b;
+    --color-neutral-50: #131927;
+    --color-neutral-100: #1b2233;
+    --color-neutral-200: #283044;
+    --color-neutral-300: #3b455b;
+    --color-neutral-400: #687187;
+    --color-neutral-500: #8a90a0;
+    --color-neutral-600: #adadb2;
+    --color-neutral-700: #cbc6bd;
+    --color-neutral-800: #e0d9cc;
+    --color-neutral-900: #f0e8d8;
 
     /* The two status families the app uses, flipped the same way: a pale
        tint becomes a deep one and a deep ink a bright one. Left alone, the
-       queue warning would be a cream pill on espresso and `hover:text-red-600`
+       queue warning would be a pale pill on ink blue and `hover:text-red-600`
        would dim on hover instead of brighten. 500 reads on both grounds. */
     --color-red-300: #7a2a26;
     --color-red-600: #ff8080;
