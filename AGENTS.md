@@ -369,7 +369,7 @@ The two facts agents act on without opening the runbook:
 
 **Phase 3+, not started:** timer integration with the plan (`Use focus timer for this`, `Start a timer` on an entry). Requires renegotiating invariants 12 and 13 **in writing, up front** — not feature by feature. **Do not resolve this unilaterally; ask.**
 
-**Not built, do not build unprompted:** week/month history views, charts, manual block entry, export, projects or subtasks, todo integration, theme toggle, onboarding, any premium feature.
+**Not built, do not build unprompted:** week/month history views, charts, manual block entry, export, projects or subtasks, todo integration, an in-app theme toggle (dark mode follows the OS — `frontend/AGENTS.md` § UI conventions), onboarding, any premium feature.
 
 **Never:**
 

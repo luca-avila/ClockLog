@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
-/* Light only. Theming is not built (AGENTS.md § Scope boundaries): a dark
-   palette here repaints body while every component stays neutral-on-white. */
+/* Light and dark, chosen by the OS (`prefers-color-scheme`). There is no
+   in-app toggle (AGENTS.md § Scope boundaries). `color-scheme` lets native
+   controls — date/time pickers, select popups, scrollbars — follow along. */
 :root {
+  color-scheme: light dark;
   --background: #faf6ee;
   --foreground: #2b2521;
 }
@@ -24,6 +26,41 @@
   --color-neutral-700: #493f35;
   --color-neutral-800: #372f28;
   --color-neutral-900: #2b2521;
+}
+
+/* Sepia at night: espresso ground, cream ink. Each token keeps its role,
+   not its lightness — `neutral-900` is still "ink", `white` is still "raised
+   surface" — so no component needs a `dark:` variant, and the one filled
+   button turns cream-on-espresso by itself. `white` sits just above the
+   ground because a sheet must still lift off its darkened backdrop.
+   Unlayered on purpose: it has to beat Tailwind's `@layer theme`. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1b1714;
+    --foreground: #ece4d5;
+
+    --color-white: #24201b;
+    --color-neutral-50: #221d19;
+    --color-neutral-100: #2b2520;
+    --color-neutral-200: #3a322b;
+    --color-neutral-300: #4f463c;
+    --color-neutral-400: #7f7362;
+    --color-neutral-500: #9b8f7b;
+    --color-neutral-600: #b8ac97;
+    --color-neutral-700: #cfc4b0;
+    --color-neutral-800: #e0d6c4;
+    --color-neutral-900: #ece4d5;
+
+    /* The two status families the app uses, flipped the same way: a pale
+       tint becomes a deep one and a deep ink a bright one. Left alone, the
+       queue warning would be a cream pill on espresso and `hover:text-red-600`
+       would dim on hover instead of brighten. 500 reads on both grounds. */
+    --color-red-300: #7a2a26;
+    --color-red-600: #ff8080;
+    --color-amber-50: #2e2110;
+    --color-amber-200: #5c4219;
+    --color-amber-700: #f5c76a;
+  }
 }
 
 @theme inline {
