@@ -402,8 +402,8 @@ Conventions that carry design intent:
 
 ## 9. What is deliberately absent
 
-No task manager features. No recurrence engine. No week/month history views, charts,
-manual block entry, or export. No `is_premium` conditionals — anything sold would be a
+No task manager features. No recurrence engine. No charts beyond History's per-day focus
+bars, no manual block entry, no export. No `is_premium` conditionals — anything sold would be a
 separate module in a separate private repo, never a flag threaded through core. No auth
 framework, and no dependency added without asking.
 

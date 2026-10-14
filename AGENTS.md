@@ -57,7 +57,7 @@ Screens keep stable IDs — the table below is their definition. Cite the screen
 | `SCR-11` | Timer — Idle and Running |
 | `SCR-13` | Timer — Paused and Break |
 | `SCR-14` | Label sheet (on block completion) |
-| `SCR-20` | History — Day |
+| `SCR-20` | History — Day, Week and Month |
 | `SCR-21` | History — Block edit |
 | `SCR-31` | Plan — Week (list) and Day (timeline) |
 | `SCR-33` | Plan — New entry sheet and Empty week |
@@ -363,13 +363,15 @@ The two facts agents act on without opening the runbook:
 
 **Shipped (phase 1, the MVP):** timer with configurable cycle, labels with autocomplete, tags, day-view history, post-hoc editing and deletion, notifications and sound, offline queue, auth, deploy.
 
+**Shipped (history ranges):** Week and Month history views with per-day focus bars that drill down to the day (SCR-20). Same `/blocks` and `/blocks/summary` calls over wider ranges the client computes — invariant 5 unchanged.
+
 **Shipped (phase 2):** the weekly planner as an **isolated dated calendar** — week list, day timeline, entry editor with `repeat_weekly`, planner-only empty states. Zero timer coupling.
 
 **Shipped (G-6):** open registration — multi-user sign-up with verified email addresses and password recovery, replacing the single-account model. Decided in [ADR-006](docs/decisions/006-open-registration.md). Registration is open unconditionally; a private deployment is restricted at nginx, not in application code.
 
 **Phase 3+, not started:** timer integration with the plan (`Use focus timer for this`, `Start a timer` on an entry). Requires renegotiating invariants 12 and 13 **in writing, up front** — not feature by feature. **Do not resolve this unilaterally; ask.**
 
-**Not built, do not build unprompted:** week/month history views, charts, manual block entry, export, projects or subtasks, todo integration, an in-app theme toggle (dark mode follows the OS — `frontend/AGENTS.md` § UI conventions), onboarding, any premium feature.
+**Not built, do not build unprompted:** charts beyond those per-day focus bars, manual block entry, export, projects or subtasks, todo integration, an in-app theme toggle (dark mode follows the OS — `frontend/AGENTS.md` § UI conventions), onboarding, any premium feature.
 
 **Never:**
 
