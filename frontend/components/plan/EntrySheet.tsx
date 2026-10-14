@@ -196,8 +196,10 @@ export default function EntrySheet({
           className={`${FIELD} mb-4`}
         />
 
-        <div className="mb-4 grid gap-3 sm:grid-cols-[1.4fr_1fr_1fr]">
-          <div>
+        {/* Day on its own row: a 12-hour time field ("10:00 AM" + picker)
+            needs ~120px, and three across overflowed the 448px dialog. */}
+        <div className="mb-4 grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
             <label htmlFor="entry-day" className={`${LABEL} grid`}>
               Day
             </label>
