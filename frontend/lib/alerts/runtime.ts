@@ -22,7 +22,7 @@ import {
 } from "./plan";
 
 const COMPLETED_KEY = "clocklog_has_completed_block";
-const TITLE_FLASH_MS = 5000;
+export const TITLE_FLASH_MS = 5000;
 const DEFAULT_TITLE = "ClockLog";
 
 export interface AlertDeps {

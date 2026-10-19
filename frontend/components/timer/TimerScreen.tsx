@@ -48,6 +48,7 @@ import {
   createBrowserDeps,
   readHasCompletedBlock,
   markBlockCompleted,
+  TITLE_FLASH_MS,
 } from "@/lib/alerts";
 import CycleIndicator from "./CycleIndicator";
 import LabelSheet from "./LabelSheet";
@@ -74,6 +75,7 @@ function buildStartEvent(type: BlockType): TimerEvent {
 
 const STORAGE_KEY = "clocklog_clock";
 const CYCLE_KEY = "clocklog_cycle";
+const APP_TITLE = "ClockLog";
 
 interface StoredCycle {
   completed: number | null;
@@ -129,7 +131,7 @@ function alertBlockEnd(
   settings: { sound: boolean; notifications: boolean },
   nextBreak?: BlockType,
   autoStarted?: boolean
-) {
+): boolean {
   let body: string;
   if (blockType === "focus") {
     body = nextBreak === "long_break" ? "Time for a long break" : "Time for a break";
@@ -138,16 +140,20 @@ function alertBlockEnd(
     // reaches for a START that is no longer there.
     body = autoStarted ? "Next focus block started" : "Ready for the next focus block";
   }
-  fireAlert(
+  const plan = fireAlert(
     {
       settings: { sound: settings.sound, notifications: settings.notifications },
       hasCompletedBlock: readHasCompletedBlock(),
       title: blockType === "focus" ? "Focus block done" : "Break over",
       body,
     },
-    createBrowserDeps()
+    // The flash restores the title it replaced, which may be a running time
+    // that is stale by the time it restores. Hand back the plain name instead;
+    // the live tab title takes over from there.
+    { ...createBrowserDeps(), getTitle: () => APP_TITLE }
   );
   markBlockCompleted();
+  return plan.changeTitle;
 }
 
 
@@ -158,6 +164,14 @@ const TYPE_NAME: Record<BlockType, string> = {
   short_break: "Short break",
   long_break: "Long break",
 };
+
+/** The browser tab's title: the dial's time while a block is running or paused. */
+function tabTitle(timer: TimerState | null, displayMs: number): string {
+  if (!timer || timer.phase === "ended") return APP_TITLE;
+  const clock = formatCountdown(displayMs);
+  // A frozen time with no marker reads as a stuck tab.
+  return timer.phase === "paused" ? `${APP_TITLE} ${clock} (paused)` : `${APP_TITLE} ${clock}`;
+}
 
 /**
  * The countdown dial (SCR-11 / SCR-13). A break dots its track instead of
@@ -281,6 +295,8 @@ export default function TimerScreen() {
   const [notice, setNotice] = useState<{ text: string; timer: TimerState } | null>(null);
   const pageNotice = notice && notice.timer === machine.timer ? notice.text : null;
   const screenRef = useRef<HTMLDivElement>(null);
+  // Until when the block-end alert owns the tab title (epoch ms).
+  const titleFlashUntil = useRef(0);
   // initMachine reads localStorage, which the server cannot: rendering the
   // restored machine during hydration makes the server's default disagree
   // with it. Hold the first paint so the restored state is the only one
@@ -366,7 +382,9 @@ export default function TimerScreen() {
           /* queued for retry; the UI moves on regardless */
         });
       } else if (effect.type === "alert") {
-        alertBlockEnd(effect.blockType, settings, effect.nextBreak, effect.autoStarted);
+        if (alertBlockEnd(effect.blockType, settings, effect.nextBreak, effect.autoStarted)) {
+          titleFlashUntil.current = Date.now() + TITLE_FLASH_MS;
+        }
       }
     }
     rawDispatch({ kind: "drained", count: batch.length });
@@ -401,6 +419,19 @@ export default function TimerScreen() {
   const targetDuration = machine.timer
     ? machine.timer.targetMs
     : 0;
+
+  const title = tabTitle(machine.timer, displayMs);
+  useEffect(() => {
+    // With auto-start on, a new block is already ticking when the alert
+    // flashes; wait the flash out instead of overwriting it a second later.
+    if (Date.now() < titleFlashUntil.current) return;
+    document.title = title;
+  }, [title]);
+
+  // Leaving the Timer screen must not strand a frozen time in the tab.
+  useEffect(() => () => {
+    document.title = APP_TITLE;
+  }, []);
 
   const pos = cyclePosition(machine.completed, settings.blocksPerCycle);
 

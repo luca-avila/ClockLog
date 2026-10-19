@@ -28,6 +28,7 @@ export {
   readHasCompletedBlock,
   markBlockCompleted,
   browserPermission,
+  TITLE_FLASH_MS,
   type AlertDeps,
   type FireAlertInput,
 } from "./runtime";

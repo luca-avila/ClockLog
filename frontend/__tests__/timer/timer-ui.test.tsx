@@ -19,15 +19,28 @@ import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { act } from "react";
 import type { TimerState } from "@/lib/timer/engine";
+import type { AlertPlan } from "@/lib/alerts";
+import { fetchSettings } from "@/lib/api/settings";
 
 const saveBlock = vi.hoisted(() => vi.fn().mockResolvedValue({ dropped: [] }));
 vi.mock("@/lib/api/blocks", () => ({ saveBlock }));
 
+// The stub touches no channel, so its plan says so: a plan claiming a title
+// flash would make the screen wait out a flash that never happened.
+const fireAlert = vi.hoisted(() =>
+  vi.fn<(input: { title: string }) => AlertPlan>(() => ({
+    playSound: false,
+    showNotification: false,
+    changeTitle: false,
+    requestPermission: false,
+  }))
+);
 vi.mock("@/lib/alerts", () => ({
-  fireAlert: vi.fn(),
+  fireAlert,
   createBrowserDeps: vi.fn(() => ({})),
   readHasCompletedBlock: vi.fn(() => false),
   markBlockCompleted: vi.fn(),
+  TITLE_FLASH_MS: 5000,
 }));
 
 vi.mock("@/components/timer/LabelSheet", () => ({
@@ -521,5 +534,87 @@ describe("reset cycle (SCR-11 / SCR-13)", () => {
     expect(container.textContent).not.toContain("Stop the current block first");
     // The refused reset did not eat the block's own cycle advance.
     expect(container.textContent).toContain("3 of 4 blocks in this cycle");
+  });
+});
+
+describe("tab title (SCR-11 / SCR-13)", () => {
+  beforeEach(() => {
+    document.title = "ClockLog";
+  });
+
+  it("shows the running time and keeps it current", () => {
+    const { container } = render();
+    expect(document.title).toBe("ClockLog");
+    clickButton(container, "START");
+    expect(document.title).toBe("ClockLog 00:00");
+    act(() => vi.advanceTimersByTime(61_000));
+    expect(document.title).toBe("ClockLog 01:01");
+  });
+
+  it("marks a paused block, and drops the time once the block ends", () => {
+    const { container } = render();
+    clickButton(container, "START");
+    act(() => vi.advanceTimersByTime(90_000));
+    clickButton(container, "PAUSE");
+    expect(document.title).toBe("ClockLog 01:30 (paused)");
+    clickButton(container, "STOP");
+    expect(document.title).toBe("ClockLog");
+  });
+
+  it("does not leave a time in the tab after the Timer screen unmounts", () => {
+    const { container, root } = render();
+    clickButton(container, "START");
+    act(() => root.unmount());
+    expect(document.title).toBe("ClockLog");
+  });
+
+  it("lets the block-end flash stand while an auto-started block ticks", async () => {
+    vi.mocked(fetchSettings).mockResolvedValueOnce({
+      focusDuration: 25,
+      shortBreakDuration: 5,
+      longBreakDuration: 15,
+      blocksPerCycle: 4,
+      autoStartBreaks: false,
+      autoStartNext: true,
+      sound: true,
+      notifications: true,
+    });
+    fireAlert.mockImplementationOnce((input) => {
+      document.title = input.title;
+      return {
+        playSound: false,
+        showNotification: false,
+        changeTitle: true,
+        requestPermission: false,
+      };
+    });
+    // A break two seconds from its end; auto-start next opens a focus block.
+    const startedAt = now - (5 * 60 * 1000 - 2000);
+    const breakState: TimerState = {
+      id: "test-break",
+      type: "short_break",
+      phase: "running",
+      startedAt,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 1,
+      intervals: [{ startedAt }],
+      blockStatus: "completed",
+      targetMs: 5 * 60 * 1000,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(breakState));
+    localStorage.setItem(CYCLE_KEY, JSON.stringify({ completed: 1, pendingBreak: false }));
+    render();
+    await act(async () => {}); // settings arrive
+
+    act(() => vi.advanceTimersByTime(2200));
+    expect(document.title).toBe("Break over");
+
+    // The new block is three seconds in, but the flash still owns the tab.
+    act(() => vi.advanceTimersByTime(2800));
+    expect(document.title).toBe("Break over");
+
+    act(() => vi.advanceTimersByTime(3100));
+    expect(document.title).toBe("ClockLog 00:06");
   });
 });
