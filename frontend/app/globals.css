@@ -28,32 +28,26 @@
   --color-neutral-900: #2b2521;
 }
 
-/* Midnight: the paper-and-ink idea, turned over. The ground is a deep
-   ink blue and the ink is the daytime paper, a warm cream; the steps in
-   between drift from blue-grey (surfaces, borders, muted text) to cream
-   (body text), so the low end reads as night and the high end as paper.
-   Chroma stays low, so tag colors still own the saturation. Each token
-   keeps its role, not its lightness — `neutral-900` is still "ink", `white`
-   is still "raised surface" — so no component needs a `dark:` variant, and
-   the one filled button turns cream-on-ink-blue by itself. `white` sits just
-   above the ground because a sheet must still lift off its darkened backdrop.
-   Unlayered on purpose: it has to beat Tailwind's `@layer theme`. */
+/* Warm charcoal: brown-grey surfaces and soft ivory ink.
+   Dark tokens keep their semantic roles; surfaces lift above the ground.
+   Muted text stays readable on raised surfaces, with low chroma so tags
+   remain the only saturated accents. Light mode follows the existing palette. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0e1320;
-    --foreground: #f0e8d8;
+    --background: #1c1917;
+    --foreground: #f5eee5;
 
-    --color-white: #161c2b;
-    --color-neutral-50: #131927;
-    --color-neutral-100: #1b2233;
-    --color-neutral-200: #283044;
-    --color-neutral-300: #3b455b;
-    --color-neutral-400: #687187;
-    --color-neutral-500: #8a90a0;
-    --color-neutral-600: #adadb2;
-    --color-neutral-700: #cbc6bd;
-    --color-neutral-800: #e0d9cc;
-    --color-neutral-900: #f0e8d8;
+    --color-white: #26211e;
+    --color-neutral-50: #211d1a;
+    --color-neutral-100: #302924;
+    --color-neutral-200: #443a32;
+    --color-neutral-300: #5b4d42;
+    --color-neutral-400: #b5a395;
+    --color-neutral-500: #c2b1a3;
+    --color-neutral-600: #d0c0b2;
+    --color-neutral-700: #ded0c3;
+    --color-neutral-800: #eadecf;
+    --color-neutral-900: #f5eee5;
 
     /* The two status families the app uses, flipped the same way: a pale
        tint becomes a deep one and a deep ink a bright one. Left alone, the
