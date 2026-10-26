@@ -45,7 +45,7 @@ These describe the shipped system. The code is the source of truth for *what the
 | `docs/decisions/` | Architecture decision records (ADR-001…ADR-010) — every resolved gate and its consequences |
 | `docs/README.md` | Index of the above, with each document's status. **Check it before trusting a page**: sections written ahead of the code are flagged there and inline |
 
-Screens keep stable IDs — the table below is their definition. Cite the screen ID in issues, commits, and component docstrings. `SCR-02`…`SCR-05` are the unauthenticated screens.
+Screens keep stable IDs — the table below is their definition. Cite the screen ID in issues, commits, and component docstrings. `SCR-02`…`SCR-05` are the unauthenticated screens; `/guest` renders `SCR-11` without an account.
 
 | ID | Screen |
 | --- | --- |
@@ -368,6 +368,8 @@ The two facts agents act on without opening the runbook:
 **Shipped (phase 2):** the weekly planner as an **isolated dated calendar** — week list, day timeline, entry editor with `repeat_weekly`, planner-only empty states. Zero timer coupling.
 
 **Shipped (G-6):** open registration — multi-user sign-up with verified email addresses and password recovery, replacing the single-account model. Decided in [ADR-006](docs/decisions/006-open-registration.md). Registration is open unconditionally; a private deployment is restricted at nginx, not in application code.
+
+**Shipped (guest timer):** `/guest`, linked from sign-in as "Continue as guest", runs SCR-11 with no account — default settings, no label sheet, no shell, and **nothing recorded**: a guest has no history to record into, so invariant 9 has no account to apply to. Its clock lives under its own `clocklog_guest_*` keys, so a signed-in block is never finished there and a guest's block never follows the next sign-in.
 
 **Phase 3+, not started:** timer integration with the plan (`Use focus timer for this`, `Start a timer` on an entry). Requires renegotiating invariants 12 and 13 **in writing, up front** — not feature by feature. **Do not resolve this unilaterally; ask.**
 

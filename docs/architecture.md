@@ -239,6 +239,7 @@ How the engine honours both auto-start settings (`transition` in `lib/timer/engi
 | `token` | JWT bearer token |
 | `clocklog_clock` | the in-progress `TimerState` — a refresh mid-block recovers it |
 | `clocklog_cycle` | `{ completed, pendingBreak }` cycle position |
+| `clocklog_guest_clock`, `clocklog_guest_cycle` | the same two, for the guest timer at `/guest` — kept apart so neither side can finish or record the other's block |
 | `clocklog_block_queue` | blocks waiting to sync |
 | `clocklog_has_completed_block` | first-block flag, used by the alert logic |
 | `clocklog_last_user` | id of the account that last signed in on this browser |
