@@ -167,6 +167,10 @@ export default function LoginPage() {
         <Link href="/forgot-password" className="hover:text-neutral-600 transition-colors">
           Forgot your password?
         </Link>
+        {/* A text link, not a second filled button: it commits nothing. */}
+        <Link href="/guest" className="mt-3 hover:text-neutral-600 transition-colors">
+          Continue as guest — timer only
+        </Link>
       </div>
     </div>
   );

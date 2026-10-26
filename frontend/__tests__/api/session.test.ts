@@ -163,7 +163,14 @@ describe("adoptSession", () => {
 
 describe("isPublicAuthPath", () => {
   it("lists the unauthenticated screens", () => {
-    for (const p of ["/login", "/register", "/verify-email", "/forgot-password", "/reset-password"]) {
+    for (const p of [
+      "/login",
+      "/register",
+      "/verify-email",
+      "/forgot-password",
+      "/reset-password",
+      "/guest",
+    ]) {
       expect(isPublicAuthPath(p)).toBe(true);
     }
   });

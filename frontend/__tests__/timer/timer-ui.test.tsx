@@ -618,3 +618,121 @@ describe("tab title (SCR-11 / SCR-13)", () => {
     expect(document.title).toBe("ClockLog 00:06");
   });
 });
+
+describe("guest mode (/guest)", () => {
+  const GUEST_CLOCK_KEY = "clocklog_guest_clock";
+  const GUEST_CYCLE_KEY = "clocklog_guest_cycle";
+
+  function renderGuest() {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => root.render(<TimerScreen guest />));
+    return { container, root };
+  }
+
+  beforeEach(() => {
+    vi.mocked(fetchSettings).mockClear();
+  });
+
+  it("never asks the server for settings", () => {
+    renderGuest();
+    expect(fetchSettings).not.toHaveBeenCalled();
+  });
+
+  it("keeps its clock apart from the account's", () => {
+    const { container } = renderGuest();
+    clickButton(container, "START");
+    expect(localStorage.getItem(GUEST_CLOCK_KEY)).not.toBeNull();
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it("does not pick up a signed-in block in flight", () => {
+    const startedAt = now - 60_000;
+    const accountBlock: TimerState = {
+      id: "account-block",
+      type: "focus",
+      phase: "running",
+      startedAt,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      intervals: [{ startedAt }],
+      blockStatus: "completed",
+      targetMs: 25 * 60 * 1000,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(accountBlock));
+    const { container } = renderGuest();
+    expect(container.textContent).toContain("START");
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(JSON.stringify(accountBlock));
+  });
+
+  it("finishes a stopped block with no sheet, no save, and the cycle advanced", async () => {
+    const { container } = renderGuest();
+    clickButton(container, "START");
+    clickButton(container, "STOP");
+    await act(async () => {});
+    expect(container.querySelector('[data-testid="label-sheet"]')).toBeNull();
+    expect(saveBlock).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Short break");
+    expect(JSON.parse(localStorage.getItem(GUEST_CYCLE_KEY) ?? "null")).toEqual({
+      completed: 1,
+      pendingBreak: true,
+    });
+  });
+
+  it("finishes a focus block that runs out the same way", async () => {
+    const { container } = renderGuest();
+    clickButton(container, "START");
+    act(() => vi.advanceTimersByTime(25 * 60 * 1000 + 1000));
+    await act(async () => {});
+    expect(container.querySelector('[data-testid="label-sheet"]')).toBeNull();
+    expect(saveBlock).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Short break");
+  });
+
+  it("closes a block restored while awaiting its label instead of stranding it", () => {
+    const startedAt = now - 26 * 60 * 1000;
+    const ended: TimerState = {
+      id: "guest-ended",
+      type: "focus",
+      phase: "ended",
+      startedAt,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 0,
+      intervals: [{ startedAt, endedAt: startedAt + 25 * 60 * 1000 }],
+      blockStatus: "completed",
+      targetMs: 25 * 60 * 1000,
+    };
+    localStorage.setItem(GUEST_CLOCK_KEY, JSON.stringify(ended));
+    const { container } = renderGuest();
+    expect(container.querySelector('[data-testid="label-sheet"]')).toBeNull();
+    expect(container.textContent).toContain("START");
+    expect(container.textContent).toContain("Short break");
+    expect(saveBlock).not.toHaveBeenCalled();
+  });
+
+  it("saves nothing when a break ends", async () => {
+    const startedAt = now;
+    const breakState: TimerState = {
+      id: "guest-break",
+      type: "short_break",
+      phase: "running",
+      startedAt,
+      label: null,
+      tagId: null,
+      focusBlocksCompleted: 1,
+      intervals: [{ startedAt }],
+      blockStatus: "completed",
+      targetMs: 5 * 60 * 1000,
+    };
+    localStorage.setItem(GUEST_CLOCK_KEY, JSON.stringify(breakState));
+    const { container } = renderGuest();
+    act(() => vi.advanceTimersByTime(5 * 60 * 1000 + 1000));
+    await act(async () => {});
+    expect(saveBlock).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("START");
+    expect(localStorage.getItem(GUEST_CLOCK_KEY)).toBeNull();
+  });
+});

@@ -39,6 +39,7 @@ import {
   deserializeState,
   transition,
   browserClock,
+  defaultSettings,
 } from "@/lib/timer/engine";
 import { useSettings } from "@/lib/useSettings";
 import { saveBlock } from "@/lib/api/blocks";
@@ -73,8 +74,17 @@ function buildStartEvent(type: BlockType): TimerEvent {
   };
 }
 
-const STORAGE_KEY = "clocklog_clock";
-const CYCLE_KEY = "clocklog_cycle";
+interface StorageKeys {
+  clock: string;
+  cycle: string;
+}
+
+// A guest's clock is its own. Shared keys would let /guest finish — and so
+// lose — a signed-in block, or carry a guest's block into whichever account
+// signs in next on this browser. Both stay under clocklog_*, so the sign-out
+// sweep clears them too.
+const ACCOUNT_KEYS: StorageKeys = { clock: "clocklog_clock", cycle: "clocklog_cycle" };
+const GUEST_KEYS: StorageKeys = { clock: "clocklog_guest_clock", cycle: "clocklog_guest_cycle" };
 const APP_TITLE = "ClockLog";
 
 interface StoredCycle {
@@ -82,10 +92,10 @@ interface StoredCycle {
   pendingBreak: boolean;
 }
 
-function loadStoredCycle(): StoredCycle {
+function loadStoredCycle(key: string): StoredCycle {
   if (typeof window === "undefined") return { completed: null, pendingBreak: false };
   try {
-    const raw = localStorage.getItem(CYCLE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return { completed: null, pendingBreak: false };
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) {
@@ -109,19 +119,19 @@ function loadStoredCycle(): StoredCycle {
   }
 }
 
-function loadStoredState(): TimerState | null {
+function loadStoredState(key: string): TimerState | null {
   if (typeof window === "undefined") return null;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(key);
     if (!stored) return null;
     const state = deserializeState(stored);
     if (!state) {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(key);
       return null;
     }
     return state;
   } catch {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(key);
   }
   return null;
 }
@@ -225,6 +235,8 @@ function Dial({
 // ─── Reducer ────────────────────────────────────────────────────────
 
 interface Machine {
+  // A guest machine never opens the label sheet — see the reducer.
+  guest: boolean;
   timer: TimerState | null;
   completed: number;
   pendingBreak: boolean;
@@ -236,10 +248,15 @@ type Action =
   | { kind: "event"; event: TimerEvent; settings: TimerSettings; clock: ClockDeps }
   | { kind: "drained"; count: number };
 
-function initMachine(): Machine {
-  const timer = loadStoredState();
-  const cycle = loadStoredCycle();
-  return {
+// What SKIP sends: the block closes unlabelled and untagged.
+const UNLABELLED: TimerEvent = { kind: "labelSave", label: null, tagId: null };
+
+function initMachine(guest: boolean): Machine {
+  const keys = guest ? GUEST_KEYS : ACCOUNT_KEYS;
+  const timer = loadStoredState(keys.clock);
+  const cycle = loadStoredCycle(keys.cycle);
+  const machine: Machine = {
+    guest,
     timer,
     completed: cycle.completed ?? timer?.focusBlocksCompleted ?? 0,
     pendingBreak: cycle.pendingBreak,
@@ -249,6 +266,15 @@ function initMachine(): Machine {
     labelSheetOpen: timer?.phase === "ended" && timer.type === "focus",
     pending: [],
   };
+  // A guest never fetches settings, so the defaults are the ones in force.
+  return guest && machine.labelSheetOpen
+    ? reducer(machine, {
+        kind: "event",
+        event: UNLABELLED,
+        settings: defaultSettings,
+        clock: browserClock,
+      })
+    : machine;
 }
 
 function reducer(m: Machine, action: Action): Machine {
@@ -275,16 +301,25 @@ function reducer(m: Machine, action: Action): Machine {
         }
       }
       if (action.event.kind === "labelSave") next = { ...next, labelSheetOpen: false };
-      return { ...next, pending: [...m.pending, ...external] };
+      next = { ...next, pending: [...m.pending, ...external] };
+      // A guest has no tags and no history to label for, but the sheet's
+      // dismissal is what advances the cycle: dismiss it unseen, as SKIP would.
+      if (next.guest && next.labelSheetOpen) return reducer(next, { ...action, event: UNLABELLED });
+      return next;
     }
   }
 }
 
 // ─── Component ──────────────────────────────────────────────────────
 
-export default function TimerScreen() {
-  const [machine, rawDispatch] = useReducer(reducer, undefined, initMachine);
-  const { settings } = useSettings();
+/**
+ * `guest` runs the timer with no account (/guest): default settings, no
+ * label sheet, and nothing recorded — there is no history to record into.
+ */
+export default function TimerScreen({ guest = false }: { guest?: boolean }) {
+  const keys = guest ? GUEST_KEYS : ACCOUNT_KEYS;
+  const [machine, rawDispatch] = useReducer(reducer, guest, initMachine);
+  const { settings } = useSettings(!guest);
   const [now, setNow] = useState(() => Date.now());
   // Page-scoped notice — the right-hand slot of AGENTS.md, rendered through
   // Toast slot="page". It describes the block that was in flight when the
@@ -316,13 +351,13 @@ export default function TimerScreen() {
   useEffect(() => {
     try {
       localStorage.setItem(
-        CYCLE_KEY,
+        keys.cycle,
         JSON.stringify({ completed: machine.completed, pendingBreak: machine.pendingBreak })
       );
     } catch {
       /* private mode — cycle resets on refresh, nothing else breaks */
     }
-  }, [machine.completed, machine.pendingBreak]);
+  }, [keys.cycle, machine.completed, machine.pendingBreak]);
 
   // Same lifetime as the page-scoped message on /settings: the notice fades
   // after a beat. Whether it still belongs to the current block is derived in
@@ -369,15 +404,17 @@ export default function TimerScreen() {
   }, [ticking, dispatch]);
 
   useEffect(() => {
-    if (machine.timer) localStorage.setItem(STORAGE_KEY, serializeState(machine.timer));
-    else localStorage.removeItem(STORAGE_KEY);
-  }, [machine.timer]);
+    if (machine.timer) localStorage.setItem(keys.clock, serializeState(machine.timer));
+    else localStorage.removeItem(keys.clock);
+  }, [keys.clock, machine.timer]);
 
   useEffect(() => {
     const batch = machine.pending;
     if (batch.length === 0) return;
     for (const effect of batch) {
       if (effect.type === "save") {
+        // A guest has no account to save into; the block is dropped on purpose.
+        if (guest) continue;
         saveBlock(effect.state, effect.endedAt).catch(() => {
           /* queued for retry; the UI moves on regardless */
         });
@@ -388,7 +425,7 @@ export default function TimerScreen() {
       }
     }
     rawDispatch({ kind: "drained", count: batch.length });
-  }, [machine.pending, settings]);
+  }, [guest, machine.pending, settings]);
 
   function handleLabelSave(labelText: string, tagId: string | null) {
     dispatch({ kind: "labelSave", label: labelText || null, tagId });

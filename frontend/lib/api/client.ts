@@ -80,6 +80,9 @@ const PUBLIC_AUTH_PATHS = new Set([
   "/verify-email",
   "/forgot-password",
   "/reset-password",
+  // The guest timer calls no endpoint; listed so a stray 401 can never
+  // hard-navigate a guest away from a running block.
+  "/guest",
 ]);
 
 export function isPublicAuthPath(pathname: string): boolean {

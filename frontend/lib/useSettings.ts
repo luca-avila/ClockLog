@@ -24,12 +24,16 @@ import { fetchSettings } from "@/lib/api/settings";
  * Settings shared by the timer and the settings page. Starts from
  * defaults so the idle screen renders immediately; the server value
  * replaces them when it arrives. Offline or signed out: defaults.
+ *
+ * `remote: false` never asks the server: a guest has no settings to fetch,
+ * and the 401 would bounce them to /login.
  */
-export function useSettings() {
+export function useSettings(remote = true) {
   const [settings, setSettings] = useState<TimerSettings>(defaultSettings);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(remote);
 
   useEffect(() => {
+    if (!remote) return;
     let cancelled = false;
     fetchSettings()
       .then((s) => {
@@ -44,7 +48,7 @@ export function useSettings() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [remote]);
 
   return { settings, setSettings, loading };
 }
